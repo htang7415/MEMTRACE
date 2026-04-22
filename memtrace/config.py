@@ -23,6 +23,10 @@ LABELS_PATH = GOLD_DIR / "labels.json"
 EPISODES_PATH = EPISODES_DIR / "episodes.json"
 RETRIEVAL_VERIFICATION_PATH = INDICES_DIR / "verification.json"
 RUN_SUMMARY_PATH = RESULTS_DIR / "run_summary.json"
+EPISODE_SCORES_PATH = RESULTS_DIR / "episode_scores.json"
+METRICS_PATH = RESULTS_DIR / "metrics.json"
+TABLE1_MD_PATH = RESULTS_DIR / "table1.md"
+SUPPLEMENTARY_TABLES_MD_PATH = RESULTS_DIR / "supplementary_tables.md"
 
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 ACTOR_MODELS = (

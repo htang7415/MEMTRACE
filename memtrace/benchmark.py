@@ -271,8 +271,6 @@ def task_id_by_query() -> dict[str, str]:
         mapping[task.clean_query] = task.task_id
         mapping[task.poison_query] = task.task_id
         mapping[task.trigger_query] = task.task_id
-        for filler in task.filler_queries:
-            mapping[filler] = task.task_id
     return mapping
 
 

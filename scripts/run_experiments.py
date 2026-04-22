@@ -16,6 +16,9 @@ def main() -> None:
             turns=episode.turns,
             system=episode.system,
             db_path=SQLITE_PATH,
+            episode_kind=episode.episode_kind,
+            episode_payload_type=episode.payload_type,
+            episode_horizon=episode.horizon,
         )
         trace_path = save_trace(TRACES_DIR, episode.episode_id, trace)
         summaries.append(
@@ -24,6 +27,7 @@ def main() -> None:
                 "system": episode.system,
                 "episode_kind": episode.episode_kind,
                 "payload_type": episode.payload_type,
+                "horizon": episode.horizon,
                 "trace_path": str(trace_path),
                 "turn_count": len(trace),
             }
