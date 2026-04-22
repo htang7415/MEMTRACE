@@ -12,6 +12,11 @@ def s0_filter(candidates: list[MemoryCandidate], write_turn: int) -> list[Memory
     return []
 
 
+def s0_filter_with_rejections(candidates: list[MemoryCandidate], write_turn: int) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+    del candidates, write_turn
+    return [], []
+
+
 def s1_filter(candidates: list[MemoryCandidate], write_turn: int) -> list[MemoryRecord]:
     return [
         MemoryRecord(
@@ -27,12 +32,30 @@ def s1_filter(candidates: list[MemoryCandidate], write_turn: int) -> list[Memory
     ]
 
 
+def s1_filter_with_rejections(candidates: list[MemoryCandidate], write_turn: int) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+    return s1_filter(candidates, write_turn), []
+
+
 def s2_filter(
     candidates: list[MemoryCandidate],
     write_turn: int,
     allowlisted_source_ids: set[str],
 ) -> list[MemoryRecord]:
-    records: list[MemoryRecord] = []
+    accepted, _ = s2_filter_with_rejections(
+        candidates=candidates,
+        write_turn=write_turn,
+        allowlisted_source_ids=allowlisted_source_ids,
+    )
+    return accepted
+
+
+def s2_filter_with_rejections(
+    candidates: list[MemoryCandidate],
+    write_turn: int,
+    allowlisted_source_ids: set[str],
+) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+    accepted: list[MemoryRecord] = []
+    rejected: list[MemoryRecord] = []
     for candidate in candidates:
         trust_level = _trust_level(
             candidate.source_kind,
@@ -46,19 +69,20 @@ def s2_filter(
             validation_status = "rejected_provenance"
         else:
             validation_status = "accepted"
+        record = MemoryRecord(
+            memory_type=candidate.memory_type,
+            content=candidate.content,
+            source_id=candidate.source_id,
+            source_kind=candidate.source_kind,
+            trust_level=trust_level,
+            write_turn=write_turn,
+            validation_status=validation_status,
+        )
         if validation_status == "accepted":
-            records.append(
-                MemoryRecord(
-                    memory_type=candidate.memory_type,
-                    content=candidate.content,
-                    source_id=candidate.source_id,
-                    source_kind=candidate.source_kind,
-                    trust_level=trust_level,
-                    write_turn=write_turn,
-                    validation_status=validation_status,
-                )
-            )
-    return records
+            accepted.append(record)
+        else:
+            rejected.append(record)
+    return accepted, rejected
 
 
 def _trust_level(source_kind: str, allowlisted: bool) -> str:

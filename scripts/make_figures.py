@@ -80,14 +80,15 @@ def build_pipeline_figure() -> str:
 
 def build_ovr_vs_svr(metrics: dict) -> str:
     systems = ["S0", "S1", "S2"]
+    averages = metrics["system_average"]
     colors = {"OVR": "#c76d3a", "SVR": "#2a7f62"}
     bars = []
-    labels = ['<text x="30" y="32" font-size="22" fill="#1f1f1f">Figure 2. OVR vs SVR by system</text>']
+    labels = ['<text x="30" y="32" font-size="22" fill="#1f1f1f">Figure 2. OVR vs SVR by system, averaged over actor models</text>']
     base_y = 250
     x = 80
     for i, system in enumerate(systems):
-        ovr = metrics[system]["OVR"]
-        svr = metrics[system]["SVR"]
+        ovr = averages[system]["OVR"]
+        svr = averages[system]["SVR"]
         sx = x + i * 180
         bars.append(_bar(sx, base_y, 44, 180 * ovr, colors["OVR"]))
         bars.append(_bar(sx + 58, base_y, 44, 180 * svr, colors["SVR"]))
@@ -109,18 +110,7 @@ def build_par_by_task_family(episode_scores: list[dict]) -> str:
     for item in episode_scores:
         if item["episode_kind"] != "stateful_attack":
             continue
-        family = "policy_memory" if any(
-            key in item["episode_id"]
-            for key in [
-                "approval-limit-rule",
-                "access-control-rule",
-                "data-sharing-rule",
-                "escalation-rule",
-                "permission-scope-rule",
-                "budget-limit-rule",
-            ]
-        ) else "tool_argument_memory"
-        grouped[(item["system"], family)].append(item)
+        grouped[(item["system"], item["family"])].append(item)
     systems = ["S0", "S1", "S2"]
     families = ["policy_memory", "tool_argument_memory"]
     colors = {"policy_memory": "#1f6aa5", "tool_argument_memory": "#9c3d54"}
@@ -145,41 +135,51 @@ def build_par_by_task_family(episode_scores: list[dict]) -> str:
 
 
 def build_one_shot_vs_stateful(metrics: dict) -> str:
-    systems = ["S1", "S2"]
-    parts = ['<text x="30" y="32" font-size="22" fill="#1f1f1f">Figure 4. One-shot vs stateful ranking</text>']
-    parts += _axes(70, 60, 620, 250)
-    for i, system in enumerate(systems):
-        x = 180 + i * 220
-        ovr = metrics[system]["OVR"]
-        svr = metrics[system]["SVR"]
-        parts.append(f'<circle cx="{x}" cy="{250 - 180*ovr}" r="7" fill="#c76d3a" />')
-        parts.append(f'<circle cx="{x+70}" cy="{250 - 180*svr}" r="7" fill="#2a7f62" />')
-        parts.append(f'<line x1="{x}" y1="{250 - 180*ovr}" x2="{x+70}" y2="{250 - 180*svr}" stroke="#444" />')
-        parts.append(f'<text x="{x+35}" y="278" text-anchor="middle" font-size="14">{system}</text>')
-        parts.append(f'<text x="{x}" y="{250 - 180*ovr - 12}" text-anchor="middle" font-size="12">{ovr:.2f}</text>')
-        parts.append(f'<text x="{x+70}" y="{250 - 180*svr - 12}" text-anchor="middle" font-size="12">{svr:.2f}</text>')
+    actor_models = list(metrics["by_configuration"].keys())
+    width = 760
+    height = 340
+    parts = ['<text x="30" y="32" font-size="22" fill="#1f1f1f">Figure 4. One-shot vs stateful ranking by actor model</text>']
+    panel_x = [40, 390]
+    for index, actor_model in enumerate(actor_models):
+        x0 = panel_x[index]
+        parts.extend(_axes(x0 + 30, 70, x0 + 290, 270))
+        parts.append(f'<text x="{x0 + 30}" y="58" font-size="16">{_short_actor_model(actor_model)}</text>')
+        for i, system in enumerate(("S1", "S2")):
+            x = x0 + 90 + i * 110
+            row = metrics["by_configuration"][actor_model][system]
+            ovr = row["OVR"]
+            svr = row["SVR"]
+            parts.append(f'<circle cx="{x}" cy="{270 - 180*ovr}" r="7" fill="#c76d3a" />')
+            parts.append(f'<circle cx="{x+42}" cy="{270 - 180*svr}" r="7" fill="#2a7f62" />')
+            parts.append(f'<line x1="{x}" y1="{270 - 180*ovr}" x2="{x+42}" y2="{270 - 180*svr}" stroke="#444" />')
+            parts.append(f'<text x="{x+21}" y="298" text-anchor="middle" font-size="14">{system}</text>')
+        parts.append(f'<text x="{x0 + 210}" y="58" font-size="12">ranking reversal={metrics["ranking_reversal_by_actor_model"][actor_model]}</text>')
     parts += [
-        '<rect x="470" y="22" width="14" height="14" fill="#c76d3a" />',
-        '<text x="492" y="34" font-size="13">OVR</text>',
-        '<rect x="540" y="22" width="14" height="14" fill="#2a7f62" />',
-        '<text x="562" y="34" font-size="13">SVR</text>',
+        '<rect x="560" y="18" width="14" height="14" fill="#c76d3a" />',
+        '<text x="582" y="30" font-size="13">OVR</text>',
+        '<rect x="620" y="18" width="14" height="14" fill="#2a7f62" />',
+        '<text x="642" y="30" font-size="13">SVR</text>',
     ]
-    return _svg_wrap(700, 320, parts)
+    return _svg_wrap(width, height, parts)
 
 
 def build_violation_by_horizon(metrics: dict) -> str:
     systems = ["S0", "S1", "S2"]
     colors = {"S0": "#777", "S1": "#c76d3a", "S2": "#2a7f62"}
     x_map = {"1": 120, "3": 300, "7": 520}
+    averages = metrics["system_average"]
     parts = ['<text x="30" y="32" font-size="22" fill="#1f1f1f">Figure 5. Violation rate by horizon</text>']
     parts += _axes(70, 60, 620, 250)
     for system in systems:
         pts = []
+        dash = ' stroke-dasharray="6 6"' if system == "S0" else ""
         for horizon in ("1", "3", "7"):
-            y = 250 - 180 * metrics[system]["stateful_by_horizon"].get(horizon, 0.0)
+            y = 250 - 180 * averages[system]["stateful_by_horizon"].get(horizon, 0.0)
             pts.append((x_map[horizon], y))
             parts.append(f'<circle cx="{x_map[horizon]}" cy="{y}" r="5" fill="{colors[system]}" />')
-        parts.append(f'<polyline fill="none" stroke="{colors[system]}" stroke-width="2" points="{" ".join(f"{x},{y}" for x,y in pts)}" />')
+        parts.append(
+            f'<polyline fill="none" stroke="{colors[system]}" stroke-width="2"{dash} points="{" ".join(f"{x},{y}" for x,y in pts)}" />'
+        )
     for horizon, x in x_map.items():
         parts.append(f'<text x="{x}" y="278" text-anchor="middle" font-size="14">Δ={horizon}</text>')
     parts += [
@@ -191,6 +191,14 @@ def build_violation_by_horizon(metrics: dict) -> str:
         '<text x="612" y="30" font-size="13">S2</text>',
     ]
     return _svg_wrap(700, 320, parts)
+
+
+def _short_actor_model(actor_model: str) -> str:
+    if "Qwen2.5-3B" in actor_model:
+        return "Qwen2.5-3B"
+    if "Llama-3.2-3B" in actor_model:
+        return "Llama-3.2-3B"
+    return actor_model
 
 
 def _svg_wrap(width: int, height: int, parts: list[str]) -> str:
@@ -207,7 +215,7 @@ def _axes(x: int, y: int, width: int, baseline_y: int) -> list[str]:
         f'<line x1="{x}" y1="{y}" x2="{x}" y2="{baseline_y}" stroke="#1f1f1f" />',
         f'<line x1="{x}" y1="{baseline_y}" x2="{width}" y2="{baseline_y}" stroke="#1f1f1f" />',
     ]
-    for tick, value in enumerate((0.0, 0.5, 1.0)):
+    for value in (0.0, 0.5, 1.0):
         ty = baseline_y - 180 * value
         parts.append(f'<line x1="{x-5}" y1="{ty}" x2="{x}" y2="{ty}" stroke="#1f1f1f" />')
         parts.append(f'<text x="{x-10}" y="{ty+4}" text-anchor="end" font-size="12">{value:.1f}</text>')

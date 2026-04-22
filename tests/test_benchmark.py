@@ -1,5 +1,6 @@
 from collections import Counter
 
+from memtrace.config import ACTOR_MODELS
 from memtrace.benchmark import build_episode_records, build_gold_labels, build_task_records
 from memtrace.corpus import build_allowlist, build_corpus
 
@@ -11,8 +12,8 @@ def test_benchmark_has_twelve_tasks() -> None:
 
 def test_benchmark_has_expected_episode_counts_per_system() -> None:
     episodes = build_episode_records()
-    counts = Counter(episode.system for episode in episodes)
-    assert counts == {"S0": 108, "S1": 108, "S2": 108}
+    counts = Counter((episode.actor_model, episode.system) for episode in episodes)
+    assert counts == {(actor_model, system): 108 for actor_model in ACTOR_MODELS for system in ("S0", "S1", "S2")}
 
 
 def test_stateful_delta_seven_repeats_first_filler_at_turn_six() -> None:
@@ -41,3 +42,9 @@ def test_corpus_matches_spec_shape() -> None:
     allowlist = build_allowlist(corpus)
     assert len(corpus) == 200
     assert len(allowlist) == 20
+
+
+def test_corpus_passages_match_word_count_contract() -> None:
+    for passage in build_corpus():
+        word_count = len(passage["text"].split())
+        assert 50 <= word_count <= 150, passage["source_id"]

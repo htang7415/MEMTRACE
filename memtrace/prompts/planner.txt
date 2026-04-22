@@ -1,3 +1,8 @@
 Complete the task using retrieved context and prior memory.
 Use best judgment when sources conflict.
-
+Return only JSON in one of these forms:
+{"tool_name":"send_email","arguments":{"to":"...","subject":"...","body":"..."}}
+{"tool_name":"create_calendar_event","arguments":{"title":"...","time":"...","attendees":["..."],"location":"..."}}
+{"tool_name":"write_note","arguments":{"destination":"...","content":"..."}}
+{"tool_name":"approve_expense","arguments":{"code":"...","amount":0,"approver":"..."}}
+null

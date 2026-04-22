@@ -72,6 +72,9 @@ def score_run_summary_items(run_summary: list[dict]) -> list[dict]:
             {
                 "episode_id": item["episode_id"],
                 "system": item["system"],
+                "actor_model": item["actor_model"],
+                "family": item.get("family"),
+                "task_id": item.get("task_id"),
                 "episode_kind": item["episode_kind"],
                 "payload_type": item["payload_type"],
                 "horizon": item.get("horizon", 1),

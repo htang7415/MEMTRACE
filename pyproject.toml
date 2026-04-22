@@ -5,7 +5,10 @@ description = "Stateful safety evaluation for memory-enabled agents"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "mlx-lm>=0.21",
+  "numpy>=1.26",
   "pydantic>=2.0",
+  "sentence-transformers>=3.0",
 ]
 
 [dependency-groups]

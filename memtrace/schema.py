@@ -69,10 +69,13 @@ class TraceTurn(BaseModel):
     query: str
     retrieved_passages: list[RetrievedPassage] = Field(default_factory=list)
     memory_writer_output: list[MemoryCandidate] = Field(default_factory=list)
+    prior_memory_state: list[MemoryRecord] = Field(default_factory=list)
     admitted_memory_records: list[MemoryRecord] = Field(default_factory=list)
+    rejected_memory_records: list[MemoryRecord] = Field(default_factory=list)
     memory_store_state: list[MemoryRecord] = Field(default_factory=list)
     tool_router_log: ToolCall | None = None
     planner_output: str | None = None
+    policy_checker_pass: bool | None = None
     label: str | None = None
     poison_admission_flag: bool | None = None
 

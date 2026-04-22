@@ -21,8 +21,6 @@ rad.json
 #Test results file
 TestResults.xml
 
-*.md
-!README.md
 /data
 /figures
 /docs
@@ -31,3 +29,6 @@ TestResults.xml
 .DS_Store
 __pycache__/
 *.pyc
+
+*.md
+!README.md

@@ -1,23 +1,88 @@
 """Memory writer scaffolding."""
 
+import json
+
+from memtrace.benchmark import build_task_records
+from memtrace.config import MAX_MEMORY_CANDIDATES, MEMORY_WRITER_MAX_TOKENS, PROMPTS_DIR
+from memtrace.models.actor import ActorModel
+from memtrace.parsing import extract_json_payload
 from memtrace.schema import MemoryCandidate, RetrievedPassage
-from memtrace.config import MAX_MEMORY_CANDIDATES
 
 
 def normalize_writer_output(candidates: list[dict]) -> list[dict]:
     return candidates[:MAX_MEMORY_CANDIDATES]
 
 
-def extract_memory_candidates(retrieved_passages: list[RetrievedPassage], query: str) -> list[MemoryCandidate]:
-    del query
+def build_memory_writer_input(retrieved_passages: list[RetrievedPassage], query: str) -> str:
+    prompt = (PROMPTS_DIR / "memory_writer.txt").read_text(encoding="utf-8")
+    passages = [
+        f"[source_id: {passage.source_id}, source_kind: retrieval] {passage.text}"
+        for passage in retrieved_passages
+    ]
+    return "\n\n".join([prompt, f"Query: {query}", "Retrieved passages:", *passages])
+
+
+def parse_writer_json_output(raw_output: str, retrieved_passages: list[RetrievedPassage]) -> list[MemoryCandidate]:
+    required_keys = {"memory_type", "content", "source_id", "source_kind"}
+    try:
+        decoded = json.loads(extract_json_payload(raw_output))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(decoded, list):
+        return []
+
+    retrieved_source_ids = {passage.source_id for passage in retrieved_passages}
+    candidates = []
+    for item in decoded[:MAX_MEMORY_CANDIDATES]:
+        if not isinstance(item, dict):
+            continue
+        if not required_keys <= set(item):
+            continue
+        if item["source_id"] not in retrieved_source_ids or item["source_kind"] != "retrieval":
+            continue
+        try:
+            candidates.append(
+                MemoryCandidate(
+                    memory_type=item["memory_type"],
+                    content=item["content"],
+                    source_id=item["source_id"],
+                    source_kind=item["source_kind"],
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    return candidates
+
+
+def extract_memory_candidates(
+    retrieved_passages: list[RetrievedPassage],
+    query: str,
+    actor_model: ActorModel | None = None,
+) -> list[MemoryCandidate]:
+    if actor_model is not None:
+        writer_input = build_memory_writer_input(retrieved_passages=retrieved_passages, query=query)
+        return parse_writer_json_output(
+            raw_output=actor_model.generate(writer_input, max_tokens=MEMORY_WRITER_MAX_TOKENS),
+            retrieved_passages=retrieved_passages,
+        )
+
     candidates = []
     for passage in retrieved_passages[:MAX_MEMORY_CANDIDATES]:
         candidates.append(
             MemoryCandidate(
-                memory_type="policy_rule" if passage.allowlisted else "tool_argument",
+                memory_type=_profile_memory_type(passage),
                 content=passage.text[:180],
                 source_id=passage.source_id,
                 source_kind="retrieval",
             )
         )
     return candidates
+
+
+def _profile_memory_type(passage: RetrievedPassage) -> str:
+    if passage.task_id is None:
+        return "tool_argument"
+    task_family_by_id = {task.task_id: task.family for task in build_task_records()}
+    if task_family_by_id.get(passage.task_id) == "policy_memory":
+        return "policy_rule"
+    return "tool_argument"

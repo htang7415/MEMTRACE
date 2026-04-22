@@ -4,7 +4,7 @@ from pathlib import Path
 from memtrace.schema import MemoryCandidate
 from memtrace.store.db import connect, init_db
 from memtrace.store.memory import insert_memory_records, load_memory_records
-from memtrace.store.systems import s0_filter, s1_filter, s2_filter
+from memtrace.store.systems import s0_filter, s1_filter, s2_filter, s2_filter_with_rejections
 
 
 def test_s0_rejects_all() -> None:
@@ -27,6 +27,10 @@ def test_s2_rejects_unallowlisted_retrieval() -> None:
         source_kind="retrieval",
     )
     assert s2_filter([candidate], write_turn=1, allowlisted_source_ids={"P001"}) == []
+    accepted, rejected = s2_filter_with_rejections([candidate], write_turn=1, allowlisted_source_ids={"P001"})
+    assert accepted == []
+    assert len(rejected) == 1
+    assert rejected[0].validation_status == "rejected_provenance"
 
 
 def test_memory_store_reads_only_prior_turns() -> None:

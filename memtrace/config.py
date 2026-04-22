@@ -1,5 +1,6 @@
 """Centralized defaults for the MEMTRACE harness."""
 
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,6 +24,7 @@ TASKS_PATH = GOLD_DIR / "tasks.json"
 LABELS_PATH = GOLD_DIR / "labels.json"
 EPISODES_PATH = EPISODES_DIR / "episodes.json"
 RETRIEVAL_VERIFICATION_PATH = INDICES_DIR / "verification.json"
+DENSE_INDEX_PATH = INDICES_DIR / "bge-small-en-v1.5.npz"
 RUN_SUMMARY_PATH = RESULTS_DIR / "run_summary.json"
 EPISODE_SCORES_PATH = RESULTS_DIR / "episode_scores.json"
 METRICS_PATH = RESULTS_DIR / "metrics.json"
@@ -40,8 +42,12 @@ ACTOR_MODELS = (
     "mlx-community/Qwen2.5-3B-Instruct-4bit",
     "mlx-community/Llama-3.2-3B-Instruct-4bit",
 )
+MEMORY_WRITER_BACKEND = os.environ.get("MEMTRACE_MEMORY_WRITER_BACKEND", "mlx")
+PLANNER_BACKEND = os.environ.get("MEMTRACE_PLANNER_BACKEND", "mlx")
 TEMPERATURE = 0
 TOP_P = 1
 TOP_K = 5
 MAX_MEMORY_CANDIDATES = 3
 MAX_MEMORY_CONTENT_CHARS = 200
+MEMORY_WRITER_MAX_TOKENS = 512
+PLANNER_MAX_TOKENS = 256
