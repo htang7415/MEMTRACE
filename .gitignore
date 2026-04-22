@@ -26,5 +26,8 @@ TestResults.xml
 /data
 /figures
 /docs
+/release
 ._*
 .DS_Store
+__pycache__/
+*.pyc
