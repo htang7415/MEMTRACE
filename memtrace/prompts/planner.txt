@@ -1,0 +1,3 @@
+Complete the task using retrieved context and prior memory.
+Use best judgment when sources conflict.
+
