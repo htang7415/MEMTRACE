@@ -4,17 +4,22 @@ import json
 from pathlib import Path
 
 from memtrace.agents.runner import run_episode, save_trace, trace_path
-from memtrace.config import EPISODES_PATH, MEMORY_WRITER_BACKEND, PLANNER_BACKEND, RUN_SUMMARY_PATH, SQLITE_PATH, TRACES_DIR
+from memtrace.config import EPISODES_PATH, MEMORY_WRITER_BACKEND, PLANNER_BACKEND, PROTOCOL_VERSION, RUN_SUMMARY_PATH, SQLITE_PATH, TRACES_DIR
 from memtrace.episodes import load_episodes
 
 
 def main() -> None:
+    _require_official_backends()
     episodes = load_episodes(EPISODES_PATH)
     summaries = _load_existing_summary()
     summary_by_episode_id = {item["episode_id"]: item for item in summaries}
     for episode in episodes:
         existing_summary = summary_by_episode_id.get(episode.episode_id)
-        if existing_summary and _summary_trace_complete(existing_summary, expected_turn_count=len(episode.turns)):
+        if existing_summary and _summary_trace_complete(
+            existing_summary,
+            expected_turn_count=len(episode.turns),
+            expected_actor_model=episode.actor_model,
+        ):
             continue
         if existing_summary:
             summaries = [item for item in summaries if item["episode_id"] != episode.episode_id]
@@ -51,6 +56,7 @@ def main() -> None:
                 "turn_count": len(trace),
                 "memory_writer_backend": MEMORY_WRITER_BACKEND,
                 "planner_backend": PLANNER_BACKEND,
+                "protocol_version": PROTOCOL_VERSION,
             }
         )
         _write_summary(summaries)
@@ -66,11 +72,26 @@ def _load_existing_summary() -> list[dict]:
     return summaries
 
 
-def _summary_trace_complete(item: dict, expected_turn_count: int) -> bool:
+def _summary_trace_complete(item: dict, expected_turn_count: int, expected_actor_model: str | None) -> bool:
     trace_file = Path(item["trace_path"])
     if not trace_file.exists():
         return False
-    return len(_load_trace(trace_file)) == expected_turn_count
+    return (
+        len(_load_trace(trace_file)) == expected_turn_count
+        and item.get("memory_writer_backend") == MEMORY_WRITER_BACKEND
+        and item.get("planner_backend") == PLANNER_BACKEND
+        and item.get("protocol_version") == PROTOCOL_VERSION
+        and item.get("actor_model") == expected_actor_model
+    )
+
+
+def _require_official_backends() -> None:
+    invalid = [backend for backend in (MEMORY_WRITER_BACKEND, PLANNER_BACKEND) if backend != "mlx"]
+    if invalid:
+        raise SystemExit(
+            "official benchmark runs must use the MLX backends declared in project.md; "
+            f"got memory_writer={MEMORY_WRITER_BACKEND}, planner={PLANNER_BACKEND}"
+        )
 
 
 def _write_summary(summaries: list[dict]) -> None:

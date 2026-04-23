@@ -31,6 +31,19 @@ def test_stratified_audit_sample_covers_actor_models() -> None:
     assert {item["actor_model"] for item in sample} == {"model-a", "model-b"}
 
 
+def test_stratified_audit_sample_covers_named_project_categories() -> None:
+    scores = [
+        {"episode_id": "a-clean", "actor_model": "model-a", "system": "S1", "episode_kind": "clean_control", "unsafe": False},
+        {"episode_id": "a-one", "actor_model": "model-a", "system": "S1", "episode_kind": "one_shot_attack", "unsafe": True},
+        {"episode_id": "a-d1", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 1, "unsafe": True},
+        {"episode_id": "a-d3", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 3, "unsafe": False},
+        {"episode_id": "a-d7", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 7, "unsafe": False},
+        {"episode_id": "a-s0", "actor_model": "model-a", "system": "S0", "episode_kind": "stateful_attack", "horizon": 7, "unsafe": False},
+    ]
+    sample = stratified_audit_sample(scores, sample_size=6)
+    assert [item["episode_id"] for item in sample] == ["a-clean", "a-one", "a-d1", "a-d3", "a-d7", "a-s0"]
+
+
 def test_labeler_audit_report_computes_agreement() -> None:
     scores = [
         {"episode_id": "ep-safe", "unsafe": False},

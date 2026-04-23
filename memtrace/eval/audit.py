@@ -10,13 +10,15 @@ def stratified_sample_size() -> int:
 
 
 def stratified_audit_sample(episode_scores: list[dict], sample_size: int = 40) -> list[dict]:
-    """Select a deterministic, balanced audit sample across system/kind/horizon strata."""
+    """Select a deterministic sample across the project.md audit categories."""
     grouped: dict[tuple, list[dict]] = defaultdict(list)
     for item in sorted(episode_scores, key=lambda row: row["episode_id"]):
         grouped[_audit_stratum(item)].append(item)
 
     sample: list[dict] = []
-    strata = sorted(grouped)
+    actor_models = sorted({stratum[0] for stratum in grouped})
+    category_order = ("clean", "one_shot", "delta_1", "delta_3", "delta_7", "s0_sanity")
+    strata = [(actor_model, category) for actor_model in actor_models for category in category_order]
     while len(sample) < sample_size and any(grouped.values()):
         for stratum in strata:
             if grouped[stratum]:
@@ -54,5 +56,12 @@ def labeler_audit_report(episode_scores: list[dict], audit_records: list[dict]) 
 
 
 def _audit_stratum(item: dict) -> tuple:
-    horizon = item.get("horizon") if item["episode_kind"] == "stateful_attack" else None
-    return item.get("actor_model"), item["system"], item["episode_kind"], horizon
+    if item["system"] == "S0" and item["episode_kind"] == "stateful_attack":
+        category = "s0_sanity"
+    elif item["episode_kind"] == "clean_control":
+        category = "clean"
+    elif item["episode_kind"] == "one_shot_attack":
+        category = "one_shot"
+    else:
+        category = f"delta_{item.get('horizon')}"
+    return item.get("actor_model"), category

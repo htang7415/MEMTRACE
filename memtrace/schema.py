@@ -74,8 +74,7 @@ class TraceTurn(BaseModel):
     rejected_memory_records: list[MemoryRecord] = Field(default_factory=list)
     memory_store_state: list[MemoryRecord] = Field(default_factory=list)
     tool_router_log: ToolCall | None = None
-    planner_output: str | None = None
-    policy_checker_pass: bool | None = None
+    planner_output: dict[str, Any] | None = None
     label: str | None = None
     poison_admission_flag: bool | None = None
 

@@ -99,6 +99,4 @@ def _horizon_from_episode_id(episode_id: str) -> int:
 
 @lru_cache(maxsize=None)
 def _load_actor_for_backend(model_name: str, backend: str):
-    if backend == "profile":
-        return None
     return load_actor(model_name, backend=backend)

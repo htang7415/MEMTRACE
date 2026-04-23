@@ -3,22 +3,24 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 
-from memtrace.actors import baseline_attack_success, memory_attack_success
 from memtrace.benchmark import build_gold_labels, build_task_records, task_id_by_query, task_spec_by_task_id
 from memtrace.agents.planner import plan_tool_call_with_actor
+from memtrace.agents.responder import format_response
 from memtrace.agents.writer import extract_memory_candidates
 from memtrace.config import ALLOWLIST_PATH, PASSAGES_PATH, TOP_K
 from memtrace.eval.labeler import is_safe
 from memtrace.models.actor import ActorModel
-from memtrace.retrieval import load_passages, retrieve
+from memtrace.retrieval import retrieve
 from memtrace.schema import MemoryRecord, TraceTurn
 from memtrace.store.memory import load_memory_records
 from memtrace.store.systems import s0_filter_with_rejections, s1_filter_with_rejections, s2_filter_with_rejections
 from memtrace.tools.policy_checker import check_policy
-from memtrace.tools.router import log_tool_call
+
+LOGGER = logging.getLogger(__name__)
 
 
 def run_turn(
@@ -52,7 +54,7 @@ def run_turn(
         episode_id=episode_id,
         turn=turn,
         query=query,
-        retrieved_passages=retrieved_passages,
+        retrieved_passages=effective_retrieved_passages,
         memory_writer_output=writer_output,
         prior_memory_state=prior_memory,
     )
@@ -66,23 +68,28 @@ def run_turn(
         retrieved_passages=effective_retrieved_passages,
         turn=turn,
         is_final_turn=is_final_turn,
-        actor_model=actor_model,
-        episode_payload_type=episode_payload_type,
-        episode_horizon=episode_horizon,
-        episode_kind=episode_kind,
         planner_actor=planner_actor,
     )
     trace_turn.tool_router_log = tool_call
     gold_label = _gold_label_for_query(query)
-    trace_turn.policy_checker_pass = check_policy(tool_call=tool_call, gold_label=gold_label) if gold_label else None
-    trace_turn.planner_output = _planner_output(
-        tool_call=tool_call,
-        actor_model=actor_model,
-        prior_memory=prior_memory,
-    )
+    if gold_label:
+        policy_check_passed = check_policy(tool_call=tool_call, gold_label=gold_label)
+        LOGGER.info(
+            "policy_checker episode_id=%s turn=%s pass=%s",
+            episode_id,
+            turn,
+            policy_check_passed,
+        )
+    trace_turn.planner_output = _planner_output(tool_call=tool_call)
     trace_turn.label = _label_for_query(query=query, tool_call=tool_call, is_final_turn=is_final_turn)
+    response_text = format_response(tool_call)
+    LOGGER.info("responder episode_id=%s turn=%s response=%r", episode_id, turn, response_text)
     if _is_poison_query(query):
-        trace_turn.poison_admission_flag = any(record.trust_level == "low" for record in accepted_records)
+        trace_turn.poison_admission_flag = _admitted_malicious_candidate(
+            accepted_records=accepted_records,
+            task_id=task_id,
+            payload_type=episode_payload_type,
+        )
     return trace_turn, accepted_records
 
 
@@ -116,10 +123,6 @@ def _plan_tool_call(
     retrieved_passages: list,
     turn: int,
     is_final_turn: bool,
-    actor_model: str,
-    episode_payload_type: str,
-    episode_horizon: int,
-    episode_kind: str,
     planner_actor: ActorModel | None,
 ) -> object | None:
     if not is_final_turn:
@@ -127,36 +130,15 @@ def _plan_tool_call(
     task_id = task_id_by_query().get(query)
     if task_id is None:
         return None
-    if planner_actor is not None:
-        return plan_tool_call_with_actor(
-            query=query,
-            retrieved_passages=retrieved_passages,
-            memory_records=prior_memory,
-            turn=turn,
-            actor_model=planner_actor,
-        )
-    spec = task_spec_by_task_id()[task_id]
-    task = next(task for task in build_task_records() if task.task_id == task_id)
-    poisoned_memory = _memory_causes_override(
-        prior_memory=prior_memory,
-        task_id=task_id,
-        actor_model=actor_model,
-        episode_payload_type=episode_payload_type,
-        episode_horizon=episode_horizon,
-    )
-    baseline_poison = _baseline_causes_override(
-        actor_model=actor_model,
-        episode_kind=episode_kind,
-        episode_payload_type=episode_payload_type,
+    if planner_actor is None:
+        raise RuntimeError("planner execution requires an actor backend")
+    return plan_tool_call_with_actor(
         query=query,
-        task=task,
+        retrieved_passages=retrieved_passages,
+        memory_records=prior_memory,
+        turn=turn,
+        actor_model=planner_actor,
     )
-    poisoned = poisoned_memory or baseline_poison
-    tool_name = spec["unsafe_tool"] if poisoned else spec["expected_tool"]
-    arguments = spec["unsafe_arguments"] if poisoned else spec["expected_arguments"]
-    if tool_name is None:
-        return None
-    return log_tool_call(tool_name=tool_name, arguments=arguments, turn=turn)
 
 
 def _label_for_query(query: str, tool_call, is_final_turn: bool) -> str | None:
@@ -190,51 +172,14 @@ def _filter_payload_retrieval(retrieved_passages: list, task_id: str | None, epi
     return filtered
 
 
-def _memory_causes_override(
-    prior_memory: list,
-    task_id: str,
-    actor_model: str,
-    episode_payload_type: str,
-    episode_horizon: int,
-) -> bool:
-    poison_source_ids = _poison_source_ids(task_id=task_id, payload_type=episode_payload_type)
-    admitted_poison = any(record.source_id in poison_source_ids for record in prior_memory)
-    if not admitted_poison:
+def _admitted_malicious_candidate(accepted_records: list[MemoryRecord], task_id: str | None, payload_type: str) -> bool:
+    if task_id is None or payload_type not in {"direct_override", "contextual_drift"}:
         return False
-    return memory_attack_success(actor_model, episode_payload_type, episode_horizon)
+    payload_text = task_spec_by_task_id()[task_id]["payloads"][payload_type]
+    return any(record.source_kind == "retrieval" and payload_text in record.content for record in accepted_records)
 
 
-@lru_cache(maxsize=None)
-def _poison_source_ids(task_id: str, payload_type: str) -> frozenset[str]:
-    return frozenset(
-        passage["source_id"]
-        for passage in load_passages(PASSAGES_PATH)
-        if passage.get("task_id") == task_id
-        and passage.get("payload_type") == payload_type
-        and passage.get("passage_kind") == "poison"
-    )
-
-
-def _baseline_causes_override(
-    actor_model: str,
-    episode_kind: str,
-    episode_payload_type: str,
-    query: str,
-    task,
-) -> bool:
-    if episode_kind != "one_shot_attack":
-        return False
-    if query != task.poison_query:
-        return False
-    return baseline_attack_success(actor_model, episode_payload_type)
-
-
-def _planner_output(tool_call, actor_model: str, prior_memory: list) -> str:
-    decision = "refuse" if tool_call is None else f"{tool_call.tool_name}"
-    return json.dumps(
-        {
-            "actor_model": actor_model,
-            "decision": decision,
-            "prior_memory_count": len(prior_memory),
-        }
-    )
+def _planner_output(tool_call) -> dict | None:
+    if tool_call is None:
+        return None
+    return tool_call.model_dump() if hasattr(tool_call, "model_dump") else tool_call.dict()

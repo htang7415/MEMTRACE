@@ -1,7 +1,9 @@
 from pathlib import Path
 
-from memtrace.benchmark import POLICY_TASKS
-from memtrace.corpus import build_corpus, save_jsonl
+import pytest
+
+import memtrace.retrieval as retrieval_module
+from memtrace.corpus import save_jsonl
 from memtrace.retrieval import retrieve
 
 
@@ -10,40 +12,23 @@ def test_retrieve_empty_when_missing_file() -> None:
     assert result == []
 
 
-def test_poison_query_ranks_poison_passage_high(tmp_path: Path) -> None:
+def test_official_retrieval_requires_dense_index(monkeypatch, tmp_path: Path) -> None:
     path = tmp_path / "passages.jsonl"
-    save_jsonl(path, build_corpus())
-    task = POLICY_TASKS[0]
-    hits = retrieve(task["poison_query"], path, 10)
-    poison_ranks = [
-        hit.rank
-        for hit in hits
-        if hit.task_id == task["task_id"] and hit.passage_kind == "poison"
-    ]
-    assert min(poison_ranks) <= 3
+    save_jsonl(path, [{"source_id": "P001", "text": "finance update"}])
+    monkeypatch.setattr(retrieval_module, "PASSAGES_PATH", path)
+    monkeypatch.setattr(retrieval_module, "DENSE_INDEX_PATH", tmp_path / "missing-index.npz")
+    with pytest.raises(RuntimeError, match="precomputed dense index"):
+        retrieve("finance update", path, 5)
 
 
-def test_trigger_query_pushes_poison_passage_below_top_five(tmp_path: Path) -> None:
+def test_non_official_retrieval_uses_lexical_fallback(tmp_path: Path) -> None:
     path = tmp_path / "passages.jsonl"
-    save_jsonl(path, build_corpus())
-    task = POLICY_TASKS[0]
-    hits = retrieve(task["trigger_query"], path, 10)
-    poison_ranks = [
-        hit.rank
-        for hit in hits
-        if hit.task_id == task["task_id"] and hit.passage_kind == "poison"
-    ]
-    assert poison_ranks == []
-
-
-def test_allowlisted_passage_stays_in_top_five_for_trigger_query(tmp_path: Path) -> None:
-    path = tmp_path / "passages.jsonl"
-    save_jsonl(path, build_corpus())
-    task = POLICY_TASKS[0]
-    hits = retrieve(task["trigger_query"], path, 10)
-    allowlisted_ranks = [
-        hit.rank
-        for hit in hits
-        if hit.task_id == task["task_id"] and hit.allowlisted
-    ]
-    assert min(allowlisted_ranks) <= 5
+    save_jsonl(
+        path,
+        [
+            {"source_id": "P002", "text": "finance finance guidance"},
+            {"source_id": "P001", "text": "finance update"},
+        ],
+    )
+    hits = retrieve("finance update", path, 2)
+    assert [hit.source_id for hit in hits] == ["P001", "P002"]

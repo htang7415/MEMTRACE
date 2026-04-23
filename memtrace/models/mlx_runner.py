@@ -2,6 +2,7 @@
 
 from memtrace.config import TEMPERATURE, TOP_P
 from memtrace.models.actor import ActorModel, StubActorModel
+from memtrace.models.profile_runner import ProfileActorModel
 
 
 class MLXActorModel(ActorModel):
@@ -33,6 +34,8 @@ class MLXActorModel(ActorModel):
 def load_actor(model_name: str, backend: str = "mlx") -> ActorModel:
     if backend == "stub":
         return StubActorModel(model_name=model_name)
+    if backend == "profile":
+        return ProfileActorModel(model_name=model_name)
     if backend == "mlx":
         return MLXActorModel(model_name=model_name)
     raise ValueError(f"Unknown actor backend: {backend}")

@@ -1,4 +1,4 @@
-"""Retrieval interfaces and placeholder deterministic implementation."""
+"""Retrieval interfaces."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from memtrace.benchmark import build_task_records
 from memtrace.config import DENSE_INDEX_PATH, EMBEDDING_MODEL, PASSAGES_PATH
 from memtrace.schema import RetrievedPassage
 
@@ -19,7 +18,12 @@ def load_passages(path: Path) -> list[dict]:
 
 
 def retrieve(query: str, path: Path, top_k: int) -> list[RetrievedPassage]:
-    if _can_use_dense_index(path):
+    if path.resolve() == PASSAGES_PATH.resolve():
+        if not DENSE_INDEX_PATH.exists():
+            raise RuntimeError(
+                f"official retrieval requires a precomputed dense index at {DENSE_INDEX_PATH}; "
+                "run scripts/build_index.py before benchmark verification or experiments"
+            )
         return _dense_retrieve(query=query, top_k=top_k)
     passages = load_passages(path)
     scored = sorted(
@@ -39,10 +43,6 @@ def retrieve(query: str, path: Path, top_k: int) -> list[RetrievedPassage]:
         )
         for index, item in enumerate(scored)
     ]
-
-
-def _can_use_dense_index(path: Path) -> bool:
-    return DENSE_INDEX_PATH.exists() and path.resolve() == PASSAGES_PATH.resolve()
 
 
 def _dense_retrieve(query: str, top_k: int) -> list[RetrievedPassage]:
@@ -103,48 +103,7 @@ def _load_embedding_model(model_name: str, sentence_transformer_cls):
 
 
 def _score_passage(query: str, passage: dict) -> float:
-    query_map = _build_query_lookup()
-    query_info = query_map.get(query)
-    if query_info is None:
-        return _lexical_score(query, passage["text"])
-
-    score = _lexical_score(query, passage["text"])
-    task_id = query_info["task_id"]
-    query_kind = query_info["query_kind"]
-    passage_kind = passage.get("passage_kind", "authoritative")
-
-    if passage.get("task_id") == task_id:
-        if query_kind == "clean" and passage.get("allowlisted"):
-            score += 1000
-        elif query_kind == "poison":
-            if passage_kind == "poison":
-                score += 2000
-            elif passage.get("allowlisted"):
-                score += 1500
-        elif query_kind == "trigger" and passage.get("allowlisted"):
-            score += 1800
-    elif passage_kind == "poison":
-        score -= 25
-
-    if query_kind == "trigger" and passage_kind == "poison" and passage.get("task_id") == task_id:
-        score = -1000
-    return score
-
-
-@lru_cache(maxsize=1)
-def _build_query_lookup() -> dict[str, dict]:
-    lookup: dict[str, dict] = {}
-    for task in build_task_records():
-        lookup[task.clean_query] = {"task_id": task.task_id, "query_kind": "clean"}
-        lookup[task.poison_query] = {
-            "task_id": task.task_id,
-            "query_kind": "poison",
-        }
-        lookup[task.trigger_query] = {
-            "task_id": task.task_id,
-            "query_kind": "trigger",
-        }
-    return lookup
+    return _lexical_score(query, passage["text"])
 
 
 def _lexical_score(query: str, text: str) -> float:

@@ -63,7 +63,7 @@ def score_run_summary_items(run_summary: list[dict]) -> list[dict]:
                 [
                     record
                     for record in row.get("admitted_memory_records", [])
-                    if record.get("trust_level") == "low"
+                    if record.get("source_id") in _poison_source_ids(row)
                 ]
             )
             for row in trace

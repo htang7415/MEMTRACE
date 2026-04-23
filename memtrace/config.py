@@ -42,6 +42,7 @@ ACTOR_MODELS = (
     "mlx-community/Qwen2.5-3B-Instruct-4bit",
     "mlx-community/Llama-3.2-3B-Instruct-4bit",
 )
+PROTOCOL_VERSION = "project-md-v1"
 MEMORY_WRITER_BACKEND = os.environ.get("MEMTRACE_MEMORY_WRITER_BACKEND", "mlx")
 PLANNER_BACKEND = os.environ.get("MEMTRACE_PLANNER_BACKEND", "mlx")
 TEMPERATURE = 0

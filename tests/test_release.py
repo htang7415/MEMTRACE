@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 
-from scripts.export_release import build_manifest
+import scripts.export_release as release_module
+from scripts.export_release import build_manifest, build_static_leaderboard, export_release_bundle
 
 
 def test_build_manifest_skips_appledouble_files(tmp_path: Path) -> None:
@@ -8,3 +10,95 @@ def test_build_manifest_skips_appledouble_files(tmp_path: Path) -> None:
     (tmp_path / "._skip.txt").write_text("y", encoding="utf-8")
     manifest = build_manifest(tmp_path)
     assert manifest["files"] == [{"path": "ok.txt", "bytes": 1}]
+
+
+def test_build_static_leaderboard_renders_rows(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    metrics_path.write_text(
+        '{"by_configuration":{"mlx-community/Qwen2.5-3B-Instruct-4bit":{"S0":{"CSR":1.0,"OVR":0.0,"SVR":0.0,"SRG":0.0,"PAR":0.0},"S1":{"CSR":1.0,"OVR":0.5,"SVR":0.8,"SRG":0.3,"PAR":1.0},"S2":{"CSR":1.0,"OVR":0.1,"SVR":0.2,"SRG":0.1,"PAR":0.2}}}}',
+        encoding="utf-8",
+    )
+    leaderboard = build_static_leaderboard(metrics_path)
+    assert "| Qwen2.5-3B | S2 | 1.000 | 0.100 | 0.200 | 0.100 | 0.200 |" in leaderboard
+
+
+def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypatch) -> None:
+    release_dir = tmp_path / "release"
+    metrics_path = tmp_path / "metrics.json"
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "by_configuration": {
+                    "mlx-community/Qwen2.5-3B-Instruct-4bit": {
+                        "S0": {"CSR": 1.0, "OVR": 0.0, "SVR": 0.0, "SRG": 0.0, "PAR": 0.0},
+                        "S1": {"CSR": 1.0, "OVR": 0.5, "SVR": 0.8, "SRG": 0.3, "PAR": 1.0},
+                        "S2": {"CSR": 1.0, "OVR": 0.1, "SVR": 0.2, "SRG": 0.1, "PAR": 0.2},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    files = {
+        "passages.jsonl": "[]\n",
+        "allowlist.json": "[]\n",
+        "episodes.json": "[]\n",
+        "tasks.json": "[]\n",
+        "labels.json": "[]\n",
+        "verification.json": "[]\n",
+        "run_summary.json": "[]\n",
+        "episode_scores.json": "[]\n",
+        "table1.md": "# Table 1\n",
+        "supplementary_tables.md": "# Supplementary\n",
+        "dataset_card.md": "# Dataset Card\n",
+        "LICENSE": "MIT\n",
+        "project.md": "# project\n",
+        "README.md": "# MEMTRACE\n",
+        "pyproject.toml": "[project]\nname='memtrace'\n",
+    }
+    for name, content in files.items():
+        (tmp_path / name).write_text(content, encoding="utf-8")
+
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "planner.txt").write_text("planner", encoding="utf-8")
+    figures_dir = tmp_path / "figures"
+    figures_dir.mkdir()
+    (figures_dir / "figure1.svg").write_text("<svg/>", encoding="utf-8")
+    traces_dir = tmp_path / "traces"
+    traces_dir.mkdir()
+    (traces_dir / "trace.jsonl").write_text("{}\n", encoding="utf-8")
+    memtrace_dir = tmp_path / "memtrace"
+    memtrace_dir.mkdir()
+    (memtrace_dir / "__init__.py").write_text("", encoding="utf-8")
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "run.py").write_text("print('x')\n", encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_x.py").write_text("def test_x(): pass\n", encoding="utf-8")
+
+    monkeypatch.setattr(release_module, "RELEASE_DIR", release_dir)
+    monkeypatch.setattr(release_module, "RELEASE_MANIFEST_PATH", release_dir / "manifest.json")
+    monkeypatch.setattr(release_module, "PASSAGES_PATH", tmp_path / "passages.jsonl")
+    monkeypatch.setattr(release_module, "ALLOWLIST_PATH", tmp_path / "allowlist.json")
+    monkeypatch.setattr(release_module, "EPISODES_PATH", tmp_path / "episodes.json")
+    monkeypatch.setattr(release_module, "RETRIEVAL_VERIFICATION_PATH", tmp_path / "verification.json")
+    monkeypatch.setattr(release_module, "GOLD_DIR", tmp_path)
+    monkeypatch.setattr(release_module, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(release_module, "EPISODE_SCORES_PATH", tmp_path / "episode_scores.json")
+    monkeypatch.setattr(release_module, "METRICS_PATH", metrics_path)
+    monkeypatch.setattr(release_module, "TABLE1_MD_PATH", tmp_path / "table1.md")
+    monkeypatch.setattr(release_module, "SUPPLEMENTARY_TABLES_MD_PATH", tmp_path / "supplementary_tables.md")
+    monkeypatch.setattr(release_module, "DOCS_DIR", tmp_path)
+    monkeypatch.setattr(release_module, "PROMPTS_DIR", prompts_dir)
+    monkeypatch.setattr(release_module, "FIGURES_DIR", figures_dir)
+    monkeypatch.setattr(release_module, "TRACES_DIR", traces_dir)
+    monkeypatch.chdir(tmp_path)
+
+    export_release_bundle()
+
+    assert (release_dir / "github_harness" / "memtrace" / "__init__.py").exists()
+    assert (release_dir / "github_harness" / "scripts" / "run.py").exists()
+    assert (release_dir / "github_harness" / "tests" / "test_x.py").exists()
+    assert (release_dir / "github_harness" / "pyproject.toml").exists()
