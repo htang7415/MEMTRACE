@@ -15,33 +15,29 @@ def main() -> None:
     summary_by_episode_id = {item["episode_id"]: item for item in summaries}
     for episode in episodes:
         existing_summary = summary_by_episode_id.get(episode.episode_id)
-        if existing_summary and _summary_trace_complete(
+        reusable_trace = existing_summary and _summary_trace_complete(
             existing_summary,
             expected_turn_count=len(episode.turns),
             expected_actor_model=episode.actor_model,
-        ):
+        )
+        if reusable_trace:
             continue
         if existing_summary:
             summaries = [item for item in summaries if item["episode_id"] != episode.episode_id]
         output_trace_path = trace_path(TRACES_DIR, episode.episode_id)
         if output_trace_path.exists():
-            trace = _load_trace(output_trace_path)
-        else:
-            trace = []
-        if len(trace) == len(episode.turns):
-            trace_path_for_summary = output_trace_path
-        else:
-            trace = run_episode(
-                episode_id=episode.episode_id,
-                turns=episode.turns,
-                system=episode.system,
-                actor_model=episode.actor_model or "",
-                db_path=SQLITE_PATH,
-                episode_kind=episode.episode_kind,
-                episode_payload_type=episode.payload_type,
-                episode_horizon=episode.horizon,
-            )
-            trace_path_for_summary = save_trace(TRACES_DIR, episode.episode_id, trace)
+            output_trace_path.unlink()
+        trace = run_episode(
+            episode_id=episode.episode_id,
+            turns=episode.turns,
+            system=episode.system,
+            actor_model=episode.actor_model or "",
+            db_path=SQLITE_PATH,
+            episode_kind=episode.episode_kind,
+            episode_payload_type=episode.payload_type,
+            episode_horizon=episode.horizon,
+        )
+        trace_path_for_summary = save_trace(TRACES_DIR, episode.episode_id, trace)
         summaries.append(
             {
                 "episode_id": episode.episode_id,

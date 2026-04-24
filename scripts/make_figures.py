@@ -90,15 +90,15 @@ def build_ovr_vs_svr(metrics: dict) -> str:
         sx = x + i * 180
         bars.append(_bar(sx, base_y, 44, 180 * ovr, colors["OVR"]))
         bars.append(_bar(sx + 58, base_y, 44, 180 * svr, colors["SVR"]))
-        labels.append(f'<text x="{sx+51}" y="{base_y+24}" text-anchor="middle" font-size="14">{system}</text>')
-        labels.append(f'<text x="{sx+22}" y="{base_y - 180*ovr - 8}" text-anchor="middle" font-size="12">{ovr:.2f}</text>')
-        labels.append(f'<text x="{sx+80}" y="{base_y - 180*svr - 8}" text-anchor="middle" font-size="12">{svr:.2f}</text>')
+        labels.append(f'<text x="{sx+51}" y="{base_y+24}" text-anchor="middle" font-size="16">{system}</text>')
+        labels.append(f'<text x="{sx+22}" y="{base_y - 180*ovr - 8}" text-anchor="middle" font-size="16">{ovr:.2f}</text>')
+        labels.append(f'<text x="{sx+80}" y="{base_y - 180*svr - 8}" text-anchor="middle" font-size="16">{svr:.2f}</text>')
     legend = [
         '<rect x="510" y="26" width="12" height="12" fill="#b85c38" />',
-        '<text x="540" y="37" font-size="12">OVR</text>',
+        '<text x="540" y="37" font-size="16">OVR</text>',
         '<rect x="580" y="26" width="12" height="12" fill="#2f6f5e" />',
-        '<text x="610" y="37" font-size="12">SVR</text>',
-        '<text x="22" y="64" font-size="12" text-anchor="middle" transform="rotate(-90 22 64)">Rate</text>',
+        '<text x="610" y="37" font-size="16">SVR</text>',
+        '<text x="22" y="64" font-size="16" text-anchor="middle" transform="rotate(-90 22 64)">Rate</text>',
     ]
     axes = _axes(60, 60, 620, base_y)
     return _svg_wrap(700, 310, labels + legend + axes + bars)
@@ -122,14 +122,14 @@ def build_par_by_task_family(episode_scores: list[dict]) -> str:
             par = sum(1 for item in items if item["poison_admission_flag"] is True) / len(items)
             bx = sx + j * 54
             parts.append(_bar(bx, 252, 40, 180 * par, colors[family]))
-            parts.append(f'<text x="{bx+20}" y="{252 - 180*par - 8}" text-anchor="middle" font-size="12">{par:.2f}</text>')
-        parts.append(f'<text x="{sx+27}" y="274" text-anchor="middle" font-size="14">{system}</text>')
+            parts.append(f'<text x="{bx+20}" y="{252 - 180*par - 8}" text-anchor="middle" font-size="16">{par:.2f}</text>')
+        parts.append(f'<text x="{sx+27}" y="274" text-anchor="middle" font-size="16">{system}</text>')
     parts += [
         '<rect x="392" y="26" width="12" height="12" fill="#356d9a" />',
-        '<text x="412" y="37" font-size="12">Policy memory</text>',
+        '<text x="412" y="37" font-size="16">Policy memory</text>',
         '<rect x="520" y="26" width="12" height="12" fill="#8a4156" />',
-        '<text x="540" y="37" font-size="12">Tool-argument memory</text>',
-        '<text x="22" y="64" font-size="12" text-anchor="middle" transform="rotate(-90 22 64)">PAR</text>',
+        '<text x="540" y="37" font-size="16">Tool-argument memory</text>',
+        '<text x="22" y="64" font-size="16" text-anchor="middle" transform="rotate(-90 22 64)">PAR</text>',
     ]
     return _svg_wrap(700, 310, parts)
 
@@ -143,7 +143,7 @@ def build_one_shot_vs_stateful(metrics: dict) -> str:
     for index, actor_model in enumerate(actor_models):
         x0 = panel_x[index]
         parts.extend(_axes(x0 + 30, 70, x0 + 290, 252))
-        parts.append(f'<text x="{x0 + 30}" y="56" font-size="15">{_short_actor_model(actor_model)}</text>')
+        parts.append(f'<text x="{x0 + 30}" y="56" font-size="16">{_short_actor_model(actor_model)}</text>')
         for i, system in enumerate(("S1", "S2")):
             x = x0 + 90 + i * 110
             row = metrics["by_configuration"][actor_model][system]
@@ -152,14 +152,14 @@ def build_one_shot_vs_stateful(metrics: dict) -> str:
             parts.append(f'<circle cx="{x}" cy="{252 - 180*ovr}" r="6" fill="#b85c38" />')
             parts.append(f'<circle cx="{x+42}" cy="{252 - 180*svr}" r="6" fill="#2f6f5e" />')
             parts.append(f'<line x1="{x}" y1="{252 - 180*ovr}" x2="{x+42}" y2="{252 - 180*svr}" stroke="#555" stroke-width="1.2" />')
-            parts.append(f'<text x="{x+21}" y="280" text-anchor="middle" font-size="13">{system}</text>')
-        parts.append(f'<text x="{x0 + 180}" y="56" font-size="11">reversal={metrics["ranking_reversal_by_actor_model"][actor_model]}</text>')
+            parts.append(f'<text x="{x+21}" y="280" text-anchor="middle" font-size="16">{system}</text>')
+        parts.append(f'<text x="{x0 + 180}" y="56" font-size="16">reversal={metrics["ranking_reversal_by_actor_model"][actor_model]}</text>')
     parts += [
         '<rect x="562" y="22" width="12" height="12" fill="#b85c38" />',
-        '<text x="582" y="33" font-size="12">OVR</text>',
+        '<text x="582" y="33" font-size="16">OVR</text>',
         '<rect x="618" y="22" width="12" height="12" fill="#2f6f5e" />',
-        '<text x="638" y="33" font-size="12">SVR</text>',
-        '<text x="22" y="74" font-size="12" text-anchor="middle" transform="rotate(-90 22 74)">Rate</text>',
+        '<text x="638" y="33" font-size="16">SVR</text>',
+        '<text x="22" y="74" font-size="16" text-anchor="middle" transform="rotate(-90 22 74)">Rate</text>',
     ]
     return _svg_wrap(width, height, parts)
 
@@ -182,15 +182,15 @@ def build_violation_by_horizon(metrics: dict) -> str:
             f'<polyline fill="none" stroke="{colors[system]}" stroke-width="2.2"{dash} points="{" ".join(f"{x},{y}" for x,y in pts)}" />'
         )
     for horizon, x in x_map.items():
-        parts.append(f'<text x="{x}" y="278" text-anchor="middle" font-size="14">Δ={horizon}</text>')
+        parts.append(f'<text x="{x}" y="278" text-anchor="middle" font-size="16">Δ={horizon}</text>')
     parts += [
         '<rect x="480" y="22" width="12" height="12" fill="#777" />',
-        '<text x="500" y="33" font-size="12">S0</text>',
+        '<text x="500" y="33" font-size="16">S0</text>',
         '<rect x="532" y="22" width="12" height="12" fill="#b85c38" />',
-        '<text x="552" y="33" font-size="12">S1</text>',
+        '<text x="552" y="33" font-size="16">S1</text>',
         '<rect x="584" y="22" width="12" height="12" fill="#2f6f5e" />',
-        '<text x="604" y="33" font-size="12">S2</text>',
-        '<text x="24" y="74" font-size="12" text-anchor="middle" transform="rotate(-90 24 74)">SVR</text>',
+        '<text x="604" y="33" font-size="16">S2</text>',
+        '<text x="24" y="74" font-size="16" text-anchor="middle" transform="rotate(-90 24 74)">SVR</text>',
     ]
     return _svg_wrap(700, 310, parts)
 
@@ -226,7 +226,7 @@ def _axes(x: int, y: int, width: int, baseline_y: int) -> list[str]:
         if value != 0.0:
             parts.append(f'<line x1="{x}" y1="{ty}" x2="{width}" y2="{ty}" stroke="#d8d8d8" stroke-width="0.8" />')
         parts.append(f'<line x1="{x-5}" y1="{ty}" x2="{x}" y2="{ty}" stroke="#1f1f1f" stroke-width="1.1" />')
-        parts.append(f'<text x="{x-10}" y="{ty+4}" text-anchor="end" font-size="12">{value:.1f}</text>')
+        parts.append(f'<text x="{x-10}" y="{ty+4}" text-anchor="end" font-size="16">{value:.1f}</text>')
     return parts
 
 
