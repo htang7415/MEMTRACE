@@ -30,6 +30,8 @@ EPISODE_SCORES_PATH = RESULTS_DIR / "episode_scores.json"
 METRICS_PATH = RESULTS_DIR / "metrics.json"
 TABLE1_MD_PATH = RESULTS_DIR / "table1.md"
 SUPPLEMENTARY_TABLES_MD_PATH = RESULTS_DIR / "supplementary_tables.md"
+ATTRIBUTION_LABELS_PATH = RESULTS_DIR / "attribution_labels.json"
+ATTRIBUTION_REPORT_PATH = RESULTS_DIR / "attribution_report.md"
 FIGURE1_PATH = FIGURES_DIR / "figure1_pipeline.svg"
 FIGURE2_PATH = FIGURES_DIR / "figure2_ovr_vs_svr.svg"
 FIGURE3_PATH = FIGURES_DIR / "figure3_par_by_task_family.svg"
@@ -39,10 +41,10 @@ RELEASE_MANIFEST_PATH = RELEASE_DIR / "manifest.json"
 
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 ACTOR_MODELS = (
-    "mlx-community/Qwen2.5-3B-Instruct-4bit",
-    "mlx-community/Llama-3.2-3B-Instruct-4bit",
+    "mlx-community/Qwen2.5-7B-Instruct-4bit",
+    "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
 )
-PROTOCOL_VERSION = "project-md-v1"
+PROTOCOL_VERSION = "project-md-v2"
 MEMORY_WRITER_BACKEND = os.environ.get("MEMTRACE_MEMORY_WRITER_BACKEND", "mlx")
 PLANNER_BACKEND = os.environ.get("MEMTRACE_PLANNER_BACKEND", "mlx")
 TEMPERATURE = 0

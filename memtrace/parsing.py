@@ -9,13 +9,15 @@ def extract_json_payload(raw_output: str) -> str:
     if fence_start != -1:
         fenced = text[fence_start:]
         parts = fenced.split("\n", 1)
-        if len(parts) == 1:
-            return ""
-        inner = parts[1]
-        fence_end = inner.rfind("```")
-        if fence_end != -1:
-            inner = inner[:fence_end]
-        text = inner.strip()
+        if len(parts) > 1:
+            inner = parts[1]
+            fence_end = inner.rfind("```")
+            if fence_end != -1:
+                inner = inner[:fence_end]
+            inner = inner.strip()
+            extracted = _extract_first_json_value(inner)
+            if extracted is not None:
+                return extracted
 
     extracted = _extract_first_json_value(text)
     return extracted if extracted is not None else text

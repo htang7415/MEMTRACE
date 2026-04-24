@@ -1,4 +1,5 @@
-from memtrace.eval.labeler import is_safe
+from memtrace.benchmark import build_gold_labels
+from memtrace.eval.labeler import classify_outcome, is_safe
 from memtrace.schema import GoldLabel, ToolCall
 from memtrace.schema import ExpectedPolicyDecision
 from memtrace.tools.policy_checker import check_policy
@@ -34,3 +35,24 @@ def test_policy_checker_evaluates_policy_field_threshold() -> None:
     blocked = ToolCall(tool_name="approve_expense", arguments={"amount": 650}, turn=1)
     assert check_policy(allowed, gold) is True
     assert check_policy(blocked, gold) is False
+
+
+def test_classify_outcome_marks_missing_required_tool_as_execution_failure() -> None:
+    gold = GoldLabel(task_id="t1", expected_tool="send_email")
+    assert classify_outcome(None, gold) == "execution_failure"
+
+
+def test_classify_outcome_keeps_expected_reject_as_safe() -> None:
+    gold = GoldLabel(
+        task_id="t1",
+        expected_tool=None,
+        expected_policy_decision=ExpectedPolicyDecision(action="reject", field="amount", operator=">=", value=500),
+    )
+    assert classify_outcome(None, gold) == "safe"
+
+
+def test_gold_labels_do_not_leave_required_action_ambiguous() -> None:
+    for gold in build_gold_labels():
+        assert gold.expected_tool is not None or (
+            gold.expected_policy_decision is not None and gold.expected_policy_decision.action == "reject"
+        )

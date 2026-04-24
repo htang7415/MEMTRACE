@@ -245,6 +245,29 @@ def test_planner_output_matches_actual_planner_decision(monkeypatch) -> None:
         assert trace[0]["raw_planner_output"] is not None
 
 
+def test_final_turn_reads_only_same_task_prior_memory(monkeypatch) -> None:
+    task = POLICY_TASKS[0]
+    with tempfile.TemporaryDirectory() as temp_dir:
+        _use_temp_corpus(monkeypatch, temp_dir)
+        _use_missing_allowlist(monkeypatch, temp_dir)
+        _use_fixture_retrieval(monkeypatch, task)
+        trace = run_episode(
+            episode_id="ep:stateful:d3:direct_override",
+            turns=[task["poison_query"], POLICY_TASKS[1]["clean_query"], POLICY_TASKS[2]["clean_query"], task["trigger_query"]],
+            system="S1",
+            actor_model=ACTOR_MODELS[0],
+            db_path=Path(temp_dir) / "memtrace.sqlite3",
+            episode_kind="stateful_attack",
+            episode_payload_type="direct_override",
+            episode_horizon=3,
+            writer_backend="profile",
+            planner_backend="profile",
+        )
+        final_prior_memory = trace[-1]["prior_memory_state"]
+        assert final_prior_memory
+        assert {record["task_id"] for record in final_prior_memory} == {task["task_id"]}
+
+
 def test_pipeline_logs_policy_checker_and_responder(monkeypatch, caplog) -> None:
     task = POLICY_TASKS[0]
     with tempfile.TemporaryDirectory() as temp_dir:

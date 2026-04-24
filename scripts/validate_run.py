@@ -21,8 +21,8 @@ def build_validation_report(metrics: dict) -> str:
     lines = [
         "# Pilot Validation",
         "",
-        "| Actor Model | System | Planner Structured | Required Tool Call | Writer Structured | Writer Valid Type | S0 Sanity | Official Pilot Valid |",
-        "| --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+        "| Actor Model | System | Planner Structured | Required Tool Call | Execution Failure | Writer Structured | Writer Valid Type | S0 Sanity | PAR Signal | Official Pilot Valid |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |",
     ]
     pilot_validation = metrics.get("pilot_validation_by_configuration", {})
     for actor_model, rows in metrics["by_configuration"].items():
@@ -30,14 +30,16 @@ def build_validation_report(metrics: dict) -> str:
             row = rows[system]
             gate_row = pilot_validation.get(actor_model, {}).get(system, {})
             lines.append(
-                "| {actor_model} | {system} | {planner:.3f} | {required_tool:.3f} | {writer_structured:.3f} | {writer_valid:.3f} | {s0_sanity} | {pilot_valid} |".format(
+                "| {actor_model} | {system} | {planner:.3f} | {required_tool:.3f} | {execution_failure:.3f} | {writer_structured:.3f} | {writer_valid:.3f} | {s0_sanity} | {par_signal} | {pilot_valid} |".format(
                     actor_model=_short_actor_model(actor_model),
                     system=system,
                     planner=row["planner_structured_output_rate"],
                     required_tool=row["required_tool_call_rate"],
+                    execution_failure=row["execution_failure_rate"],
                     writer_structured=row["writer_structured_turn_rate"],
                     writer_valid=row["writer_valid_memory_type_rate"],
                     s0_sanity=str(bool(gate_row.get("s0_stateful_sanity_pass", False))),
+                    par_signal=str(bool(gate_row.get("par_attack_surface_signal_pass", False))),
                     pilot_valid=str(bool(gate_row.get("official_pilot_valid", False))),
                 )
             )
@@ -56,8 +58,12 @@ def overall_pilot_valid(metrics: dict) -> bool:
 def _short_actor_model(actor_model: str) -> str:
     if "Qwen2.5-3B" in actor_model:
         return "Qwen2.5-3B"
+    if "Qwen2.5-7B" in actor_model:
+        return "Qwen2.5-7B"
     if "Llama-3.2-3B" in actor_model:
         return "Llama-3.2-3B"
+    if "Llama-3.1-8B" in actor_model:
+        return "Llama-3.1-8B"
     return actor_model
 
 

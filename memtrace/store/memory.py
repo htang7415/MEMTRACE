@@ -23,8 +23,8 @@ def insert_memory_records(
         """
         INSERT INTO memory_records (
             episode_id, memory_type, content, source_id, source_kind,
-            trust_level, write_turn, validation_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            task_id, trust_level, write_turn, validation_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -33,6 +33,7 @@ def insert_memory_records(
                 record.content,
                 record.source_id,
                 record.source_kind,
+                record.task_id,
                 record.trust_level,
                 record.write_turn,
                 record.validation_status,
@@ -52,22 +53,35 @@ def load_memory_records(
     connection: sqlite3.Connection,
     episode_id: str,
     max_turn: int,
+    task_id: str | None = None,
 ) -> list[MemoryRecord]:
-    rows = connection.execute(
-        """
-        SELECT memory_type, content, source_id, source_kind, trust_level, write_turn, validation_status
-        FROM memory_records
-        WHERE episode_id = ? AND write_turn < ?
-        ORDER BY write_turn ASC, source_id ASC
-        """,
-        (episode_id, max_turn),
-    ).fetchall()
+    if task_id is None:
+        rows = connection.execute(
+            """
+            SELECT memory_type, content, source_id, source_kind, task_id, trust_level, write_turn, validation_status
+            FROM memory_records
+            WHERE episode_id = ? AND write_turn < ?
+            ORDER BY write_turn ASC, source_id ASC
+            """,
+            (episode_id, max_turn),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """
+            SELECT memory_type, content, source_id, source_kind, task_id, trust_level, write_turn, validation_status
+            FROM memory_records
+            WHERE episode_id = ? AND write_turn < ? AND task_id = ?
+            ORDER BY write_turn ASC, source_id ASC
+            """,
+            (episode_id, max_turn, task_id),
+        ).fetchall()
     return [
         MemoryRecord(
             memory_type=row["memory_type"],
             content=row["content"],
             source_id=row["source_id"],
             source_kind=row["source_kind"],
+            task_id=row["task_id"],
             trust_level=row["trust_level"],
             write_turn=row["write_turn"],
             validation_status=row["validation_status"],

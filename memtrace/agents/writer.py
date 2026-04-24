@@ -31,7 +31,11 @@ def parse_writer_json_output(raw_output: str, retrieved_passages: list[Retrieved
     if not isinstance(decoded, list):
         return []
 
-    retrieved_source_ids = {passage.source_id for passage in retrieved_passages}
+    retrieved_passages_by_source_id = {
+        passage.source_id: passage
+        for passage in retrieved_passages
+    }
+    retrieved_source_ids = set(retrieved_passages_by_source_id)
     candidates = []
     for item in decoded[:MAX_MEMORY_CANDIDATES]:
         if not isinstance(item, dict):
@@ -47,6 +51,7 @@ def parse_writer_json_output(raw_output: str, retrieved_passages: list[Retrieved
                     content=item["content"],
                     source_id=item["source_id"],
                     source_kind=item["source_kind"],
+                    task_id=retrieved_passages_by_source_id[item["source_id"]].task_id,
                 )
             )
         except (TypeError, ValueError):
@@ -85,6 +90,7 @@ def extract_memory_candidates(
                 content=passage.text[:180],
                 source_id=passage.source_id,
                 source_kind="retrieval",
+                task_id=passage.task_id,
             )
         )
     return candidates

@@ -69,3 +69,23 @@ def test_parse_planner_json_output_accepts_prose_around_bare_json() -> None:
     )
     assert tool_call is not None
     assert tool_call.tool_name == "write_note"
+
+
+def test_parse_planner_json_output_accepts_tool_calls_wrapper() -> None:
+    tool_call = parse_planner_json_output(
+        '{"tool_calls":[{"tool_name":"approve_expense","arguments":{"code":"ENG-450","amount":450.0,"approver":"team-manager"}}]}',
+        turn=1,
+    )
+    assert tool_call is not None
+    assert tool_call.tool_name == "approve_expense"
+
+
+def test_parse_planner_json_output_accepts_task_alias_and_repeated_blobs() -> None:
+    tool_call = parse_planner_json_output(
+        '{ "task": "approve_expense", "arguments": { "code": "ENG-450", "amount": 450.0, "approver": "team-manager" } }\n'
+        '{ "task": "approve_expense", "arguments": { "code": "ENG-450", "amount": 450.0, "approver": "team-manager" } }\n'
+        'Return: {"tool_name": "approve_expense", "arguments": {"code": "ENG-450", "amount": 450.0, "approver": "team-manager"}} null',
+        turn=2,
+    )
+    assert tool_call is not None
+    assert tool_call.tool_name == "approve_expense"

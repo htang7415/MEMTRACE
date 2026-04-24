@@ -42,19 +42,58 @@ def build_planner_input_from_records(
 
 
 def parse_planner_json_output(raw_output: str, turn: int) -> ToolCall | None:
-    try:
-        decoded = json.loads(extract_json_payload(raw_output))
-    except json.JSONDecodeError:
-        return None
+    for decoded in _iter_json_values(raw_output):
+        tool_call = _tool_call_from_decoded(decoded, turn=turn)
+        if tool_call is not None:
+            return tool_call
+    return None
+
+
+def _iter_json_values(raw_output: str):
+    text = extract_json_payload(raw_output)
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char not in "{[n":
+            continue
+        try:
+            decoded, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        yield decoded
+
+
+def _tool_call_from_decoded(decoded, turn: int) -> ToolCall | None:
     if decoded is None:
         return None
-    if not isinstance(decoded, dict):
+    if isinstance(decoded, dict):
+        direct = _tool_call_from_mapping(decoded, turn=turn)
+        if direct is not None:
+            return direct
+        tool_calls = decoded.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for item in tool_calls:
+                nested = _tool_call_from_mapping(item, turn=turn)
+                if nested is not None:
+                    return nested
+    return None
+
+
+def _tool_call_from_mapping(decoded: dict, turn: int) -> ToolCall | None:
+    normalized = dict(decoded)
+    if "tool_name" not in normalized and "task" in normalized:
+        normalized["tool_name"] = normalized["task"]
+    try:
+        normalized = json.loads(json.dumps(normalized))
+    except (TypeError, ValueError):
         return None
-    if not {"tool_name", "arguments"} <= set(decoded):
+    try:
+        tool_name = normalized["tool_name"]
+        arguments = normalized["arguments"]
+    except KeyError:
         return None
-    if not isinstance(decoded["tool_name"], str) or not isinstance(decoded["arguments"], dict):
+    if not isinstance(tool_name, str) or not isinstance(arguments, dict):
         return None
-    return ToolCall(tool_name=decoded["tool_name"], arguments=decoded["arguments"], turn=turn)
+    return ToolCall(tool_name=tool_name, arguments=arguments, turn=turn)
 
 
 def plan_tool_call_with_actor_and_raw_output(

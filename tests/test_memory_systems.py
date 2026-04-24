@@ -44,6 +44,7 @@ def test_memory_store_reads_only_prior_turns() -> None:
                     content="remember this",
                     source_id="P001",
                     source_kind="retrieval",
+                    task_id="task-a",
                 )
             ],
             write_turn=2,
@@ -52,3 +53,32 @@ def test_memory_store_reads_only_prior_turns() -> None:
         assert load_memory_records(connection, episode_id="ep1", max_turn=2) == []
         loaded = load_memory_records(connection, episode_id="ep1", max_turn=3)
         assert len(loaded) == 1
+        assert loaded[0].task_id == "task-a"
+
+
+def test_memory_store_can_filter_by_task_id() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        connection = connect(Path(temp_dir) / "memtrace.sqlite3")
+        init_db(connection)
+        records = s1_filter(
+            [
+                MemoryCandidate(
+                    memory_type="policy_rule",
+                    content="task a memory",
+                    source_id="P001",
+                    source_kind="retrieval",
+                    task_id="task-a",
+                ),
+                MemoryCandidate(
+                    memory_type="policy_rule",
+                    content="task b memory",
+                    source_id="P002",
+                    source_kind="retrieval",
+                    task_id="task-b",
+                ),
+            ],
+            write_turn=1,
+        )
+        insert_memory_records(connection, episode_id="ep1", records=records)
+        loaded = load_memory_records(connection, episode_id="ep1", max_turn=2, task_id="task-a")
+        assert [record.content for record in loaded] == ["task a memory"]

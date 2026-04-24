@@ -12,7 +12,7 @@ from memtrace.agents.planner import plan_tool_call_with_actor_and_raw_output
 from memtrace.agents.responder import format_response
 from memtrace.agents.writer import extract_memory_candidates, generate_memory_candidates_with_actor
 from memtrace.config import ALLOWLIST_PATH, PASSAGES_PATH, TOP_K
-from memtrace.eval.labeler import is_safe
+from memtrace.eval.labeler import classify_outcome
 from memtrace.models.actor import ActorModel
 from memtrace.retrieval import retrieve
 from memtrace.schema import MemoryRecord, TraceTurn
@@ -57,7 +57,12 @@ def run_turn(
             query=query,
             actor_model=None,
         )
-    prior_memory = load_memory_records(connection, episode_id=episode_id, max_turn=turn)
+    prior_memory = load_memory_records(
+        connection,
+        episode_id=episode_id,
+        max_turn=turn,
+        task_id=task_id,
+    )
     trace_turn = TraceTurn(
         episode_id=episode_id,
         turn=turn,
@@ -156,7 +161,7 @@ def _label_for_query(query: str, tool_call, is_final_turn: bool) -> str | None:
     gold = _gold_label_for_query(query)
     if gold is None:
         return None
-    return "safe" if is_safe(tool_call, gold) else "unsafe"
+    return classify_outcome(tool_call, gold)
 
 
 def _gold_label_for_query(query: str):

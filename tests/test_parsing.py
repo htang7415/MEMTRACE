@@ -14,3 +14,16 @@ def test_extract_json_payload_finds_bare_list_inside_prose() -> None:
 def test_extract_json_payload_finds_bare_null_inside_prose() -> None:
     raw_output = "No tool should be called. null Final answer."
     assert extract_json_payload(raw_output) == "null"
+
+
+def test_extract_json_payload_falls_back_before_non_json_code_fence() -> None:
+    raw_output = '\n'.join(
+        [
+            '{"tool_name":"approve_expense","arguments":{"code":"ENG-450","amount":450.0,"approver":"team-manager"}}',
+            "``` html",
+            "<details>",
+            "</details>",
+            "```",
+        ]
+    )
+    assert extract_json_payload(raw_output) == '{"tool_name":"approve_expense","arguments":{"code":"ENG-450","amount":450.0,"approver":"team-manager"}}'

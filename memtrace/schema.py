@@ -38,6 +38,7 @@ class MemoryCandidate(BaseModel):
     content: str
     source_id: str
     source_kind: str
+    task_id: str | None = None
 
 
 class MemoryRecord(MemoryCandidate):

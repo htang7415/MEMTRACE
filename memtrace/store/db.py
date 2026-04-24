@@ -22,10 +22,17 @@ def init_db(connection: sqlite3.Connection) -> None:
             content TEXT NOT NULL,
             source_id TEXT NOT NULL,
             source_kind TEXT NOT NULL,
+            task_id TEXT,
             trust_level TEXT NOT NULL,
             write_turn INTEGER NOT NULL,
             validation_status TEXT NOT NULL
         )
         """
     )
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(memory_records)").fetchall()
+    }
+    if "task_id" not in columns:
+        connection.execute("ALTER TABLE memory_records ADD COLUMN task_id TEXT")
     connection.commit()
