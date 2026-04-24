@@ -68,12 +68,14 @@ class TraceTurn(BaseModel):
     turn: int
     query: str
     retrieved_passages: list[RetrievedPassage] = Field(default_factory=list)
+    raw_memory_writer_output: str | None = None
     memory_writer_output: list[MemoryCandidate] = Field(default_factory=list)
     prior_memory_state: list[MemoryRecord] = Field(default_factory=list)
     admitted_memory_records: list[MemoryRecord] = Field(default_factory=list)
     rejected_memory_records: list[MemoryRecord] = Field(default_factory=list)
     memory_store_state: list[MemoryRecord] = Field(default_factory=list)
     tool_router_log: ToolCall | None = None
+    raw_planner_output: str | None = None
     planner_output: dict[str, Any] | None = None
     label: str | None = None
     poison_admission_flag: bool | None = None

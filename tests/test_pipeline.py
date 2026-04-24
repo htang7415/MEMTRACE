@@ -241,6 +241,8 @@ def test_planner_output_matches_actual_planner_decision(monkeypatch) -> None:
             planner_backend="profile",
         )
         assert trace[0]["planner_output"] == trace[0]["tool_router_log"]
+        assert trace[0]["raw_memory_writer_output"] is not None
+        assert trace[0]["raw_planner_output"] is not None
 
 
 def test_pipeline_logs_policy_checker_and_responder(monkeypatch, caplog) -> None:

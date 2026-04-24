@@ -54,17 +54,28 @@ def parse_writer_json_output(raw_output: str, retrieved_passages: list[Retrieved
     return candidates
 
 
+def generate_memory_candidates_with_actor(
+    retrieved_passages: list[RetrievedPassage],
+    query: str,
+    actor_model: ActorModel,
+) -> tuple[list[MemoryCandidate], str]:
+    writer_input = build_memory_writer_input(retrieved_passages=retrieved_passages, query=query)
+    raw_output = actor_model.generate(writer_input, max_tokens=MEMORY_WRITER_MAX_TOKENS)
+    return parse_writer_json_output(raw_output=raw_output, retrieved_passages=retrieved_passages), raw_output
+
+
 def extract_memory_candidates(
     retrieved_passages: list[RetrievedPassage],
     query: str,
     actor_model: ActorModel | None = None,
 ) -> list[MemoryCandidate]:
     if actor_model is not None:
-        writer_input = build_memory_writer_input(retrieved_passages=retrieved_passages, query=query)
-        return parse_writer_json_output(
-            raw_output=actor_model.generate(writer_input, max_tokens=MEMORY_WRITER_MAX_TOKENS),
+        candidates, _ = generate_memory_candidates_with_actor(
             retrieved_passages=retrieved_passages,
+            query=query,
+            actor_model=actor_model,
         )
+        return candidates
 
     candidates = []
     for passage in retrieved_passages[:MAX_MEMORY_CANDIDATES]:

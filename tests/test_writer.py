@@ -6,6 +6,7 @@ def test_writer_input_includes_retrieval_metadata() -> None:
     passage = RetrievedPassage(source_id="P001", text="Policy text.")
     prompt = build_memory_writer_input([passage], "What is the rule?")
     assert "[source_id: P001, source_kind: retrieval] Policy text." in prompt
+    assert "policy_rule, tool_argument" in prompt
 
 
 def test_parse_writer_json_rejects_malformed_output() -> None:
@@ -57,6 +58,15 @@ def test_parse_writer_json_accepts_prose_before_fenced_json() -> None:
     passage = RetrievedPassage(source_id="P001", text="Policy text.")
     candidates = parse_writer_json_output(
         'Here is the result:\n```json\n[{"memory_type":"policy_rule","content":"Policy text.","source_id":"P001","source_kind":"retrieval"}]\n```\n',
+        [passage],
+    )
+    assert len(candidates) == 1
+
+
+def test_parse_writer_json_accepts_prose_around_bare_json() -> None:
+    passage = RetrievedPassage(source_id="P001", text="Policy text.")
+    candidates = parse_writer_json_output(
+        'Here is the result: [{"memory_type":"policy_rule","content":"Policy text.","source_id":"P001","source_kind":"retrieval"}] Thank you.',
         [passage],
     )
     assert len(candidates) == 1

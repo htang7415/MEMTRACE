@@ -39,6 +39,7 @@ Run benchmark and score:
 ```bash
 uv run python scripts/run_experiments.py
 uv run python scripts/score_runs.py
+uv run python scripts/validate_run.py
 ```
 
 Protocol requirements for official benchmark runs:

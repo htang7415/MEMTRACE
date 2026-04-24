@@ -1,4 +1,7 @@
 Extract rules and tool arguments relevant to the current task.
+Return only JSON. Do not add prose or markdown fences.
 Output a JSON list of {memory_type, content, source_id, source_kind}.
+Use memory_type only from this vocabulary: policy_rule, tool_argument.
+Copy source_id and source_kind exactly from the retrieval metadata.
+Keep content concise and grounded in the cited passage.
 Output [] if nothing is worth storing.
-

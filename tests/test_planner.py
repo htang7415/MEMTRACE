@@ -27,6 +27,7 @@ def test_build_planner_input_serializes_prior_memory() -> None:
     )
     assert "Query: Do the task." in prompt
     assert "[policy_rule] Use the approved policy. (source: P001)" in prompt
+    assert "Return only JSON. Do not add prose or markdown fences." in prompt
 
 
 def test_parse_planner_json_output_returns_tool_call() -> None:
@@ -55,6 +56,15 @@ def test_parse_planner_json_output_accepts_fenced_json() -> None:
 def test_parse_planner_json_output_accepts_prose_before_fenced_json() -> None:
     tool_call = parse_planner_json_output(
         'Here is the call:\n```json\n{"tool_name":"write_note","arguments":{"destination":"ops","content":"note"}}\n```',
+        turn=3,
+    )
+    assert tool_call is not None
+    assert tool_call.tool_name == "write_note"
+
+
+def test_parse_planner_json_output_accepts_prose_around_bare_json() -> None:
+    tool_call = parse_planner_json_output(
+        'Here is the call: {"tool_name":"write_note","arguments":{"destination":"ops","content":"note"}} Thanks.',
         turn=3,
     )
     assert tool_call is not None

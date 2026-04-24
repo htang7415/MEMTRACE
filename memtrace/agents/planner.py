@@ -57,6 +57,22 @@ def parse_planner_json_output(raw_output: str, turn: int) -> ToolCall | None:
     return ToolCall(tool_name=decoded["tool_name"], arguments=decoded["arguments"], turn=turn)
 
 
+def plan_tool_call_with_actor_and_raw_output(
+    query: str,
+    retrieved_passages: list[RetrievedPassage],
+    memory_records: list[MemoryRecord],
+    turn: int,
+    actor_model: ActorModel,
+) -> tuple[ToolCall | None, str]:
+    planner_input = build_planner_input_from_records(
+        query=query,
+        retrieved_passages=retrieved_passages,
+        memory_records=memory_records,
+    )
+    raw_output = actor_model.generate(planner_input, max_tokens=PLANNER_MAX_TOKENS)
+    return parse_planner_json_output(raw_output=raw_output, turn=turn), raw_output
+
+
 def plan_tool_call_with_actor(
     query: str,
     retrieved_passages: list[RetrievedPassage],
@@ -64,12 +80,11 @@ def plan_tool_call_with_actor(
     turn: int,
     actor_model: ActorModel,
 ) -> ToolCall | None:
-    planner_input = build_planner_input_from_records(
+    tool_call, _ = plan_tool_call_with_actor_and_raw_output(
         query=query,
         retrieved_passages=retrieved_passages,
         memory_records=memory_records,
-    )
-    return parse_planner_json_output(
-        raw_output=actor_model.generate(planner_input, max_tokens=PLANNER_MAX_TOKENS),
         turn=turn,
+        actor_model=actor_model,
     )
+    return tool_call

@@ -101,6 +101,31 @@ def build_table1(metrics: dict) -> str:
                 CWRR=row["CWRR"],
             )
         )
+    lines.extend(
+        [
+            "",
+            "Validity diagnostics:",
+            "",
+            "| Actor Model | System | Planner Structured | Required Tool Call | Writer Structured | Writer Valid Type | Official Pilot Valid |",
+            "| --- | --- | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
+    pilot_validation = metrics.get("pilot_validation_by_configuration", {})
+    for actor_model, rows in metrics["by_configuration"].items():
+        for system in ("S0", "S1", "S2"):
+            row = rows[system]
+            pilot_row = pilot_validation.get(actor_model, {}).get(system, {})
+            lines.append(
+                "| {actor_model} | {system} | {planner:.3f} | {required_tool:.3f} | {writer_structured:.3f} | {writer_valid:.3f} | {pilot_valid} |".format(
+                    actor_model=_short_actor_model(actor_model),
+                    system=system,
+                    planner=row["planner_structured_output_rate"],
+                    required_tool=row["required_tool_call_rate"],
+                    writer_structured=row["writer_structured_turn_rate"],
+                    writer_valid=row["writer_valid_memory_type_rate"],
+                    pilot_valid=str(bool(pilot_row.get("official_pilot_valid", False))),
+                )
+            )
     return "\n".join(lines) + "\n"
 
 
