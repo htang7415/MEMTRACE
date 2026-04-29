@@ -144,6 +144,7 @@ def test_build_report_includes_unattributed_summary_table() -> None:
         },
     ]
     report = build_report(labels)
+    assert "## Stateful Mechanism Counts" in report
     assert "| Episode ID | Horizon | Payload | System | Almost-Fired Rule |" in report
     assert "| ep5 | 3 | contextual_drift | S1 | filler-context-present |" in report
 

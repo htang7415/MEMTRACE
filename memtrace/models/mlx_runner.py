@@ -23,12 +23,12 @@ class MLXActorModel(ActorModel):
         output = self._generate(
             self._model,
             self._tokenizer,
-            prompt=prompt,
+            prompt=_format_prompt(self._tokenizer, prompt),
             sampler=sampler,
             max_tokens=max_tokens,
             verbose=False,
         )
-        return output.strip()
+        return _strip_prompt_continuation(output).strip()
 
 
 def load_actor(model_name: str, backend: str = "mlx") -> ActorModel:
@@ -39,3 +39,21 @@ def load_actor(model_name: str, backend: str = "mlx") -> ActorModel:
     if backend == "mlx":
         return MLXActorModel(model_name=model_name)
     raise ValueError(f"Unknown actor backend: {backend}")
+
+
+def _format_prompt(tokenizer, prompt: str):
+    if not getattr(tokenizer, "has_chat_template", False):
+        return prompt
+    return tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+
+def _strip_prompt_continuation(output: str) -> str:
+    text = output
+    for marker in ("<|endoftext|>", "<|im_end|>", "\nHuman:", "\nUser:"):
+        if marker in text:
+            text = text.split(marker, 1)[0]
+    return text

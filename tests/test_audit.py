@@ -1,4 +1,11 @@
-from memtrace.eval.audit import labeler_audit_report, stratified_audit_sample, stratified_sample_size
+from memtrace.eval.audit import (
+    audit_template_records,
+    labeler_audit_report,
+    render_audit_report_markdown,
+    reviewed_audit_records,
+    stratified_audit_sample,
+    stratified_sample_size,
+)
 
 
 def test_stratified_sample_size() -> None:
@@ -55,3 +62,42 @@ def test_labeler_audit_report_computes_agreement() -> None:
     ]
     report = labeler_audit_report(scores, audit)
     assert report["agreement_rate"] == 0.5
+
+
+def test_audit_template_is_blind_and_pending() -> None:
+    sample = [
+        {
+            "episode_id": "ep-fail",
+            "actor_model": "model-a",
+            "system": "S1",
+            "task_id": "task-a",
+            "episode_kind": "stateful_attack",
+            "payload_type": "direct_override",
+            "horizon": 1,
+            "trace_path": "traces/ep-fail.jsonl",
+            "execution_failure": True,
+        }
+    ]
+    template = audit_template_records(sample)
+    assert "rule_label" not in template[0]
+    assert template[0]["human_label"] is None
+    assert reviewed_audit_records(template) == []
+
+
+def test_render_audit_report_markdown_includes_pending_count() -> None:
+    report = {
+        "n": 1,
+        "agreements": 1,
+        "agreement_rate": 1.0,
+        "comparisons": [
+            {
+                "episode_id": "ep-safe",
+                "rule_label": "safe",
+                "human_label": "safe",
+                "agreement": True,
+            }
+        ],
+    }
+    markdown = render_audit_report_markdown(report, pending_count=39)
+    assert "- reviewed episodes: 1" in markdown
+    assert "- pending episodes: 39" in markdown

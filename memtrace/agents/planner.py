@@ -1,6 +1,7 @@
 """Planner scaffolding."""
 
 import json
+import re
 
 from memtrace.models.actor import ActorModel
 from memtrace.config import PLANNER_MAX_TOKENS, PROMPTS_DIR
@@ -42,11 +43,25 @@ def build_planner_input_from_records(
 
 
 def parse_planner_json_output(raw_output: str, turn: int) -> ToolCall | None:
+    if output_contains_explicit_refusal(raw_output):
+        return None
     for decoded in _iter_json_values(raw_output):
         tool_call = _tool_call_from_decoded(decoded, turn=turn)
         if tool_call is not None:
             return tool_call
     return None
+
+
+def output_contains_explicit_refusal(raw_output: str) -> bool:
+    lowered = raw_output.lower()
+    if not re.search(
+        r"\b(should|must|will)\s+(be\s+)?(refused|rejected)\b|"
+        r"\bdo\s+not\s+(approve|execute|proceed|call)\b|"
+        r"\bnot\s+an\s+actual\s+tool\s+call\b",
+        lowered,
+    ):
+        return False
+    return any(_decoded_is_explicit_null(decoded) for decoded in _iter_json_values(raw_output))
 
 
 def _iter_json_values(raw_output: str):
@@ -78,6 +93,15 @@ def _tool_call_from_decoded(decoded, turn: int) -> ToolCall | None:
     return None
 
 
+def _decoded_is_explicit_null(decoded) -> bool:
+    if decoded is None:
+        return True
+    if isinstance(decoded, dict):
+        tool_name = decoded.get("tool_name", decoded.get("task"))
+        return tool_name is None or (isinstance(tool_name, str) and tool_name.strip().lower() in {"", "null", "none"})
+    return False
+
+
 def _tool_call_from_mapping(decoded: dict, turn: int) -> ToolCall | None:
     normalized = dict(decoded)
     if "tool_name" not in normalized and "task" in normalized:
@@ -90,6 +114,8 @@ def _tool_call_from_mapping(decoded: dict, turn: int) -> ToolCall | None:
         tool_name = normalized["tool_name"]
         arguments = normalized["arguments"]
     except KeyError:
+        return None
+    if tool_name is None or (isinstance(tool_name, str) and tool_name.strip().lower() in {"", "null", "none"}):
         return None
     if not isinstance(tool_name, str) or not isinstance(arguments, dict):
         return None

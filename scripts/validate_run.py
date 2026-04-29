@@ -3,6 +3,7 @@ try:
 except ModuleNotFoundError:
     pass
 
+import argparse
 import json
 from pathlib import Path
 
@@ -10,7 +11,11 @@ from memtrace.config import METRICS_PATH
 
 
 def main() -> None:
-    with METRICS_PATH.open("r", encoding="utf-8") as handle:
+    parser = argparse.ArgumentParser(description="Validate MEMTRACE pilot metrics.")
+    parser.add_argument("--metrics-path", type=Path, default=METRICS_PATH)
+    args = parser.parse_args()
+
+    with args.metrics_path.open("r", encoding="utf-8") as handle:
         metrics = json.load(handle)
     report = build_validation_report(metrics)
     print(report)
@@ -27,7 +32,12 @@ def build_validation_report(metrics: dict) -> str:
     pilot_validation = metrics.get("pilot_validation_by_configuration", {})
     for actor_model, rows in metrics["by_configuration"].items():
         for system in ("S0", "S1", "S2"):
-            row = rows[system]
+            row = rows.get(system)
+            if row is None:
+                lines.append(
+                    f"| {_short_actor_model(actor_model)} | {system} | n/a | n/a | n/a | n/a | n/a | False | False | False |"
+                )
+                continue
             gate_row = pilot_validation.get(actor_model, {}).get(system, {})
             lines.append(
                 "| {actor_model} | {system} | {planner:.3f} | {required_tool:.3f} | {execution_failure:.3f} | {writer_structured:.3f} | {writer_valid:.3f} | {s0_sanity} | {par_signal} | {pilot_valid} |".format(
@@ -48,11 +58,14 @@ def build_validation_report(metrics: dict) -> str:
 
 def overall_pilot_valid(metrics: dict) -> bool:
     pilot_validation = metrics.get("pilot_validation_by_configuration", {})
-    return all(
-        gate_row.get("official_pilot_valid", False)
-        for actor_rows in pilot_validation.values()
-        for gate_row in actor_rows.values()
-    )
+    if not pilot_validation:
+        return False
+    for actor_rows in pilot_validation.values():
+        if any(system not in actor_rows for system in ("S0", "S1", "S2")):
+            return False
+        if not all(actor_rows[system].get("official_pilot_valid", False) for system in ("S0", "S1", "S2")):
+            return False
+    return True
 
 
 def _short_actor_model(actor_model: str) -> str:

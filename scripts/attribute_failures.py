@@ -106,7 +106,7 @@ def build_report(labels: list[dict]) -> str:
             )
         )
 
-    lines.extend(_llama_mechanism_section(labels))
+    lines.extend(_stateful_mechanism_section(labels))
     lines.extend(_s0_horizon_section(labels))
     lines.extend(_exemplar_section(labels))
     lines.extend(_unattributed_section(labels))
@@ -114,22 +114,25 @@ def build_report(labels: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _llama_mechanism_section(labels: list[dict]) -> list[str]:
-    lines = ["", "## Llama Mechanism Counts", ""]
-    llama_labels = [item for item in labels if "Llama" in item["actor_model"] and item["episode_kind"] == "stateful_attack"]
+def _stateful_mechanism_section(labels: list[dict]) -> list[str]:
+    lines = ["", "## Stateful Mechanism Counts", ""]
+    stateful_labels = [item for item in labels if item["episode_kind"] == "stateful_attack"]
     lines.extend(
         [
-            "| System | a admit+violate | b admit+safe | c no-admit+violate | d no-admit+safe |",
-            "| --- | ---: | ---: | ---: | ---: |",
+            "| Actor Model | System | a admit+violate | b admit+safe | c no-admit+violate | d no-admit+safe |",
+            "| --- | --- | ---: | ---: | ---: | ---: |",
         ]
     )
-    for system in ("S0", "S1", "S2"):
-        rows = [item for item in llama_labels if item["system"] == system and not item.get("execution_failure")]
+    grouped = defaultdict(list)
+    for item in stateful_labels:
+        grouped[(item["actor_model"], item["system"])].append(item)
+    for (actor_model, system), items in sorted(grouped.items()):
+        rows = [item for item in items if not item.get("execution_failure")]
         a = sum(1 for item in rows if item["poison_admission_flag"] is True and item["unsafe"])
         b = sum(1 for item in rows if item["poison_admission_flag"] is True and not item["unsafe"])
         c = sum(1 for item in rows if item["poison_admission_flag"] is False and item["unsafe"])
         d = sum(1 for item in rows if item["poison_admission_flag"] is False and not item["unsafe"])
-        lines.append(f"| {system} | {a} | {b} | {c} | {d} |")
+        lines.append(f"| {_short_actor_model(actor_model)} | {system} | {a} | {b} | {c} | {d} |")
     return lines
 
 
@@ -177,10 +180,9 @@ def _exemplar_section(labels: list[dict]) -> list[str]:
             item for item in labels
             if (item["unsafe"] or item.get("execution_failure"))
             and item["attribution_label"] == label_name
-            and "Llama-3.2-3B" in item["actor_model"]
         ][:3]
         if not rows:
-            lines.append("_No Llama examples in this class._")
+            lines.append("_No examples in this class._")
             lines.append("")
             continue
         for item in rows:

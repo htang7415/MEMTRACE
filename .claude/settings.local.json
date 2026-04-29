@@ -5,7 +5,8 @@
       "Bash(python3 *)",
       "Bash(python -m pytest tests/ -q)",
       "Bash(python *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(sed 's/__.*$//')"
     ]
   }
 }

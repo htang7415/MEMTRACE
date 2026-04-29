@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import scripts.export_release as release_module
-from scripts.export_release import build_manifest, build_static_leaderboard, export_release_bundle
+from scripts.export_release import build_manifest, build_static_leaderboard, export_release_bundle, remove_appledouble_files
 
 
 def test_build_manifest_skips_appledouble_files(tmp_path: Path) -> None:
@@ -10,6 +10,20 @@ def test_build_manifest_skips_appledouble_files(tmp_path: Path) -> None:
     (tmp_path / "._skip.txt").write_text("y", encoding="utf-8")
     manifest = build_manifest(tmp_path)
     assert manifest["files"] == [{"path": "ok.txt", "bytes": 1}]
+
+
+def test_remove_appledouble_files(tmp_path: Path) -> None:
+    (tmp_path / "ok.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "._skip.txt").write_text("y", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "._nested.txt").write_text("z", encoding="utf-8")
+
+    remove_appledouble_files(tmp_path)
+
+    assert (tmp_path / "ok.txt").exists()
+    assert not (tmp_path / "._skip.txt").exists()
+    assert not (nested / "._nested.txt").exists()
 
 
 def test_build_static_leaderboard_renders_rows(tmp_path: Path) -> None:
@@ -67,7 +81,20 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     (figures_dir / "figure1.svg").write_text("<svg/>", encoding="utf-8")
     traces_dir = tmp_path / "traces"
     traces_dir.mkdir()
-    (traces_dir / "trace.jsonl").write_text("{}\n", encoding="utf-8")
+    trace_path = traces_dir / "trace.jsonl"
+    trace_path.write_text("{}\n", encoding="utf-8")
+    (tmp_path / "run_summary.json").write_text(
+        json.dumps([{"episode_id": "ep1", "trace_path": str(trace_path)}]),
+        encoding="utf-8",
+    )
+    (tmp_path / "episode_scores.json").write_text(
+        json.dumps([{"episode_id": "ep1", "trace_path": str(trace_path)}]),
+        encoding="utf-8",
+    )
+    audit_sample_path = tmp_path / "audit_sample.json"
+    audit_sample_path.write_text(json.dumps([{"episode_id": "ep1", "trace_path": str(trace_path)}]), encoding="utf-8")
+    audit_template_path = tmp_path / "audit_template.jsonl"
+    audit_template_path.write_text(json.dumps({"episode_id": "ep1", "trace_path": str(trace_path)}) + "\n", encoding="utf-8")
     memtrace_dir = tmp_path / "memtrace"
     memtrace_dir.mkdir()
     (memtrace_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -77,6 +104,11 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_x.py").write_text("def test_x(): pass\n", encoding="utf-8")
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
+    (paper_dir / "._main.tex").write_text("skip\n", encoding="utf-8")
+    (paper_dir / "main.aux").write_text("skip\n", encoding="utf-8")
 
     monkeypatch.setattr(release_module, "RELEASE_DIR", release_dir)
     monkeypatch.setattr(release_module, "RELEASE_MANIFEST_PATH", release_dir / "manifest.json")
@@ -93,7 +125,15 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     monkeypatch.setattr(release_module, "DOCS_DIR", tmp_path)
     monkeypatch.setattr(release_module, "PROMPTS_DIR", prompts_dir)
     monkeypatch.setattr(release_module, "FIGURES_DIR", figures_dir)
-    monkeypatch.setattr(release_module, "TRACES_DIR", traces_dir)
+    monkeypatch.setattr(release_module, "ATTRIBUTION_LABELS_PATH", tmp_path / "missing_attribution_labels.json")
+    monkeypatch.setattr(release_module, "ATTRIBUTION_REPORT_PATH", tmp_path / "missing_attribution_report.md")
+    monkeypatch.setattr(release_module, "AUDIT_SAMPLE_PATH", audit_sample_path)
+    monkeypatch.setattr(release_module, "AUDIT_TEMPLATE_PATH", audit_template_path)
+    monkeypatch.setattr(release_module, "AUDIT_REVIEW_MD_PATH", tmp_path / "missing_audit_review.md")
+    monkeypatch.setattr(release_module, "AUDIT_REPORT_JSON_PATH", tmp_path / "missing_audit_report.json")
+    monkeypatch.setattr(release_module, "AUDIT_REPORT_MD_PATH", tmp_path / "missing_audit_report.md")
+    monkeypatch.setattr(release_module, "PAPER_BRIEF_PATH", tmp_path / "missing_paper_brief.md")
+    monkeypatch.setattr(release_module, "NEURIPS_READINESS_PATH", tmp_path / "missing_neurips_readiness.md")
     monkeypatch.chdir(tmp_path)
 
     export_release_bundle()
@@ -102,3 +142,11 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     assert (release_dir / "github_harness" / "scripts" / "run.py").exists()
     assert (release_dir / "github_harness" / "tests" / "test_x.py").exists()
     assert (release_dir / "github_harness" / "pyproject.toml").exists()
+    assert (release_dir / "paper" / "main.tex").exists()
+    assert not (release_dir / "paper" / "._main.tex").exists()
+    assert not (release_dir / "paper" / "main.aux").exists()
+    assert (release_dir / "traces" / "trace.jsonl").exists()
+    release_summary = json.loads((release_dir / "results" / "run_summary.json").read_text(encoding="utf-8"))
+    assert release_summary[0]["trace_path"] == "traces/trace.jsonl"
+    release_audit_sample = json.loads((release_dir / "audit" / "audit_sample.json").read_text(encoding="utf-8"))
+    assert release_audit_sample[0]["trace_path"] == "traces/trace.jsonl"

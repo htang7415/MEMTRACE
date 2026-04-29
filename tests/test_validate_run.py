@@ -33,3 +33,25 @@ def test_overall_pilot_valid_requires_all_rows_to_pass() -> None:
         }
     }
     assert overall_pilot_valid(metrics) is False
+
+
+def test_build_validation_report_handles_partial_actor_rows() -> None:
+    metrics = {
+        "by_configuration": {
+            "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit": {
+                "S0": {"planner_structured_output_rate": 0.0, "required_tool_call_rate": 0.0, "execution_failure_rate": 1.0, "writer_structured_turn_rate": 1.0, "writer_valid_memory_type_rate": 1.0},
+            }
+        },
+        "pilot_validation_by_configuration": {
+            "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit": {
+                "S0": {"s0_stateful_sanity_pass": True, "par_attack_surface_signal_pass": False, "official_pilot_valid": False},
+            }
+        },
+    }
+    report = build_validation_report(metrics)
+    assert "| Llama-3.1-8B | S1 | n/a | n/a | n/a | n/a | n/a | False | False | False |" in report
+    assert overall_pilot_valid(metrics) is False
+
+
+def test_overall_pilot_valid_rejects_empty_validation() -> None:
+    assert overall_pilot_valid({"pilot_validation_by_configuration": {}}) is False

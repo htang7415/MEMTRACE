@@ -25,12 +25,26 @@ TestResults.xml
 /figures
 /docs
 /release
+/.*/
 ._*
 .DS_Store
 __pycache__/
 *.pyc
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
 
 *.md
 !README.md
 
-.venv
+/archived_runs
+/paper
+/scripts/make_paper_*.py
+/scripts/check_neurips_readiness.py
+/tests/test_paper_*.py
+/tests/test_neurips_readiness.py

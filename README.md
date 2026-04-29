@@ -17,43 +17,63 @@ It compares one-shot prompt-injection behavior against multi-turn stateful behav
 Setup:
 
 ```bash
-uv sync
+/opt/homebrew/bin/python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+python -m pip install pytest
 ```
 
 Tests:
 
 ```bash
-uv run pytest
+python -m pytest
 ```
 
 Build benchmark assets:
 
 ```bash
-uv run python scripts/build_corpus.py
-uv run python scripts/build_episodes.py
-uv run python scripts/verify_retrieval.py
+python scripts/build_corpus.py
+python scripts/build_episodes.py
+python scripts/build_index.py
+python scripts/verify_retrieval.py
 ```
 
 Run benchmark and score:
 
 ```bash
-uv run python scripts/run_experiments.py
-uv run python scripts/score_runs.py
-uv run python scripts/validate_run.py
+MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_experiments.py
+python scripts/score_runs.py
+python scripts/validate_run.py
 ```
 
 Protocol requirements for official benchmark runs:
 
 - build the corpus, episodes, and dense retrieval index first
-- use the MLX writer and planner backends declared in `project.md`
+- use the MLX writer and planner backends declared in `Project.md`
 - do not reuse prior traces generated under a different backend or protocol version
 
 Generate tables, figures, and release bundle:
 
 ```bash
-uv run python scripts/make_tables.py
-uv run python scripts/make_figures.py
-uv run python scripts/export_release.py
+python scripts/make_tables.py
+python scripts/make_figures.py
+python scripts/attribute_failures.py
+python scripts/make_audit.py
+python scripts/make_audit_review.py
+python scripts/make_paper_brief.py
+python scripts/make_paper_tables.py
+python scripts/make_paper_figures.py
+python scripts/export_release.py
+python scripts/check_neurips_readiness.py
+```
+
+For submission, place the official `neurips_2026.sty` file in `paper/`; `paper/main.tex` uses it automatically when present and otherwise falls back to local compile geometry.
+
+Promote a validated result directory into the paper-facing result paths:
+
+```bash
+python scripts/promote_results.py --source-dir data/results_qwen_toolfix_v1
 ```
 
 ## Current Limitations

@@ -32,6 +32,13 @@ TABLE1_MD_PATH = RESULTS_DIR / "table1.md"
 SUPPLEMENTARY_TABLES_MD_PATH = RESULTS_DIR / "supplementary_tables.md"
 ATTRIBUTION_LABELS_PATH = RESULTS_DIR / "attribution_labels.json"
 ATTRIBUTION_REPORT_PATH = RESULTS_DIR / "attribution_report.md"
+AUDIT_SAMPLE_PATH = AUDIT_DIR / "audit_sample.json"
+AUDIT_TEMPLATE_PATH = AUDIT_DIR / "audit_template.jsonl"
+AUDIT_REVIEW_MD_PATH = AUDIT_DIR / "audit_review.md"
+AUDIT_REPORT_JSON_PATH = AUDIT_DIR / "audit_report.json"
+AUDIT_REPORT_MD_PATH = AUDIT_DIR / "audit_report.md"
+PAPER_BRIEF_PATH = DOCS_DIR / "neurips_paper_brief.md"
+NEURIPS_READINESS_PATH = DOCS_DIR / "neurips_readiness.md"
 FIGURE1_PATH = FIGURES_DIR / "figure1_pipeline.svg"
 FIGURE2_PATH = FIGURES_DIR / "figure2_ovr_vs_svr.svg"
 FIGURE3_PATH = FIGURES_DIR / "figure3_par_by_task_family.svg"
@@ -44,7 +51,7 @@ ACTOR_MODELS = (
     "mlx-community/Qwen2.5-7B-Instruct-4bit",
     "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
 )
-PROTOCOL_VERSION = "project-md-v2"
+PROTOCOL_VERSION = "project-md-v3"
 MEMORY_WRITER_BACKEND = os.environ.get("MEMTRACE_MEMORY_WRITER_BACKEND", "mlx")
 PLANNER_BACKEND = os.environ.get("MEMTRACE_PLANNER_BACKEND", "mlx")
 TEMPERATURE = 0
