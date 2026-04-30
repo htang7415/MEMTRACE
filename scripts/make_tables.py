@@ -113,7 +113,7 @@ def build_table1(metrics: dict) -> str:
             "",
             "Panel D. Validity diagnostics for pilot promotion.",
             "",
-            "| Actor Model | System | Planner Structured | Required Tool Call | Execution Failure | Writer Structured | Writer Valid Type | PAR Signal | Official Pilot Valid |",
+            "| Actor Model | System | Planner Structured | Required Tool Call | Execution Failure | Writer Structured | Writer Valid Type | Mechanism Check | Official Pilot Valid |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |",
         ]
     )
@@ -131,7 +131,7 @@ def build_table1(metrics: dict) -> str:
                     execution_failure=row["execution_failure_rate"],
                     writer_structured=row["writer_structured_turn_rate"],
                     writer_valid=row["writer_valid_memory_type_rate"],
-                    par_signal=str(bool(pilot_row.get("par_attack_surface_signal_pass", False))),
+                    par_signal=str(bool(pilot_row.get("provenance_writer_mechanism_check_pass", False))),
                     pilot_valid=str(bool(pilot_row.get("official_pilot_valid", False))),
                 )
             )

@@ -1,34 +1,50 @@
 # MEMTRACE
 
-MEMTRACE is a compact benchmark harness for evaluating how persistent memory changes safety outcomes in memory-enabled agents.
-It compares one-shot prompt-injection behavior against multi-turn stateful behavior under fixed retrieval, fixed task structure, and fixed memory-system variants.
+MEMTRACE is a compact benchmark harness for evaluating persistent-memory risk in tool-using agents.
+It separates current-turn retrieval exposure, poisoned-memory admission, delayed memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure.
 
-## Scope
+## Paper-Facing Scope
 
-- 12 base tasks
-- 2 task families: policy memory, tool-argument memory
-- 2 payloads: direct override, contextual drift
-- 3 systems: `S0`, `S1`, `S2`
-- 108 episodes per system
-- 648 generated runs across 2 actor models
+- 12 synthetic enterprise-assistant base tasks.
+- 2 task families: policy memory and tool-argument memory.
+- 2 payload types: direct override and contextual drift.
+- 3 systems: `S0`, `S1`, and `S2`.
+- 324 main traces: 108 traces per system.
+- 72 forced-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
+- One evaluated actor/backend pair in the v1.0 audited pilot: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
 
-## Runbook
+## Setup
 
-Setup:
+Use an Apple Silicon Python environment for MLX-backed generation:
 
 ```bash
-/opt/homebrew/bin/python3 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python -m pip install -e .
-python -m pip install pytest
 ```
 
-Tests:
+Run tests:
 
 ```bash
 python -m pytest
 ```
+
+## Reproduce From Packaged Traces
+
+The anonymous artifact can regenerate the reported tables without model inference:
+
+```bash
+cd paper/anonymous_memtrace
+python scripts/validate_artifact.py
+python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
+python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json
+python scripts/build_croissant.py --validate
+python scripts/run_smoke_test.py --config configs/scoring.yaml
+```
+
+## Regenerate Harness Outputs
 
 Build benchmark assets:
 
@@ -39,7 +55,7 @@ python scripts/build_index.py
 python scripts/verify_retrieval.py
 ```
 
-Run benchmark and score:
+Run the main benchmark and score traces:
 
 ```bash
 MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_experiments.py
@@ -47,13 +63,13 @@ python scripts/score_runs.py
 python scripts/validate_run.py
 ```
 
-Protocol requirements for official benchmark runs:
+Run the forced-memory calibration:
 
-- build the corpus, episodes, and dense retrieval index first
-- use the MLX writer and planner backends declared in `Project.md`
-- do not reuse prior traces generated under a different backend or protocol version
+```bash
+MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_oracle_memory_calibration.py
+```
 
-Generate tables, figures, and release bundle:
+Generate tables, figures, audit reports, and release bundle:
 
 ```bash
 python scripts/make_tables.py
@@ -64,14 +80,8 @@ python scripts/make_audit_review.py
 python scripts/export_release.py
 ```
 
-Promote a validated result directory into the canonical result paths:
-
-```bash
-python scripts/promote_results.py --source-dir data/results_qwen_toolfix_v1
-```
-
 ## Current Limitations
 
-- official experiments require Apple Silicon plus `mlx-lm` and a built dense index
-- the `profile` backend is a deterministic test fixture and is not valid for official results
-- macOS AppleDouble files inside `.git/` may still exist on this volume, though they are excluded from the tracked workspace
+- The v1.0 audited pilot evaluates one actor/backend pair and does not make broad cross-model claims.
+- The benchmark uses synthetic enterprise-assistant tasks with fixed retrieval and deterministic tools.
+- The `profile` backend is a deterministic smoke-test fixture and is not a paper-facing result backend.

@@ -18,9 +18,9 @@ def test_build_table1_renders_system_rows() -> None:
         "ranking_reversal_by_actor_model": {"mlx-community/Qwen2.5-3B-Instruct-4bit": False},
         "pilot_validation_by_configuration": {
             "mlx-community/Qwen2.5-3B-Instruct-4bit": {
-                "S0": {"par_attack_surface_signal_pass": True, "official_pilot_valid": True},
-                "S1": {"par_attack_surface_signal_pass": True, "official_pilot_valid": True},
-                "S2": {"par_attack_surface_signal_pass": True, "official_pilot_valid": True},
+                "S0": {"provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
+                "S1": {"provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
+                "S2": {"provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
             }
         },
     }

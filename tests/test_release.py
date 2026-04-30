@@ -33,7 +33,10 @@ def test_build_static_leaderboard_renders_rows(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     leaderboard = build_static_leaderboard(metrics_path)
-    assert "| Qwen2.5-3B | S2 | 1.000 | 0.100 | 0.200 | 0.100 | 0.200 |" in leaderboard
+    assert (
+        "| mlx-community/Qwen2.5-3B-Instruct-4bit | S2 | 1.000 | 0.100 | 0.200 | 0.100 | 0.200 |"
+        in leaderboard
+    )
 
 
 def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypatch) -> None:
@@ -65,10 +68,14 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
         "table1.md": "# Table 1\n",
         "supplementary_tables.md": "# Supplementary\n",
         "dataset_card.md": "# Dataset Card\n",
-        "LICENSE": "MIT\n",
+        "LICENSE": "MIT License\n\nCopyright (c) 2026 Named Author\n",
         "project.md": "# project\n",
         "README.md": "# MEMTRACE\n",
         "pyproject.toml": "[project]\nname='memtrace'\n",
+        "reproduce.md": "# Reproduce\n",
+        "eval_card.md": "# Eval Card\n",
+        "third_party_assets.md": "# Third Party\n",
+        "croissant_metadata.json": "{}\n",
     }
     for name, content in files.items():
         (tmp_path / name).write_text(content, encoding="utf-8")
@@ -84,7 +91,7 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     trace_path = traces_dir / "trace.jsonl"
     trace_path.write_text("{}\n", encoding="utf-8")
     (tmp_path / "run_summary.json").write_text(
-        json.dumps([{"episode_id": "ep1", "trace_path": str(trace_path)}]),
+        json.dumps([{"episode_id": "ep1", "trace_path": str(trace_path), "protocol_version": "project-md-v3"}]),
         encoding="utf-8",
     )
     (tmp_path / "episode_scores.json").write_text(
@@ -101,9 +108,11 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
     (scripts_dir / "run.py").write_text("print('x')\n", encoding="utf-8")
+    (scripts_dir / "promote_results.py").write_text("print('internal')\n", encoding="utf-8")
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_x.py").write_text("def test_x(): pass\n", encoding="utf-8")
+    (tests_dir / "test_paper_brief.py").write_text("def test_internal(): pass\n", encoding="utf-8")
     paper_dir = tmp_path / "paper" / "manuscript"
     paper_dir.mkdir(parents=True)
     (paper_dir / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
@@ -144,15 +153,33 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
 
     assert (release_dir / "github_harness" / "memtrace" / "__init__.py").exists()
     assert (release_dir / "github_harness" / "scripts" / "run.py").exists()
+    assert not (release_dir / "github_harness" / "scripts" / "promote_results.py").exists()
     assert (release_dir / "github_harness" / "tests" / "test_x.py").exists()
+    assert not (release_dir / "github_harness" / "tests" / "test_paper_brief.py").exists()
     assert (release_dir / "github_harness" / "pyproject.toml").exists()
+    assert "Anonymous Authors" in (release_dir / "LICENSE").read_text(encoding="utf-8")
+    assert "Named Author" not in (release_dir / "LICENSE").read_text(encoding="utf-8")
+    assert (release_dir / "REPRODUCE.md").exists()
+    assert (release_dir / "DATASET_CARD.md").exists()
+    assert (release_dir / "EVAL_CARD.md").exists()
+    assert (release_dir / "THIRD_PARTY_ASSETS.md").exists()
+    assert (release_dir / "croissant_metadata.json").exists()
+    assert (release_dir / "pyproject.toml").exists()
+    assert (release_dir / "configs" / "scoring.yaml").exists()
+    assert (release_dir / "data" / "corpus" / "passages.jsonl").exists()
+    assert (release_dir / "tables" / "main_metrics.json").exists()
+    assert (release_dir / "tables" / "confidence_intervals.json").exists()
+    assert (release_dir / "tools" / "README.md").exists()
+    assert (release_dir / "scripts" / "validate_artifact.py").exists()
     assert (release_dir / "paper" / "manuscript" / "main.tex").exists()
     assert (release_dir / "paper" / "manuscript" / "neurips_2026.sty").exists()
     assert not (release_dir / "paper" / "manuscript" / "._main.tex").exists()
     assert not (release_dir / "paper" / "manuscript" / "main.aux").exists()
-    assert (release_dir / "traces" / "trace.jsonl").exists()
+    assert (release_dir / "traces" / "v1_main_324" / "trace.jsonl").exists()
+    release_trace = json.loads((release_dir / "traces" / "v1_main_324" / "trace.jsonl").read_text(encoding="utf-8"))
+    assert release_trace["schema_version"] == "project-md-v3"
     release_summary = json.loads((release_dir / "results" / "run_summary.json").read_text(encoding="utf-8"))
-    assert release_summary[0]["trace_path"] == "traces/trace.jsonl"
+    assert release_summary[0]["trace_path"] == "traces/v1_main_324/trace.jsonl"
     release_audit_sample = json.loads((release_dir / "audit" / "audit_sample.json").read_text(encoding="utf-8"))
-    assert release_audit_sample[0]["trace_path"] == "traces/trace.jsonl"
-    assert (release_dir / "audit" / "audit_review.md").read_text(encoding="utf-8") == "trace: traces/trace.jsonl\n"
+    assert release_audit_sample[0]["trace_path"] == "traces/v1_main_324/trace.jsonl"
+    assert (release_dir / "audit" / "audit_review.md").read_text(encoding="utf-8") == "trace: traces/v1_main_324/trace.jsonl\n"

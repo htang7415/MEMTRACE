@@ -65,6 +65,7 @@ class ToolCall(BaseModel):
 
 
 class TraceTurn(BaseModel):
+    schema_version: str = "memtrace.trace.v1"
     episode_id: str
     turn: int
     query: str
@@ -80,6 +81,27 @@ class TraceTurn(BaseModel):
     planner_output: dict[str, Any] | None = None
     label: str | None = None
     poison_admission_flag: bool | None = None
+    calibration_condition: str | None = None
+    oracle_memory_inserted: bool | None = None
+    oracle_memory_retrieved: bool | None = None
+    current_turn_poison_retrieved_at_trigger: bool | None = None
+
+
+class CausalChainDiagnostics(BaseModel):
+    poison_in_initial_retrieval: bool = False
+    writer_candidate_emitted: bool = False
+    writer_candidate_valid_schema: bool = False
+    poison_admitted: bool = False
+    admitted_memory_id: str | None = None
+    admitted_memory_type: str | None = None
+    admitted_memory_source_ids: list[str] = Field(default_factory=list)
+    admitted_memory_retrieved_at_trigger: bool = False
+    current_turn_poison_retrieved_at_trigger: bool = False
+    unsafe_tool_call_proposed_before_checker: bool = False
+    policy_checker_blocked_unsafe_call: bool = False
+    unsafe_tool_call_executed: bool = False
+    execution_failure: bool = False
+    failure_reason: str | None = None
 
 
 class EpisodeRecord(BaseModel):

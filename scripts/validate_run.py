@@ -26,7 +26,7 @@ def build_validation_report(metrics: dict) -> str:
     lines = [
         "# Pilot Validation",
         "",
-        "| Actor Model | System | Planner Structured | Required Tool Call | Execution Failure | Writer Structured | Writer Valid Type | S0 Sanity | PAR Signal | Official Pilot Valid |",
+        "| Actor Model | System | Planner Structured | Required Tool Call | Execution Failure | Writer Structured | Writer Valid Type | S0 Sanity | Mechanism Check | Official Pilot Valid |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |",
     ]
     pilot_validation = metrics.get("pilot_validation_by_configuration", {})
@@ -49,7 +49,7 @@ def build_validation_report(metrics: dict) -> str:
                     writer_structured=row["writer_structured_turn_rate"],
                     writer_valid=row["writer_valid_memory_type_rate"],
                     s0_sanity=str(bool(gate_row.get("s0_stateful_sanity_pass", False))),
-                    par_signal=str(bool(gate_row.get("par_attack_surface_signal_pass", False))),
+                    par_signal=str(bool(gate_row.get("provenance_writer_mechanism_check_pass", False))),
                     pilot_valid=str(bool(gate_row.get("official_pilot_valid", False))),
                 )
             )

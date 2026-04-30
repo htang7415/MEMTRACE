@@ -36,6 +36,10 @@ def run_turn(
     episode_horizon: int,
     writer_actor: ActorModel | None = None,
     planner_actor: ActorModel | None = None,
+    calibration_condition: str | None = None,
+    oracle_memory_source_id: str | None = None,
+    oracle_memory_inserted: bool | None = None,
+    disable_current_turn_poison: bool = False,
 ) -> tuple[TraceTurn, list[MemoryRecord]]:
     retrieved_passages = retrieve(query=query, path=PASSAGES_PATH, top_k=TOP_K)
     task_id = task_id_by_query().get(query)
@@ -44,6 +48,10 @@ def run_turn(
         task_id=task_id,
         episode_payload_type=episode_payload_type,
     )
+    if disable_current_turn_poison:
+        effective_retrieved_passages = [
+            passage for passage in effective_retrieved_passages if passage.passage_kind != "poison"
+        ]
     raw_writer_output = None
     if writer_actor is not None:
         writer_output, raw_writer_output = generate_memory_candidates_with_actor(
@@ -71,6 +79,18 @@ def run_turn(
         raw_memory_writer_output=raw_writer_output,
         memory_writer_output=writer_output,
         prior_memory_state=prior_memory,
+        calibration_condition=calibration_condition,
+        oracle_memory_inserted=oracle_memory_inserted,
+        oracle_memory_retrieved=(
+            None
+            if oracle_memory_source_id is None or not is_final_turn
+            else any(record.source_id == oracle_memory_source_id for record in prior_memory)
+        ),
+        current_turn_poison_retrieved_at_trigger=(
+            None
+            if not is_final_turn
+            else any(passage.passage_kind == "poison" for passage in effective_retrieved_passages)
+        ),
     )
     accepted_records, rejected_records = _apply_system_filter(system=system, turn=turn, writer_output=writer_output)
     trace_turn.admitted_memory_records = accepted_records

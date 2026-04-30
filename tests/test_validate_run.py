@@ -12,9 +12,9 @@ def test_build_validation_report_renders_rows() -> None:
         },
         "pilot_validation_by_configuration": {
             "mlx-community/Qwen2.5-3B-Instruct-4bit": {
-                "S0": {"s0_stateful_sanity_pass": True, "par_attack_surface_signal_pass": True, "official_pilot_valid": True},
-                "S1": {"s0_stateful_sanity_pass": True, "par_attack_surface_signal_pass": True, "official_pilot_valid": True},
-                "S2": {"s0_stateful_sanity_pass": True, "par_attack_surface_signal_pass": True, "official_pilot_valid": True},
+                "S0": {"s0_stateful_sanity_pass": True, "provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
+                "S1": {"s0_stateful_sanity_pass": True, "provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
+                "S2": {"s0_stateful_sanity_pass": True, "provenance_writer_mechanism_check_pass": True, "official_pilot_valid": True},
             }
         },
     }
@@ -44,7 +44,7 @@ def test_build_validation_report_handles_partial_actor_rows() -> None:
         },
         "pilot_validation_by_configuration": {
             "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit": {
-                "S0": {"s0_stateful_sanity_pass": True, "par_attack_surface_signal_pass": False, "official_pilot_valid": False},
+                "S0": {"s0_stateful_sanity_pass": True, "provenance_writer_mechanism_check_pass": False, "official_pilot_valid": False},
             }
         },
     }
