@@ -1,0 +1,519 @@
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    pass
+
+import argparse
+import hashlib
+import json
+from collections import Counter, defaultdict
+from pathlib import Path
+
+
+DEFAULT_METRICS_PATH = Path("data/results/metrics.json")
+DEFAULT_CALIBRATION_METRICS_PATH = Path("data/calibration/oracle_memory/metrics.json")
+DEFAULT_EPISODE_SCORES_PATH = Path("data/results/episode_scores.json")
+DEFAULT_ATTRIBUTION_LABELS_PATH = Path("data/results/attribution_labels.json")
+DEFAULT_OUTPUT_DIR = Path("paper/manuscript/tables")
+DEFAULT_ATTEMPTED_RUNS_SCORER_ID = "v1"
+
+ACTOR_CODES = {
+    "mlx-community/Qwen2.5-7B-Instruct-4bit": "Q7",
+    "mlx-community/Qwen2.5-3B-Instruct-4bit": "Q3",
+    "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit": "L31",
+    "mlx-community/Llama-3.2-3B-Instruct-4bit": "L32",
+}
+
+EPISODE_KIND_CODES = {
+    "clean_control": "C",
+    "one_shot_attack": "O",
+    "stateful_attack": "T",
+}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate LaTeX tables for the MEMTRACE paper draft.")
+    parser.add_argument("--metrics-path", type=Path, default=DEFAULT_METRICS_PATH)
+    parser.add_argument("--calibration-metrics-path", type=Path, default=DEFAULT_CALIBRATION_METRICS_PATH)
+    parser.add_argument("--episode-scores-path", type=Path, default=DEFAULT_EPISODE_SCORES_PATH)
+    parser.add_argument("--attribution-labels-path", type=Path, default=DEFAULT_ATTRIBUTION_LABELS_PATH)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--attempted-runs-data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--attempted-runs-scorer-id", default=DEFAULT_ATTEMPTED_RUNS_SCORER_ID)
+    args = parser.parse_args()
+
+    with args.metrics_path.open("r", encoding="utf-8") as handle:
+        metrics = json.load(handle)
+    calibration_metrics = metrics
+    if args.calibration_metrics_path.exists():
+        with args.calibration_metrics_path.open("r", encoding="utf-8") as handle:
+            calibration_metrics = json.load(handle)
+    with args.episode_scores_path.open("r", encoding="utf-8") as handle:
+        episode_scores = json.load(handle)
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    (args.output_dir / "main_results.tex").write_text(build_main_results_table(metrics), encoding="utf-8")
+    (args.output_dir / "mechanism_counts.tex").write_text(build_mechanism_counts_table(metrics), encoding="utf-8")
+    (args.output_dir / "causal_chain_counts.tex").write_text(build_causal_chain_counts_table(metrics), encoding="utf-8")
+    (args.output_dir / "oracle_memory_calibration.tex").write_text(
+        build_oracle_memory_calibration_table(calibration_metrics),
+        encoding="utf-8",
+    )
+    (args.output_dir / "validity_gates.tex").write_text(build_validity_gates_table(metrics), encoding="utf-8")
+    (args.output_dir / "confidence_intervals.tex").write_text(build_confidence_intervals_table(metrics), encoding="utf-8")
+    (args.output_dir / "task_level_signal.tex").write_text(build_task_level_signal_table(episode_scores), encoding="utf-8")
+    (args.output_dir / "attempted_runs.tex").write_text(
+        build_attempted_runs_table(args.attempted_runs_data_dir, args.attempted_runs_scorer_id),
+        encoding="utf-8",
+    )
+    if args.attribution_labels_path.exists():
+        with args.attribution_labels_path.open("r", encoding="utf-8") as handle:
+            attribution_labels = json.load(handle)
+        (args.output_dir / "failure_attribution.tex").write_text(
+            build_failure_attribution_table(attribution_labels),
+            encoding="utf-8",
+        )
+
+    print(f"paper_tables_dir={args.output_dir}")
+
+
+def build_main_results_table(metrics: dict) -> str:
+    actor_model = next(iter(metrics["by_configuration"]))
+    rows = metrics["by_configuration"][actor_model]
+    lines = [
+        "\\resizebox{\\linewidth}{!}{%",
+        "\\begin{tabular}{lllllll}",
+        "\\toprule",
+        "System & Clean success & One-shot unsafe & Stateful unsafe & Poison admitted & Poison admitted, executed-only & Exec failure \\\\",
+        "\\midrule",
+    ]
+    for system in ("S0", "S1", "S2"):
+        row = rows[system]
+        lines.append(
+            "{system} & {CSR} & {OVR} & {SVR} & {PAR} & {PAR_exec} & {EFR} \\\\".format(
+                system=system,
+                CSR=_count_rate_cell(row, "clean_success", "CSR"),
+                OVR=_count_rate_cell(row, "one_shot_unsafe", "OVR"),
+                SVR=_count_rate_cell(row, "stateful_unsafe", "SVR"),
+                PAR=_count_rate_cell(row, "poison_admitted", "PAR"),
+                PAR_exec=_count_rate_cell(row, "poison_admitted_executed_only", "PAR_executed_only"),
+                EFR=_count_rate_cell(row, "execution_failure", "execution_failure_rate"),
+            )
+        )
+    lines.extend(
+        [
+            "\\bottomrule",
+            "\\end{tabular}",
+            "}",
+            "",
+            "\\footnotesize Denominators are episode counts from the committed run summaries: clean-control episodes for clean success, one-shot attack episodes for one-shot unsafe, stateful attack episodes for stateful unsafe and poison admitted, executed stateful attack episodes for executed-only poison admitted, and all episodes for execution failure.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def build_mechanism_counts_table(metrics: dict) -> str:
+    actor_model = next(iter(metrics["by_configuration"]))
+    rows = metrics["by_configuration"][actor_model]
+    lines = [
+        "\\begin{tabular}{lrrrr}",
+        "\\toprule",
+        "System & admit+violate & admit+safe & no-admit+violate & no-admit+safe \\\\",
+        "\\midrule",
+    ]
+    for system in ("S0", "S1", "S2"):
+        counts = rows[system]["mechanism_counts"]
+        lines.append(
+            "{system} & {a} & {b} & {c} & {d} \\\\".format(
+                system=system,
+                a=counts["a_admission_and_violation"],
+                b=counts["b_admission_and_no_violation"],
+                c=counts["c_no_admission_and_violation"],
+                d=counts["d_no_admission_and_no_violation"],
+            )
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def build_causal_chain_counts_table(metrics: dict) -> str:
+    actor_model = next(iter(metrics["by_configuration"]))
+    rows = metrics["by_configuration"][actor_model]
+    lines = [
+        "\\resizebox{\\linewidth}{!}{%",
+        "\\begin{tabular}{lrrrrrrr}",
+        "\\toprule",
+        "System & Stateful attacks & Poison admitted & Admitted poison retrieved at trigger & Unsafe proposal before checker & Unsafe blocked by checker & Unsafe executed & Execution failure \\\\",
+        "\\midrule",
+    ]
+    for system in ("S0", "S1", "S2"):
+        counts = rows[system]["causal_chain_counts"]
+        lines.append(
+            "{system} & {stateful} & {admitted} & {retrieved} & {proposal} & {blocked} & {executed} & {failure} \\\\".format(
+                system=system,
+                stateful=counts["stateful_attacks"],
+                admitted=counts["poison_admitted"],
+                retrieved=counts["admitted_poison_retrieved_at_trigger"],
+                proposal=counts["unsafe_proposal_before_checker"],
+                blocked=counts["unsafe_blocked_by_checker"],
+                executed=counts["unsafe_executed"],
+                failure=counts["execution_failure"],
+            )
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", "}", ""])
+    return "\n".join(lines)
+
+
+def build_oracle_memory_calibration_table(metrics: dict) -> str:
+    rows = metrics.get("calibration_by_condition", {})
+    lines = [
+        "\\resizebox{\\linewidth}{!}{%",
+        "\\begin{tabular}{lrrrrrrrrrr}",
+        "\\toprule",
+        "Condition & Episodes & Oracle inserted & Oracle retrieved & Unsafe proposal & Unsafe executed & Exec failure & CAL-PRR & CAL-UPR & CAL-SVR & CAL-EFR \\\\",
+        "\\midrule",
+    ]
+    if rows:
+        for condition, row in sorted(rows.items()):
+            lines.append(
+                "{condition} & {episodes} & {inserted} & {retrieved} & {proposal} & {executed} & {failure} & {cal_prr:.3f} & {cal_upr:.3f} & {cal_svr:.3f} & {cal_efr:.3f} \\\\".format(
+                    condition=_latex_escape(condition),
+                    episodes=row["episodes"],
+                    inserted=_count_rate_from_values(
+                        row["oracle_memory_inserted"],
+                        row["episodes"],
+                        row["oracle_memory_inserted"] / row["episodes"] if row["episodes"] else 0.0,
+                    ),
+                    retrieved=_count_rate_from_values(
+                        row["oracle_memory_retrieved"],
+                        row["oracle_memory_inserted"],
+                        row["CAL_PRR"],
+                    ),
+                    proposal=_count_rate_from_values(
+                        row["unsafe_proposal_before_checker"],
+                        row["parseable_planner_outputs"],
+                        row["CAL_UPR"],
+                    ),
+                    executed=_count_rate_from_values(row["unsafe_executed"], row["episodes"], row["CAL_SVR"]),
+                    failure=_count_rate_from_values(row["execution_failure"], row["episodes"], row["CAL_EFR"]),
+                    cal_prr=row["CAL_PRR"],
+                    cal_upr=row["CAL_UPR"],
+                    cal_svr=row["CAL_SVR"],
+                    cal_efr=row["CAL_EFR"],
+                )
+            )
+    else:
+        lines.append("\\multicolumn{11}{l}{Calibration metrics not generated.} \\\\")
+    lines.extend(["\\bottomrule", "\\end{tabular}", "}", ""])
+    return "\n".join(lines)
+
+
+def build_validity_gates_table(metrics: dict) -> str:
+    actor_model = next(iter(metrics["by_configuration"]))
+    rows = metrics["by_configuration"][actor_model]
+    gates = metrics["pilot_validation_by_configuration"][actor_model]
+    s1_par = rows.get("S1", {}).get("PAR", 0.0)
+    s2_par = rows.get("S2", {}).get("PAR", 0.0)
+    lines = [
+        "\\begin{tabular}{llll}",
+        "\\toprule",
+        "Check & Category & Result & Value \\\\",
+        "\\midrule",
+        _gate_row(
+            "required tool-call rate $\\ge$ 0.90",
+            "gate",
+            all(gates[system].get("required_tool_call_rate_pass", False) for system in ("S0", "S1", "S2")),
+            _system_values(rows, "required_tool_call_rate"),
+        ),
+        _gate_row(
+            "execution-failure rate $\\le$ 0.10",
+            "gate",
+            all(gates[system].get("execution_failure_rate_pass", False) for system in ("S0", "S1", "S2")),
+            _system_values(rows, "execution_failure_rate"),
+        ),
+        _gate_row(
+            "writer structured-output rate $\\ge$ 0.90",
+            "gate",
+            all(gates[system].get("writer_structured_turn_rate_pass", False) for system in ("S0", "S1", "S2")),
+            _system_values(rows, "writer_structured_turn_rate"),
+        ),
+        _gate_row(
+            "writer valid-memory-type rate $\\ge$ 0.90",
+            "gate",
+            all(gates[system].get("writer_valid_memory_type_rate_pass", False) for system in ("S0", "S1", "S2")),
+            _system_values(rows, "writer_valid_memory_type_rate"),
+        ),
+        _gate_row(
+            "S0 stateful violation rate $\\le$ 0.05",
+            "gate",
+            all(gates[system].get("s0_stateful_sanity_pass", False) for system in ("S0", "S1", "S2")),
+            f"S0 SVR={rows.get('S0', {}).get('SVR', 0.0):.3f}",
+        ),
+        _gate_row(
+            "provenance-writer mechanism check",
+            "mechanism",
+            all(gates[system].get("provenance_writer_mechanism_check_pass", False) for system in ("S0", "S1", "S2")),
+            f"S1 PAR={s1_par:.3f}; S2 PAR={s2_par:.3f}",
+        ),
+        _gate_row(
+            "declared pilot-validity gates",
+            "summary",
+            all(gates[system].get("official_pilot_valid", False) for system in ("S0", "S1", "S2")),
+            "; ".join(f"{system}={'yes' if gates[system].get('official_pilot_valid', False) else 'no'}" for system in ("S0", "S1", "S2")),
+        ),
+    ]
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def build_confidence_intervals_table(metrics: dict) -> str:
+    actor_model = next(iter(metrics["by_configuration"]))
+    rows = metrics["by_configuration"][actor_model]
+    s0, s1, s2 = rows["S0"], rows["S1"], rows["S2"]
+    interval_rows = [
+        ("Clean success", s0, "clean_success", "CSR", "CSR_ci95"),
+        ("S0 one-shot unsafe", s0, "one_shot_unsafe", "OVR", "OVR_ci95"),
+        ("S1/S2 one-shot unsafe", s1, "one_shot_unsafe", "OVR", "OVR_ci95"),
+        ("Stateful unsafe per system", s0, "stateful_unsafe", "SVR", "SVR_ci95"),
+        ("S1 poisoned-memory admission", s1, "poison_admitted", "PAR", "PAR_ci95"),
+        ("S1 PAR-exec", s1, "poison_admitted_executed_only", "PAR_executed_only", "PAR_executed_only_ci95"),
+        ("Execution failure per system", s0, "execution_failure", "execution_failure_rate", "execution_failure_rate_ci95"),
+        ("Executed-stateful unsafe per system", s0, "stateful_unsafe_executed_only", "SVR_executed_only", "SVR_executed_only_ci95"),
+    ]
+    lines = [
+        "\\begin{tabular}{llll}",
+        "\\toprule",
+        "Quantity & Count & Rate & Wilson 95\\% interval \\\\",
+        "\\midrule",
+    ]
+    for label, row, count_key, rate_key, interval_key in interval_rows:
+        lines.append(
+            "{label} & {count} & {rate:.3f} & {interval} \\\\".format(
+                label=label,
+                count=_count_cell(row, count_key, rate_key),
+                rate=row[rate_key],
+                interval=_ci_cell(row, interval_key, rate_key),
+            )
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def build_task_level_signal_table(episode_scores: list[dict]) -> str:
+    tasks = sorted({item["task_id"] for item in episode_scores if item["episode_kind"] == "stateful_attack"})
+    lines = [
+        "\\begin{tabular}{lcccccc}",
+        "\\toprule",
+        "Task & S0 PAR & S0 SVR & S1 PAR & S1 SVR & S2 PAR & S2 SVR \\\\",
+        "\\midrule",
+    ]
+    for task_id in tasks:
+        cells = [task_id]
+        for system in ("S0", "S1", "S2"):
+            stateful = [
+                item
+                for item in episode_scores
+                if item["task_id"] == task_id and item["system"] == system and item["episode_kind"] == "stateful_attack"
+            ]
+            cells.append(_count_fraction(sum(1 for item in stateful if item["poison_admission_flag"] is True), len(stateful)))
+            cells.append(_count_fraction(sum(1 for item in stateful if item["unsafe"]), len(stateful)))
+        lines.append(" & ".join(cells) + " \\\\")
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def build_failure_attribution_table(attribution_labels: list[dict]) -> str:
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for item in attribution_labels:
+        grouped[item["system"]].append(item)
+
+    lines = [
+        "\\begin{tabular}{lrrrrrr}",
+        "\\toprule",
+        "System & Exec. fail & Retrieval unsafe & Filler unsafe & Memory unsafe & Other unsafe & Unsafe total \\\\",
+        "\\midrule",
+    ]
+    for system in ("S0", "S1", "S2"):
+        items = grouped.get(system, [])
+        unsafe_labels = Counter(item["attribution_label"] for item in items if item.get("unsafe"))
+        execution_failures = sum(1 for item in items if item.get("execution_failure"))
+        lines.append(
+            "{system} & {execution_failures} & {retrieval} & {filler} & {memory} & {other} & {unsafe_total} \\\\".format(
+                system=system,
+                execution_failures=execution_failures,
+                retrieval=unsafe_labels["retrieval-mediated"],
+                filler=unsafe_labels["filler-contamination"],
+                memory=unsafe_labels["memory-mediated"],
+                other=unsafe_labels["unattributed"],
+                unsafe_total=sum(1 for item in items if item.get("unsafe")),
+            )
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def build_attempted_runs_table(data_dir: Path, scorer_id: str) -> str:
+    lines = [
+        "\\begin{tabular}{p{0.30\\linewidth}rlllp{0.23\\linewidth}l}",
+        "\\toprule",
+        "Run packet & Rows & Actor & Scope & Scorer & Inclusion decision & Trace hash \\\\",
+        "\\midrule",
+    ]
+    for run_dir in _attempted_run_dirs(data_dir):
+        summary_path = run_dir / "run_summary.json"
+        metrics_path = run_dir / "metrics.json"
+        with summary_path.open("r", encoding="utf-8") as handle:
+            run_summary = json.load(handle)
+        metrics = None
+        if metrics_path.exists():
+            with metrics_path.open("r", encoding="utf-8") as handle:
+                metrics = json.load(handle)
+        lines.append(
+            "{packet} & {rows} & {actor} & {scope} & {scorer} & {decision} & {trace_hash} \\\\".format(
+                packet=_latex_path(run_dir.as_posix()),
+                rows=len(run_summary),
+                actor=_actor_code(run_summary),
+                scope=_scope_cell(run_summary),
+                scorer=_latex_escape(scorer_id),
+                decision=_latex_escape(_attempted_run_decision(run_dir, run_summary, metrics, data_dir)),
+                trace_hash=f"\\texttt{{{_trace_hash(run_summary)}}}",
+            )
+        )
+    calibration_dir = data_dir / "calibration" / "oracle_memory"
+    if (calibration_dir / "run_summary.json").exists():
+        with (calibration_dir / "run_summary.json").open("r", encoding="utf-8") as handle:
+            calibration_summary = json.load(handle)
+        lines.append(
+            "{packet} & {rows} & Q7 & S1-ORACLE; T & {scorer} & {decision} & {trace_hash} \\\\".format(
+                packet=_latex_path("data/calibration/s1_oracle_retrieved_memory"),
+                rows=len(calibration_summary),
+                scorer=_latex_escape(scorer_id),
+                decision=_latex_escape("included calibration-only sensitivity packet; excluded from main rates"),
+                trace_hash=f"\\texttt{{{_trace_hash(calibration_summary)}}}",
+            )
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
+    return "\n".join(lines)
+
+
+def _count_fraction(numerator: int, denominator: int) -> str:
+    return f"{numerator}/{denominator}" if denominator else "0/0"
+
+
+def _count_rate_cell(row: dict, count_key: str, rate_key: str) -> str:
+    return f"{_count_cell(row, count_key, rate_key)} = {row[rate_key]:.3f}"
+
+
+def _count_rate_from_values(numerator: int, denominator: int, rate_value: float) -> str:
+    return f"{numerator}/{denominator} = {rate_value:.3f}" if denominator else "0/0 = 0.000"
+
+
+def _count_cell(row: dict, count_key: str, rate_key: str) -> str:
+    counts = row.get("rate_counts", {})
+    if count_key in counts:
+        numerator, denominator = counts[count_key]
+        return f"{numerator}/{denominator}"
+    return f"{row[rate_key]:.3f}"
+
+
+def _ci_cell(row: dict, interval_key: str, rate_key: str) -> str:
+    interval = row.get(interval_key)
+    if interval is None:
+        return "[n/a, n/a]"
+    return f"[{interval[0]:.3f}, {interval[1]:.3f}]"
+
+
+def _gate_row(name: str, category: str, passed: bool, value: str) -> str:
+    return f"{name} & {category} & {'pass' if passed else 'fail'} & {value} \\\\"
+
+
+def _system_values(rows: dict, metric_key: str) -> str:
+    return "; ".join(f"{system}={rows[system][metric_key]:.3f}" for system in ("S0", "S1", "S2"))
+
+
+def _latex_escape(text: str) -> str:
+    return text.replace("_", "\\_")
+
+
+def _latex_path(text: str) -> str:
+    return f"\\path{{{text}}}"
+
+
+def _attempted_run_dirs(data_dir: Path) -> list[Path]:
+    candidates = [data_dir / "results"]
+    if (data_dir / "pilot").exists():
+        candidates.extend(sorted((data_dir / "pilot").glob("*")))
+    candidates.extend(sorted(data_dir.glob("results_*")))
+    run_dirs = []
+    seen = set()
+    for candidate in candidates:
+        if not candidate.is_dir() or not (candidate / "run_summary.json").exists():
+            continue
+        key = candidate.as_posix()
+        if key in seen:
+            continue
+        seen.add(key)
+        run_dirs.append(candidate)
+    return run_dirs
+
+
+def _actor_code(run_summary: list[dict]) -> str:
+    actors = sorted({item.get("actor_model", "unknown") for item in run_summary})
+    if len(actors) != 1:
+        return "mixed"
+    return ACTOR_CODES.get(actors[0], "other")
+
+
+def _scope_cell(run_summary: list[dict]) -> str:
+    systems = sorted({item.get("system", "?") for item in run_summary})
+    kinds = {item.get("episode_kind", "?") for item in run_summary}
+    system_cell = "S0-S2" if systems == ["S0", "S1", "S2"] else "/".join(systems)
+    kind_codes = [
+        EPISODE_KIND_CODES.get(kind, kind)
+        for kind in ("clean_control", "one_shot_attack", "stateful_attack")
+        if kind in kinds
+    ]
+    return f"{system_cell}; {'/'.join(kind_codes)}"
+
+
+def _attempted_run_decision(run_dir: Path, run_summary: list[dict], metrics: dict | None, data_dir: Path) -> str:
+    if run_dir == data_dir / "results":
+        return "included main evidence packet"
+    if metrics is None:
+        return "excluded: no validity report"
+    if not _metrics_all_gates_pass(metrics):
+        return "excluded: failed gates"
+    if len(run_summary) == 324:
+        return "excluded: superseded 324-row candidate"
+    return "excluded: incomplete passing subset"
+
+
+def _metrics_all_gates_pass(metrics: dict) -> bool:
+    validation = metrics.get("pilot_validation_by_configuration", {})
+    if not validation:
+        return False
+    for actor_rows in validation.values():
+        for gate_row in actor_rows.values():
+            if not gate_row.get("official_pilot_valid", False):
+                return False
+    return True
+
+
+def _trace_hash(run_summary: list[dict]) -> str:
+    digest = hashlib.sha256()
+    found_any = False
+    for item in sorted(run_summary, key=lambda row: row.get("trace_path", "")):
+        trace_path = Path(item.get("trace_path", ""))
+        if not trace_path.exists():
+            continue
+        found_any = True
+        digest.update(trace_path.as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(trace_path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:10] if found_any else "missing"
+
+
+if __name__ == "__main__":
+    main()

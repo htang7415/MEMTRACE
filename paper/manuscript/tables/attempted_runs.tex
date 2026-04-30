@@ -1,0 +1,33 @@
+\begin{tabular}{p{0.30\linewidth}rlllp{0.23\linewidth}l}
+\toprule
+Run packet & Rows & Actor & Scope & Scorer & Inclusion decision & Trace hash \\
+\midrule
+\path{data/results} & 324 & Q7 & S0-S2; C/O/T & v1 & included main evidence packet & \texttt{aff1934e11} \\
+\path{data/pilot/budget_s0_clean_chatfix} & 1 & Q7 & S0; C & v1 & excluded: failed gates & \texttt{39acc48e8d} \\
+\path{data/pilot/budget_s0_oneshot_chatfix} & 1 & Q7 & S0; O & v1 & excluded: failed gates & \texttt{fe2a9ad948} \\
+\path{data/pilot/calendar_location_s0_stateful_one} & 1 & Q7 & S0; T & v1 & excluded: failed gates & \texttt{129ba60a05} \\
+\path{data/pilot/calendar_s1_stateful_chatfix} & 1 & Q7 & S1; T & v1 & excluded: failed gates & \texttt{0a77a9c89d} \\
+\path{data/pilot/focused_qwen_v1} & 81 & Q7 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{197040ae95} \\
+\path{data/pilot/focused_qwen_v2} & 54 & Q7 & S0-S2; C/O/T & v1 & excluded: incomplete passing subset & \texttt{f2b82cc82c} \\
+\path{data/pilot/latest} & 54 & Q7 & S0-S2; C/O/T & v1 & excluded: incomplete passing subset & \texttt{ce3f846149} \\
+\path{data/pilot/llama32_3b_neurips_probe_v1} & 45 & L32 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{84add58618} \\
+\path{data/pilot/llama_calendar_attendee_full_v1} & 4 & L31 & S0; C/O/T & v1 & excluded: no validity report & \texttt{357e1815ff} \\
+\path{data/pilot/llama_calendar_attendee_v3} & 18 & L31 & S1/S2; C/O/T & v1 & excluded: failed gates & \texttt{e8fbbdb08e} \\
+\path{data/pilot/llama_neurips_probe_v1} & 6 & L31 & S0; C/O/T & v1 & excluded: failed gates & \texttt{7572a3da47} \\
+\path{data/pilot/llama_rescue_toolfix_v1} & 3 & L31 & S2; C/O/T & v1 & excluded: failed gates & \texttt{21e6c90568} \\
+\path{data/pilot/meeting_time_s0_clean} & 1 & Q7 & S0; C & v1 & excluded: failed gates & \texttt{6db65c742f} \\
+\path{data/pilot/qwen25_3b_neurips_probe_v1} & 45 & Q3 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{97714dc685} \\
+\path{data/pilot/qwen25_corrected_affected_slice} & 81 & Q7 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{95f91608db} \\
+\path{data/pilot/qwen25_corrected_merged} & 324 & Q7 & S0-S2; C/O/T & v1 & excluded: superseded 324-row candidate & \texttt{aff1934e11} \\
+\path{data/pilot/qwen_calendar_attendee_confirm_v1} & 4 & Q7 & S0; C/O/T & v1 & excluded: no validity report & \texttt{ba463a0767} \\
+\path{data/pilot/qwen_expense_toolfix_v1} & 9 & Q7 & S2; C/O/T & v1 & excluded: failed gates & \texttt{aa6df82234} \\
+\path{data/pilot/qwen_gate_repair_v1_approval_limit} & 27 & Q7 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{254aaae982} \\
+\path{data/pilot/qwen_gate_repair_v1_calendar_attendee_s1} & 9 & Q7 & S1; C/O/T & v1 & excluded: failed gates & \texttt{53366ae536} \\
+\path{data/pilot/qwen_gate_repair_v1_calendar_location_s0} & 9 & Q7 & S0; C/O/T & v1 & excluded: failed gates & \texttt{7a37f2bb61} \\
+\path{data/pilot/qwen_gate_repair_v1_meeting_time} & 27 & Q7 & S0-S2; C/O/T & v1 & excluded: failed gates & \texttt{1f1d335102} \\
+\path{data/results_qwen_repaired_v1} & 324 & Q7 & S0-S2; C/O/T & v1 & excluded: superseded 324-row candidate & \texttt{6e1efba10e} \\
+\path{data/results_qwen_toolfix_v1} & 324 & Q7 & S0-S2; C/O/T & v1 & excluded: superseded 324-row candidate & \texttt{ad891adf60} \\
+\path{data/results_qwen_v3_full} & 94 & Q7 & S0; C/O/T & v1 & excluded: no validity report & \texttt{d5ad3f928d} \\
+\path{data/calibration/s1_oracle_retrieved_memory} & 72 & Q7 & S1-ORACLE; T & v1 & included calibration-only sensitivity packet; excluded from main rates & \texttt{6d8542da44} \\
+\bottomrule
+\end{tabular}
