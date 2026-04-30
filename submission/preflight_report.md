@@ -13,7 +13,7 @@ Completed local gates:
 - Fresh venv `python scripts/validate_release.py`: PASS
 - Croissant validation: PASS
 - `python scripts/check_submission_package.py --local-only`: PASS
-- PDF page count: 18 total pages, letter paper
+- PDF page count: 20 total pages, letter paper
 - PDF fonts: no Type 3 fonts
 - Main-text figures: Figures 1--3 appear before References
 - Artifact trace count: 396 total trace files, 324 main plus 72 calibration

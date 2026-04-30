@@ -277,6 +277,7 @@ def _check_release_bundle(release_dir: Path, expected_episodes: int) -> Readines
 
 def _check_release_docs(release_dir: Path) -> ReadinessCheck:
     required = [
+        "VALIDATION.md",
         "REPRODUCE.md",
         "RELEASE_MANIFEST.md",
         "TRACE_SCHEMA.md",

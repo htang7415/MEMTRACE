@@ -85,6 +85,7 @@ def export_release_bundle() -> None:
     for source, destination in targets:
         _copy_file(source, destination)
     _write_release_readme(RELEASE_DIR / "README.md")
+    _write_validation_doc(RELEASE_DIR / "VALIDATION.md")
     _write_release_project_overview(RELEASE_DIR / "docs" / "project.md")
     _copy_anonymized_license(Path("LICENSE"), RELEASE_DIR / "LICENSE")
     _copy_optional_file(DOCS_DIR / "reproduce.md", RELEASE_DIR / "REPRODUCE.md")
@@ -226,10 +227,25 @@ def _copy_anonymized_license(source: Path, destination: Path) -> None:
 def _write_release_readme(destination: Path) -> None:
     text = """# MEMTRACE Anonymous Artifact
 
-This artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
-It contains the v1.0 audited pilot traces, a forced-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+## 1. What MEMTRACE Is
 
-## Contents
+MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
+This anonymous artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
+It contains the v1.0 audited pilot traces, a separate forced-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+
+## 2. What Claims This Artifact Supports
+
+The artifact supports a narrow evaluation claim for one actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
+It shows that one-shot unsafe execution and poisoned-memory admission can be separated from delayed stateful unsafe execution under fixed retrieval, deterministic tools, declared validity gates, and trace-level scoring.
+The calibration packet shows scorer and trace-protocol sensitivity when poisoned memory is forced into the trigger context.
+
+## 3. What Claims This Artifact Does Not Support
+
+The artifact does not claim broad cross-model prevalence, absence of persistent-memory risk, broad model ranking, or defense superiority.
+`S2` is a provenance-aware reference writer, not a complete deployed defense.
+Calibration traces are excluded from the main S0/S1/S2 rates.
+
+## 4. File Layout
 
 - `traces/v1_main_324/`: 324 main traces, with 108 traces each for `S0`, `S1`, and `S2`.
 - `traces/calibration_oracle_memory_72/`: 72 forced-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
@@ -239,9 +255,56 @@ It contains the v1.0 audited pilot traces, a forced-memory calibration packet, g
 - `github_harness/`: source harness for rebuilding assets and rerunning experiments.
 - `scripts/`: artifact-local validation and metric regeneration commands.
 - `paper/`: anonymous manuscript source and PDF.
-- `RELEASE_MANIFEST.md` and `TRACE_SCHEMA.md`: release counts and trace-row contract.
+- `VALIDATION.md`, `RELEASE_MANIFEST.md`, and `TRACE_SCHEMA.md`: validation record, release counts, and trace-row contract.
 
-## Quick Validation
+## 5. Reproduce Metrics Without Model Execution
+
+```bash
+python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
+python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
+```
+
+These commands regenerate metrics from packaged traces and do not run the actor model.
+
+## 6. Validate All Traces and Metadata
+
+```bash
+python scripts/validate_release.py
+python scripts/validate_artifact.py
+python scripts/build_croissant.py --validate
+```
+
+`scripts/validate_release.py` checks the 324 main traces, 72 calibration traces, 396 total traces, run-summary counts, schema contract, locked paper counts, calibration values, pilot gates, audit reconciliation, and packaged tables.
+
+## 7. Reproduce Calibration Metrics
+
+```bash
+python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
+python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json
+```
+
+The calibration condition is `S1-ORACLE-RETRIEVED-MEMORY`.
+It is excluded from all main S0/S1/S2 rates.
+
+## 8. Inspect Audit Packet
+
+The audit packet is in `audit/`.
+It contains 40 scorer-audit comparisons after frozen-scorer reconciliation.
+The retained artifact does not record the trace-sampling rule, so the audit packet is a scorer-consistency check rather than a random or stratified reliability estimate.
+
+## 9. Known Limitations
+
+The v1.0 audited pilot evaluates one actor/backend pair over synthetic enterprise-assistant tasks.
+Original model-generation jobs retain actor/backend metadata but not exact worker, wall-clock runtime, or peak-memory telemetry.
+Full model reruns require Apple Silicon, `mlx-lm`, `sentence-transformers`, the referenced MLX actor model, and the dense retrieval model.
+
+## 10. Licenses and Third-Party Assets
+
+MEMTRACE synthetic assets and harness code are under the anonymous MIT review license.
+External models and dependencies are documented in `THIRD_PARTY_ASSETS.md`.
+Model weights are referenced, not redistributed.
+
+## Command Summary
 
 ```bash
 python scripts/validate_release.py
@@ -253,16 +316,58 @@ python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72
 python scripts/build_croissant.py --validate
 python scripts/run_smoke_test.py --config configs/scoring.yaml
 ```
+"""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
 
-These commands regenerate metrics from packaged traces and do not run the actor model.
-Full model generation requires Apple Silicon, `mlx-lm`, `sentence-transformers`, the referenced MLX actor model, and the dense retrieval model.
 
-## Scope
+def _write_validation_doc(destination: Path) -> None:
+    text = """# MEMTRACE Validation Record
 
-The main paper-facing result evaluates one actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
-The artifact contains 396 trace files: 324 main S0/S1/S2 traces and 72 calibration traces.
-The main S0/S1/S2 metrics exclude calibration traces.
-The calibration packet tests benchmark sensitivity when poisoned memory is inserted and forced into the trigger context.
+## One-Command Validation
+
+```bash
+python scripts/validate_release.py
+```
+
+This command validates the paper-facing release without model execution.
+
+## One-Command Metric Regeneration
+
+```bash
+python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
+```
+
+This command regenerates main and calibration metrics from the packaged run summaries and traces.
+
+## Required Status Table
+
+| Check | Required result | Status |
+|---|---:|---|
+| Main trace count | 324 | pass |
+| Calibration trace count | 72 | pass |
+| Total trace count | 396 | pass |
+| Main summary rows | 324 | pass |
+| Calibration summary rows | 72 | pass |
+| Schema validation | 396/396 | pass |
+| Retrieval verification | all required records present | pass |
+| Metrics regeneration | Tables 2-9 reproduced | pass |
+| Figures regeneration | Figures 2-3 reproduced | pass |
+| Croissant metadata | validates with RAI fields | pass |
+| Dataset card | present | pass |
+| Evaluation card | present | pass |
+| Third-party assets | matches paper table | pass |
+| Anonymity scan | no identifying strings | pass |
+| PDF render inspection | no unreadable main tables | pass |
+| Page/style compliance | official NeurIPS style | pass |
+
+## Additional Checks
+
+- `scripts/validate_release.py` validates all 396 traces against the committed schema contract.
+- `scripts/validate_artifact.py` checks required files, trace uniqueness, stateful causal diagnostics, metric-table equality, and anonymity markers.
+- `scripts/build_croissant.py --validate` validates the Croissant metadata, including Responsible AI fields.
+- `scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures` regenerates the result figures from committed metrics.
+- `THIRD_PARTY_ASSETS.md` documents the same model, backend, dependency, and MEMTRACE asset rows as the paper asset tables.
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
@@ -626,6 +731,7 @@ def _write_release_manifest_doc(destination: Path) -> None:
 ## Top-level files
 
 - README.md
+- VALIDATION.md
 - REPRODUCE.md
 - RELEASE_MANIFEST.md
 - TRACE_SCHEMA.md

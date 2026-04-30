@@ -74,7 +74,7 @@ def collect_claim_evidence_checks(
         _check_contains("OVR range", manuscript, _range_text("OVR", summary["OVR_range"])),
         _check_contains("SVR range", manuscript, _range_text("SVR", summary["SVR_range"])),
         _check_contains("EFR range", manuscript, _range_text("EFR", summary["EFR_range"])),
-        _check_contains("audit agreement", manuscript, f"{summary['audit_agreements']}/{summary['audit_n']} agreement"),
+        _check_audit_reconciliation_claim(manuscript_lower, summary),
         _check_pilot_framing(manuscript_lower, summary["pilot_valid"]),
         _check_mechanism_claims(manuscript_lower, summary),
     ]
@@ -217,6 +217,19 @@ def _check_attribution_claims(manuscript_lower: str, attribution_labels_path: Pa
     status = "PASS" if expected in manuscript_lower else "FAIL"
     detail = f"found `{expected}`" if status == "PASS" else f"missing `{expected}`"
     return ClaimEvidenceCheck("failure attribution claims", status, detail)
+
+
+def _check_audit_reconciliation_claim(manuscript_lower: str, summary: dict) -> ClaimEvidenceCheck:
+    expected = f"{summary['audit_agreements']}/{summary['audit_n']}"
+    has_count = expected in manuscript_lower
+    has_reconciliation = "audit-packet reconciliation" in manuscript_lower or "scorer/audit agreement" in manuscript_lower
+    status = "PASS" if has_count and has_reconciliation else "FAIL"
+    detail = (
+        f"{expected} audit reconciliation claim present"
+        if status == "PASS"
+        else f"missing retained audit-packet reconciliation claim with {expected}"
+    )
+    return ClaimEvidenceCheck("audit reconciliation", status, detail)
 
 
 def _count_marker(count: int, noun: str) -> str:

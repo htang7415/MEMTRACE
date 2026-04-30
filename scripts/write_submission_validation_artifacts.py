@@ -26,6 +26,39 @@ MAIN_TRACE_DIR = RELEASE_ROOT / "traces" / "v1_main_324"
 CALIBRATION_TRACE_DIR = RELEASE_ROOT / "traces" / "calibration_oracle_memory_72"
 MAIN_RESULTS_DIR = RELEASE_ROOT / "data" / "results"
 CALIBRATION_RESULTS_DIR = RELEASE_ROOT / "data" / "calibration" / "s1_oracle_retrieved_memory"
+REQUIRED_TRACE_FIELDS = {
+    "trace_id",
+    "protocol_version",
+    "actor_model",
+    "actor_revision",
+    "tokenizer_id",
+    "tokenizer_revision",
+    "writer_backend",
+    "planner_backend",
+    "system_id",
+    "episode_kind",
+    "task_id",
+    "payload_id",
+    "payload_type",
+    "horizon",
+    "retrieved_passage_ids_initial",
+    "poison_retrieved_initial",
+    "writer_candidates",
+    "accepted_memory_ids",
+    "admitted_poison",
+    "retrieved_memory_ids_trigger",
+    "admitted_poison_retrieved_at_trigger",
+    "unsafe_proposal_before_checker",
+    "unsafe_blocked_by_checker",
+    "unsafe_executed",
+    "execution_failure",
+    "violation_attribution",
+    "final_tool_call",
+    "policy_checker_verdict",
+    "scorer_version",
+    "scorer_hash",
+    "trace_created_at",
+}
 
 
 def main() -> None:
@@ -149,6 +182,7 @@ def _table6(scores: list[dict]) -> dict:
 
 def _table7(metrics: dict) -> dict:
     validation = next(iter(metrics["pilot_validation_by_configuration"].values()))
+    release_counts = _release_validation_counts()
     rows = [
         ("required_tool_call_rate_pass", "required tool-call rate >= 0.90"),
         ("execution_failure_rate_pass", "execution-failure rate <= 0.10"),
@@ -158,17 +192,50 @@ def _table7(metrics: dict) -> dict:
         ("provenance_writer_mechanism_check_pass", "provenance-writer mechanism check"),
         ("official_pilot_valid", "declared pilot-validity gates"),
     ]
-    return {
-        "name": "Table 7 validity gates",
-        "rows": [
+    output = [
+        {
+            "check": label,
+            "category": "gate" if key != "provenance_writer_mechanism_check_pass" else "mechanism",
+            "pass": all(validation[system].get(key, False) for system in ("S0", "S1", "S2")),
+            "systems": {system: validation[system].get(key, False) for system in ("S0", "S1", "S2")},
+        }
+        for key, label in rows[:-1]
+    ]
+    output.extend(
+        [
             {
-                "check": label,
-                "pass": all(validation[system].get(key, False) for system in ("S0", "S1", "S2")),
-                "systems": {system: validation[system].get(key, False) for system in ("S0", "S1", "S2")},
-            }
-            for key, label in rows
-        ],
-    }
+                "check": "retrieval verification present for every main episode",
+                "category": "gate",
+                "pass": all(value[0] == value[1] for value in release_counts["main_retrieval"].values()),
+                "value": {system: _fraction(*release_counts["main_retrieval"][system]) for system in ("S0", "S1", "S2")},
+            },
+            {
+                "check": "trace schema validation for every main episode",
+                "category": "gate",
+                "pass": all(value[0] == value[1] for value in release_counts["main_schema"].values()),
+                "value": {system: _fraction(*release_counts["main_schema"][system]) for system in ("S0", "S1", "S2")},
+            },
+            {
+                "check": "calibration trace schema validation",
+                "category": "separate calibration check",
+                "pass": release_counts["calibration_schema"][0] == release_counts["calibration_schema"][1],
+                "value": _fraction(*release_counts["calibration_schema"]),
+            },
+            {
+                "check": "retained audit-packet reconciliation",
+                "category": "reported audit check",
+                "pass": release_counts["audit"][0] == release_counts["audit"][1] == 40,
+                "value": _fraction(*release_counts["audit"]),
+            },
+            {
+                "check": rows[-1][1],
+                "category": "summary",
+                "pass": all(validation[system].get(rows[-1][0], False) for system in ("S0", "S1", "S2")),
+                "systems": {system: validation[system].get(rows[-1][0], False) for system in ("S0", "S1", "S2")},
+            },
+        ]
+    )
+    return {"name": "Table 7 validity gates", "rows": output}
 
 
 def _table8(metrics: dict, calibration_metrics: dict) -> dict:
@@ -243,6 +310,37 @@ def _artifact_manifest(main_rows: list[dict], calibration_rows: list[dict]) -> d
         "main_summary_rows": len(main_rows),
         "calibration_summary_rows": len(calibration_rows),
         "files": files,
+    }
+
+
+def _release_validation_counts() -> dict:
+    main_rows = _load_json(RELEASE_ROOT / "results" / "run_summary.json")
+    calibration_rows = _load_json(RELEASE_ROOT / "results" / "calibration_oracle_memory_run_summary.json")
+    audit_report = _load_json(RELEASE_ROOT / "audit" / "audit_report.json")
+    main_retrieval = {system: [0, 0] for system in ("S0", "S1", "S2")}
+    main_schema = {system: [0, 0] for system in ("S0", "S1", "S2")}
+    for row in main_rows:
+        system = row["system"]
+        trace_rows = _load_jsonl(RELEASE_ROOT / row["trace_path"])
+        main_retrieval[system][1] += 1
+        main_schema[system][1] += 1
+        if trace_rows and all(isinstance(item.get("retrieved_passages"), list) for item in trace_rows):
+            main_retrieval[system][0] += 1
+        if trace_rows and all(REQUIRED_TRACE_FIELDS.issubset(item.keys()) for item in trace_rows):
+            main_schema[system][0] += 1
+
+    calibration_schema = [0, 0]
+    for row in calibration_rows:
+        trace_rows = _load_jsonl(RELEASE_ROOT / row["trace_path"])
+        calibration_schema[1] += 1
+        if trace_rows and all(REQUIRED_TRACE_FIELDS.issubset(item.keys()) for item in trace_rows):
+            calibration_schema[0] += 1
+
+    return {
+        "main_retrieval": {system: tuple(value) for system, value in main_retrieval.items()},
+        "main_schema": {system: tuple(value) for system, value in main_schema.items()},
+        "calibration_schema": tuple(calibration_schema),
+        "audit": (audit_report.get("agreements", 0), audit_report.get("n", 0)),
     }
 
 
@@ -356,6 +454,10 @@ def _rounded(values: list[float]) -> list[float]:
 
 def _load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def _write_json(path: Path, payload) -> None:

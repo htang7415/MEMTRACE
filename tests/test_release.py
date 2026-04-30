@@ -160,6 +160,7 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     assert "Anonymous Authors" in (release_dir / "LICENSE").read_text(encoding="utf-8")
     assert "Named Author" not in (release_dir / "LICENSE").read_text(encoding="utf-8")
     assert (release_dir / "REPRODUCE.md").exists()
+    assert (release_dir / "VALIDATION.md").exists()
     assert (release_dir / "DATASET_CARD.md").exists()
     assert (release_dir / "EVAL_CARD.md").exists()
     assert (release_dir / "THIRD_PARTY_ASSETS.md").exists()

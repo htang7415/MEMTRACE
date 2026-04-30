@@ -19,12 +19,12 @@
       "sha256": "1d0dde41ece0f9620937f1a81a67e295ace0eae180c009d862006e8f3b288458"
     },
     "README.md": {
-      "bytes": 2295,
-      "sha256": "55f8f59a67a60bae95335ef9f5c66691a49a066d984e37e1551cdd74a7627aa0"
+      "bytes": 4988,
+      "sha256": "4ccbb1009d78ddb90f2d27fd76710dc0a716565059a28db31dd595cd83b34b91"
     },
     "RELEASE_MANIFEST.md": {
-      "bytes": 563,
-      "sha256": "b9ea1ca7a69b2a6863b4c2f7e4daae9fa9ac7df003b6462449cdf7893351a436"
+      "bytes": 579,
+      "sha256": "83800fef0d86e5dcd50c505b07c6396e95da8aa8c9416ae4b95a3b88ef13ef4f"
     },
     "REPRODUCE.md": {
       "bytes": 1912,
@@ -37,6 +37,10 @@
     "TRACE_SCHEMA.md": {
       "bytes": 999,
       "sha256": "34cea9b6e52e2e0899463a6985ff96acddd06ae9c2f92f0c05b8056809578b09"
+    },
+    "VALIDATION.md": {
+      "bytes": 1907,
+      "sha256": "5debbd824c12ed99ce9cf9be0dcb9d577d3eb6487b88581b85ebd8b48c3b3c9c"
     },
     "artifacts/recomputed/calibration_metrics.json": {
       "bytes": 620,
@@ -163,8 +167,8 @@
       "sha256": "0ff80f4f4622e8b2338460f017b812b5acd0b6c53913778b1bbc34a77f7335db"
     },
     "docs/claim_evidence_check.md": {
-      "bytes": 543,
-      "sha256": "09226081d0bb81e16acb1583ddd9fd759d5c236d47d5e502987e0720e5d9f2eb"
+      "bytes": 565,
+      "sha256": "f98f2b6ad2f10b2c143b07df927e363fc1e5f5bc69ea55028ef0e40d542126a4"
     },
     "docs/dataset_card.md": {
       "bytes": 3550,
@@ -226,41 +230,9 @@
       "bytes": 35,
       "sha256": "164caf2cf5d79d56b357db019ff30291c3a12b0ae3f889c2af6e2a3064670a38"
     },
-    "github_harness/memtrace/__pycache__/__init__.cpython-312.pyc": {
-      "bytes": 232,
-      "sha256": "8a674e729223375912d56acf83136081dd04e01e4e17dc35d7c4f0870669eedd"
-    },
-    "github_harness/memtrace/__pycache__/actors.cpython-312.pyc": {
-      "bytes": 1254,
-      "sha256": "c602cc5d9c3c6ba5909256923f39a3a707eef64b15887472aac8fd3b7b5a3126"
-    },
-    "github_harness/memtrace/__pycache__/benchmark.cpython-312.pyc": {
-      "bytes": 16265,
-      "sha256": "f884bcd442d9eedd7102a33547cd982ab423fc37f546105d56eb04ddcaa25073"
-    },
-    "github_harness/memtrace/__pycache__/config.cpython-312.pyc": {
-      "bytes": 3717,
-      "sha256": "78986bdf9139392c1a8525e5cbff589b393afa77c915c9e016bd70b18e4b8622"
-    },
-    "github_harness/memtrace/__pycache__/constants.cpython-312.pyc": {
-      "bytes": 645,
-      "sha256": "e8ba17ed55530d73736bcf6fbaa680be2a92b12f800d3f550653dcdb003ffee0"
-    },
-    "github_harness/memtrace/__pycache__/parsing.cpython-312.pyc": {
-      "bytes": 1687,
-      "sha256": "08795b6d7f70adbb5672c874d0618258ca41b2267110e5d641060723a91c715a"
-    },
-    "github_harness/memtrace/__pycache__/schema.cpython-312.pyc": {
-      "bytes": 6520,
-      "sha256": "cb5ee830ccbb5a9e288773202eb2b41be74c1a736b8069dcc2eee65c475a3173"
-    },
     "github_harness/memtrace/actors.py": {
       "bytes": 674,
       "sha256": "3c3d54585592ec033c26d564f05dc53eefe95916075b2ef4a8bdbd70fa5e6ec5"
-    },
-    "github_harness/memtrace/agents/__pycache__/planner.cpython-312.pyc": {
-      "bytes": 6869,
-      "sha256": "f36be1f2f23ee09c472f179e74671b0078d35d02bb49405430078b4595e7fc85"
     },
     "github_harness/memtrace/agents/planner.py": {
       "bytes": 5061,
@@ -302,18 +274,6 @@
       "bytes": 839,
       "sha256": "b5e88f46c54c75248193488c4169b5b5ea5cade5209c243c891757991b260b52"
     },
-    "github_harness/memtrace/eval/__pycache__/labeler.cpython-312.pyc": {
-      "bytes": 3057,
-      "sha256": "bf1f70ea6b016068427764b6656b2541958b67c00cb75ee6527908d64f6c2a4c"
-    },
-    "github_harness/memtrace/eval/__pycache__/metrics.cpython-312.pyc": {
-      "bytes": 36621,
-      "sha256": "c0171cf65067e737849a42eb874ba91a332bc9b5969781b20ffbc6f968ffc14e"
-    },
-    "github_harness/memtrace/eval/__pycache__/scoring.cpython-312.pyc": {
-      "bytes": 18588,
-      "sha256": "22f958b92654bc70f164e6f5ec346f76a38b9664125e8931e5008727d81715ae"
-    },
     "github_harness/memtrace/eval/audit.py": {
       "bytes": 4501,
       "sha256": "67abc6a7d44f6f01da6d72f8b9b11fd64d6a76dd0d23139bd5a4d500865fb141"
@@ -329,10 +289,6 @@
     "github_harness/memtrace/eval/scoring.py": {
       "bytes": 14101,
       "sha256": "43bb0da1666a3967501d085fd5606c420e130c4440b1f4e7dfee8c9f327f3315"
-    },
-    "github_harness/memtrace/models/__pycache__/actor.cpython-312.pyc": {
-      "bytes": 1325,
-      "sha256": "21338ca8acf4308eacdbf3f3f48010d4585b447901c48b158357124ed6d82cd2"
     },
     "github_harness/memtrace/models/actor.py": {
       "bytes": 482,
@@ -369,10 +325,6 @@
     "github_harness/memtrace/schema.py": {
       "bytes": 3847,
       "sha256": "2202ac7a3da06936144a529cedf414bc0f7142bb3f66cea19837381ecdb19858"
-    },
-    "github_harness/memtrace/store/__pycache__/memory.cpython-312.pyc": {
-      "bytes": 3736,
-      "sha256": "dbba82a82985d09b31df2d5ae8d5dcb467426e8340660921268a973b79a431bb"
     },
     "github_harness/memtrace/store/db.py": {
       "bytes": 1091,
@@ -435,12 +387,12 @@
       "sha256": "d60bfdc09eef0bc5a142ee09873a5181289d3992d4bbe82cb9ea2c7f2206b00e"
     },
     "github_harness/scripts/artifact/validate_artifact.py": {
-      "bytes": 8269,
-      "sha256": "a0219c049fbd9d279c874154a8ca3ffd3355cd1ae4cad96a459697065816c713"
+      "bytes": 9287,
+      "sha256": "5aacca7e3574050c67dafa0069e8d68ed77bffdf2a415080877a2a7d93d0c3d5"
     },
     "github_harness/scripts/artifact/validate_release.py": {
-      "bytes": 11132,
-      "sha256": "4888b4a628bc1ec7ac94f1b01d61542952698efa3fe292e45dd3db3563ffb652"
+      "bytes": 11761,
+      "sha256": "ca342fdae38b43178625c80ca43f2ef27177ba1f044b28736ad8c5c24112fd8f"
     },
     "github_harness/scripts/attribute_failures.py": {
       "bytes": 11326,
@@ -459,20 +411,20 @@
       "sha256": "c2d89d1dad2a7b99a04368b03117a49d871724f05584f85da41a7fde93a8373d"
     },
     "github_harness/scripts/check_claim_evidence.py": {
-      "bytes": 9410,
-      "sha256": "474f89a249df1c0904f707a8227520286153bf2630b3dc28cc9c21762267c116"
+      "bytes": 10024,
+      "sha256": "26e984bef814ad67c088fe2ed4d53f17e81a0797d292ac411763232d2534a45f"
     },
     "github_harness/scripts/check_neurips_readiness.py": {
-      "bytes": 15300,
-      "sha256": "599f0e9f238337c44c749741d4b5daa1d76f96d130bb43bf8167d34758c61c1a"
+      "bytes": 15325,
+      "sha256": "cf9ca1b45e2e8ab08b7780a935e795d5c98cc90f40063f5345e4d6dc52702df0"
     },
     "github_harness/scripts/check_submission_package.py": {
-      "bytes": 6985,
-      "sha256": "7cc442aadd36cb154b248f69bf4e8a80ad982cf028ebe199b140b515284daed5"
+      "bytes": 7006,
+      "sha256": "f9e41b36bbe0d33235d3f651005b14248d894a6569416ab5769b03b32e557a14"
     },
     "github_harness/scripts/export_release.py": {
-      "bytes": 31725,
-      "sha256": "10e0759606d44c420df0054ee3885b630b9f4e7b57b7fc9f6c6275bfa073d52a"
+      "bytes": 36581,
+      "sha256": "0e662ae3a20ab5c94e130e9a45fe2e782869b37911356d5d39c89b43c1be5a3f"
     },
     "github_harness/scripts/make_audit.py": {
       "bytes": 2984,
@@ -491,8 +443,8 @@
       "sha256": "0344154882d2d17d6922f0701b6e375a84b3b61860627674983e59ff1f8b7e16"
     },
     "github_harness/scripts/make_paper_tables.py": {
-      "bytes": 23413,
-      "sha256": "15444dc4e3d0ff2b3bfef9eefa26051c1749e23df2e5ed750b19e852c84f8d20"
+      "bytes": 28584,
+      "sha256": "6093594a73343ba1fe17c9f6f5d102d740740a03c1d167c5b6f4b1035631c3fc"
     },
     "github_harness/scripts/make_tables.py": {
       "bytes": 9809,
@@ -535,8 +487,8 @@
       "sha256": "7067a2f3732d06db10c9a772bee0281d3085f3443181ed8d48ba5ce505719f56"
     },
     "github_harness/scripts/validate_release.py": {
-      "bytes": 11132,
-      "sha256": "4888b4a628bc1ec7ac94f1b01d61542952698efa3fe292e45dd3db3563ffb652"
+      "bytes": 11761,
+      "sha256": "ca342fdae38b43178625c80ca43f2ef27177ba1f044b28736ad8c5c24112fd8f"
     },
     "github_harness/scripts/validate_run.py": {
       "bytes": 3409,
@@ -591,8 +543,8 @@
       "sha256": "6a9add60c398e7a468ca8c59bad102a4b7321ba180c116c887600bc11ea37d9a"
     },
     "github_harness/tests/test_neurips_readiness.py": {
-      "bytes": 6422,
-      "sha256": "047bd2ed12b8181096a4ec1ad513340149bea10d38dec30cc4dc517d76fecba7"
+      "bytes": 6464,
+      "sha256": "0e956a958c685bd54249da64342401ddfc45872ea029175fbbe5e5dd47a347e0"
     },
     "github_harness/tests/test_parsing.py": {
       "bytes": 1432,
@@ -607,8 +559,8 @@
       "sha256": "311f113ced1e3a982d0b53e6e3504865721cae7bd53d46f478c3c814cdd16207"
     },
     "github_harness/tests/test_release.py": {
-      "bytes": 10285,
-      "sha256": "0584b1d110c504b02550a82a84e8cf64721e1e564c1bae35240fd7267279e49f"
+      "bytes": 10337,
+      "sha256": "f99e04ad639cc838011a335072269068582e19aa782517e25173e5243a1f7f2a"
     },
     "github_harness/tests/test_retrieval.py": {
       "bytes": 1195,
@@ -667,8 +619,8 @@
       "sha256": "4bb934a32135f3130c42f8fad3acb1cd36f93a395e2e4d0fdedd722440d352fa"
     },
     "manifest.json": {
-      "bytes": 74412,
-      "sha256": "0df2b85909a574b6d02d35620c02bfe1cb4ea604037e95e01755e44d4438e791"
+      "bytes": 74478,
+      "sha256": "206c82fdeaf04624111e19f4e1522b35da10d18d9d76a9794cebb8ddf5cbb0f4"
     },
     "paper/figures/figure1_pipeline.svg": {
       "bytes": 2228,
@@ -695,8 +647,8 @@
       "sha256": "773c477ede8a89e1adad120224e731de890ab0dda43f9d81f95395cfd463cbec"
     },
     "paper/manuscript/checklist.tex": {
-      "bytes": 25002,
-      "sha256": "42fba8e8988bcced7844eb1d9d81bdf03c3f88d7225c241db8c6abd32b72070e"
+      "bytes": 25087,
+      "sha256": "e099c59f2a63823b2591253b90e391e7e847f25dff321fe827e72e52e15f1d88"
     },
     "paper/manuscript/figures/figure1_pipeline.pdf": {
       "bytes": 17364,
@@ -719,12 +671,12 @@
       "sha256": "d656fc885a859e0b4cb3378a0e50c89abd35f538b2c4bcf288a271b613b9b330"
     },
     "paper/manuscript/main.pdf": {
-      "bytes": 268109,
-      "sha256": "0b067e11156e6788db8a8918204ce15e4bba6fecaeb80ca9c4118277baa661b2"
+      "bytes": 278011,
+      "sha256": "db1ee4f9879e3fb16caeb7d736ae9a41b05188d703aa78ae054924a0f4fc7f8d"
     },
     "paper/manuscript/main.tex": {
-      "bytes": 33409,
-      "sha256": "d991f6f6ac283050d5b62a91630f244834fc5459240c0e554436439735e669c9"
+      "bytes": 34067,
+      "sha256": "115e2e30055ae3c2af4aa23bcb4b7dc84b71ff543959bcff40038a58ced637e4"
     },
     "paper/manuscript/neurips_2026.sty": {
       "bytes": 13462,
@@ -735,12 +687,12 @@
       "sha256": "12b8fa5dc78f40432d7da3844a8508a57e142ba1743a099238c9a54a3f0e9e50"
     },
     "paper/manuscript/tables/attempted_runs.tex": {
-      "bytes": 3598,
-      "sha256": "60600a31f7e6f4bc77789bfda9331964d30ad79c58ae16f333db7c063928d837"
+      "bytes": 4295,
+      "sha256": "066738ff60f33d004d16a00ce7016a9a88040eaff4679e1368e19428f9ea6774"
     },
     "paper/manuscript/tables/causal_chain_counts.tex": {
-      "bytes": 390,
-      "sha256": "33b387ff09a2a957c707bddfe2129b276594f6895def2ef298c8f75aec7a566e"
+      "bytes": 269,
+      "sha256": "edac17590e48c6e51c3f4ebdf12c7b5cbb302f16ee61e338db7213ea3729b384"
     },
     "paper/manuscript/tables/confidence_intervals.tex": {
       "bytes": 650,
@@ -759,16 +711,16 @@
       "sha256": "3731a8274f62ac9adbf54af94274cc96071e6ab68accea8c65ccd6c6c2930b56"
     },
     "paper/manuscript/tables/oracle_memory_calibration.tex": {
-      "bytes": 399,
-      "sha256": "6aa9be39fc61ba32066f831b38cf702c00cb3f78fe81bfd2a08dc8adf9148769"
+      "bytes": 388,
+      "sha256": "58e5f337c74572b2a297c9b6ac35f086809cbf6e7982e0465c0899671e24d482"
     },
     "paper/manuscript/tables/task_level_signal.tex": {
       "bytes": 808,
       "sha256": "e0f4cc921807d396612f4423078e11196bb3d8979ec862fa62b125905c341f23"
     },
     "paper/manuscript/tables/validity_gates.tex": {
-      "bytes": 676,
-      "sha256": "7046616221db049df2f461d634d9dbc02ffecf27ea28c721c91b28c5a9dd6f65"
+      "bytes": 1119,
+      "sha256": "e11d8c9e7f48fc9d0e52a4b1465b455d116238d0022f1b6ebfdd89a86b0ff78e"
     },
     "paper/reports/strict_refusal_planner_prompt.txt": {
       "bytes": 1811,
@@ -859,12 +811,12 @@
       "sha256": "d60bfdc09eef0bc5a142ee09873a5181289d3992d4bbe82cb9ea2c7f2206b00e"
     },
     "scripts/validate_artifact.py": {
-      "bytes": 8269,
-      "sha256": "a0219c049fbd9d279c874154a8ca3ffd3355cd1ae4cad96a459697065816c713"
+      "bytes": 9287,
+      "sha256": "5aacca7e3574050c67dafa0069e8d68ed77bffdf2a415080877a2a7d93d0c3d5"
     },
     "scripts/validate_release.py": {
-      "bytes": 11132,
-      "sha256": "4888b4a628bc1ec7ac94f1b01d61542952698efa3fe292e45dd3db3563ffb652"
+      "bytes": 11761,
+      "sha256": "ca342fdae38b43178625c80ca43f2ef27177ba1f044b28736ad8c5c24112fd8f"
     },
     "tables/calibration_metrics.json": {
       "bytes": 620,

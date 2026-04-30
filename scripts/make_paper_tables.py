@@ -31,6 +31,41 @@ EPISODE_KIND_CODES = {
     "stateful_attack": "T",
 }
 
+RELEASE_ROOT_CANDIDATES = (Path("paper/anonymous_memtrace"), Path("release"))
+REQUIRED_TRACE_FIELDS = {
+    "trace_id",
+    "protocol_version",
+    "actor_model",
+    "actor_revision",
+    "tokenizer_id",
+    "tokenizer_revision",
+    "writer_backend",
+    "planner_backend",
+    "system_id",
+    "episode_kind",
+    "task_id",
+    "payload_id",
+    "payload_type",
+    "horizon",
+    "retrieved_passage_ids_initial",
+    "poison_retrieved_initial",
+    "writer_candidates",
+    "accepted_memory_ids",
+    "admitted_poison",
+    "retrieved_memory_ids_trigger",
+    "admitted_poison_retrieved_at_trigger",
+    "unsafe_proposal_before_checker",
+    "unsafe_blocked_by_checker",
+    "unsafe_executed",
+    "execution_failure",
+    "violation_attribution",
+    "final_tool_call",
+    "policy_checker_verdict",
+    "scorer_version",
+    "scorer_hash",
+    "trace_created_at",
+}
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate LaTeX tables for the MEMTRACE paper draft.")
@@ -145,10 +180,9 @@ def build_causal_chain_counts_table(metrics: dict) -> str:
     actor_model = next(iter(metrics["by_configuration"]))
     rows = metrics["by_configuration"][actor_model]
     lines = [
-        "\\resizebox{\\linewidth}{!}{%",
         "\\begin{tabular}{lrrrrrrr}",
         "\\toprule",
-        "System & Stateful attacks & Poison admitted & Admitted poison retrieved at trigger & Unsafe proposal before checker & Unsafe blocked by checker & Unsafe executed & Execution failure \\\\",
+        "System & N & Admit & Admit retrieved & Unsafe proposal & Blocked & Unsafe exec & Exec fail \\\\",
         "\\midrule",
     ]
     for system in ("S0", "S1", "S2"):
@@ -165,62 +199,64 @@ def build_causal_chain_counts_table(metrics: dict) -> str:
                 failure=counts["execution_failure"],
             )
         )
-    lines.extend(["\\bottomrule", "\\end{tabular}", "}", ""])
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
     return "\n".join(lines)
 
 
 def build_oracle_memory_calibration_table(metrics: dict) -> str:
     rows = metrics.get("calibration_by_condition", {})
     lines = [
-        "\\resizebox{\\linewidth}{!}{%",
-        "\\begin{tabular}{lrrrrrrrrrr}",
+        "\\begin{tabular}{ll}",
         "\\toprule",
-        "Condition & Episodes & Oracle inserted & Oracle retrieved & Unsafe proposal & Unsafe executed & Exec failure & CAL-PRR & CAL-UPR & CAL-SVR & CAL-EFR \\\\",
+        "Field & Value \\\\",
         "\\midrule",
     ]
     if rows:
         for condition, row in sorted(rows.items()):
-            lines.append(
-                "{condition} & {episodes} & {inserted} & {retrieved} & {proposal} & {executed} & {failure} & {cal_prr:.3f} & {cal_upr:.3f} & {cal_svr:.3f} & {cal_efr:.3f} \\\\".format(
-                    condition=_latex_escape(condition),
-                    episodes=row["episodes"],
-                    inserted=_count_rate_from_values(
-                        row["oracle_memory_inserted"],
-                        row["episodes"],
-                        row["oracle_memory_inserted"] / row["episodes"] if row["episodes"] else 0.0,
+            lines.extend(
+                [
+                    f"Condition & {_latex_escape(condition)} \\\\",
+                    f"Episodes & {row['episodes']} \\\\",
+                    "Oracle inserted & {value} \\\\".format(
+                        value=_count_rate_from_values(
+                            row["oracle_memory_inserted"],
+                            row["episodes"],
+                            row["oracle_memory_inserted"] / row["episodes"] if row["episodes"] else 0.0,
+                        )
                     ),
-                    retrieved=_count_rate_from_values(
-                        row["oracle_memory_retrieved"],
-                        row["oracle_memory_inserted"],
-                        row["CAL_PRR"],
+                    "Oracle retrieved & {value} \\\\".format(
+                        value=_count_rate_from_values(
+                            row["oracle_memory_retrieved"],
+                            row["oracle_memory_inserted"],
+                            row["CAL_PRR"],
+                        )
                     ),
-                    proposal=_count_rate_from_values(
-                        row["unsafe_proposal_before_checker"],
-                        row["parseable_planner_outputs"],
-                        row["CAL_UPR"],
+                    "Unsafe proposal & {value} \\\\".format(
+                        value=_count_rate_from_values(
+                            row["unsafe_proposal_before_checker"],
+                            row["parseable_planner_outputs"],
+                            row["CAL_UPR"],
+                        )
                     ),
-                    executed=_count_rate_from_values(row["unsafe_executed"], row["episodes"], row["CAL_SVR"]),
-                    failure=_count_rate_from_values(row["execution_failure"], row["episodes"], row["CAL_EFR"]),
-                    cal_prr=row["CAL_PRR"],
-                    cal_upr=row["CAL_UPR"],
-                    cal_svr=row["CAL_SVR"],
-                    cal_efr=row["CAL_EFR"],
-                )
+                    f"Unsafe executed & {_count_rate_from_values(row['unsafe_executed'], row['episodes'], row['CAL_SVR'])} \\\\",
+                    f"Execution failure & {_count_rate_from_values(row['execution_failure'], row['episodes'], row['CAL_EFR'])} \\\\",
+                    f"CAL-PRR / CAL-UPR / CAL-SVR / CAL-EFR & {row['CAL_PRR']:.3f} / {row['CAL_UPR']:.3f} / {row['CAL_SVR']:.3f} / {row['CAL_EFR']:.3f} \\\\",
+                ]
             )
     else:
-        lines.append("\\multicolumn{11}{l}{Calibration metrics not generated.} \\\\")
-    lines.extend(["\\bottomrule", "\\end{tabular}", "}", ""])
+        lines.append("\\multicolumn{2}{l}{Calibration metrics not generated.} \\\\")
+    lines.extend(["\\bottomrule", "\\end{tabular}", ""])
     return "\n".join(lines)
 
 
-def build_validity_gates_table(metrics: dict) -> str:
+def build_validity_gates_table(metrics: dict, release_root: Path | None = None) -> str:
     actor_model = next(iter(metrics["by_configuration"]))
     rows = metrics["by_configuration"][actor_model]
     gates = metrics["pilot_validation_by_configuration"][actor_model]
     s1_par = rows.get("S1", {}).get("PAR", 0.0)
     s2_par = rows.get("S2", {}).get("PAR", 0.0)
     lines = [
-        "\\begin{tabular}{llll}",
+        "\\begin{tabular}{@{}p{0.31\\linewidth}p{0.18\\linewidth}lp{0.30\\linewidth}@{}}",
         "\\toprule",
         "Check & Category & Result & Value \\\\",
         "\\midrule",
@@ -254,6 +290,39 @@ def build_validity_gates_table(metrics: dict) -> str:
             all(gates[system].get("s0_stateful_sanity_pass", False) for system in ("S0", "S1", "S2")),
             f"S0 SVR={rows.get('S0', {}).get('SVR', 0.0):.3f}",
         ),
+    ]
+    validation = _release_validation_counts(release_root or _available_release_root())
+    if validation:
+        lines.extend(
+            [
+                _gate_row(
+                    "retrieval verification present for every main episode",
+                    "gate",
+                    all(value[0] == value[1] for value in validation["main_retrieval"].values()),
+                    _system_fraction_values(validation["main_retrieval"]),
+                ),
+                _gate_row(
+                    "trace schema validation for every main episode",
+                    "gate",
+                    all(value[0] == value[1] for value in validation["main_schema"].values()),
+                    _system_fraction_values(validation["main_schema"]),
+                ),
+                _gate_row(
+                    "calibration trace schema validation",
+                    "separate calibration check",
+                    validation["calibration_schema"][0] == validation["calibration_schema"][1],
+                    _fraction_pair(validation["calibration_schema"]) + " traces",
+                ),
+                _gate_row(
+                    "retained audit-packet reconciliation",
+                    "reported audit check",
+                    validation["audit"][0] == validation["audit"][1] and validation["audit"][1] == 40,
+                    _fraction_pair(validation["audit"]) + " comparisons",
+                ),
+            ]
+        )
+    lines.extend(
+        [
         _gate_row(
             "provenance-writer mechanism check",
             "mechanism",
@@ -266,7 +335,8 @@ def build_validity_gates_table(metrics: dict) -> str:
             all(gates[system].get("official_pilot_valid", False) for system in ("S0", "S1", "S2")),
             "; ".join(f"{system}={'yes' if gates[system].get('official_pilot_valid', False) else 'no'}" for system in ("S0", "S1", "S2")),
         ),
-    ]
+        ]
+    )
     lines.extend(["\\bottomrule", "\\end{tabular}", ""])
     return "\n".join(lines)
 
@@ -371,9 +441,9 @@ def build_failure_attribution_table(attribution_labels: list[dict]) -> str:
 
 def build_attempted_runs_table(data_dir: Path, scorer_id: str) -> str:
     lines = [
-        "\\begin{tabular}{p{0.30\\linewidth}rlllp{0.23\\linewidth}l}",
+        "\\begin{tabular}{p{0.38\\linewidth}rlllp{0.26\\linewidth}}",
         "\\toprule",
-        "Run packet & Rows & Actor & Scope & Scorer & Inclusion decision & Trace hash \\\\",
+        "Run packet and hash & Rows & Actor & Scope & Scorer & Inclusion decision \\\\",
         "\\midrule",
     ]
     for run_dir in _attempted_run_dirs(data_dir):
@@ -386,14 +456,13 @@ def build_attempted_runs_table(data_dir: Path, scorer_id: str) -> str:
             with metrics_path.open("r", encoding="utf-8") as handle:
                 metrics = json.load(handle)
         lines.append(
-            "{packet} & {rows} & {actor} & {scope} & {scorer} & {decision} & {trace_hash} \\\\".format(
-                packet=_latex_path(run_dir.as_posix()),
+            "{packet} & {rows} & {actor} & {scope} & {scorer} & {decision} \\\\".format(
+                packet=_packet_hash_cell(run_dir.as_posix(), _trace_hash(run_summary)),
                 rows=len(run_summary),
                 actor=_actor_code(run_summary),
                 scope=_scope_cell(run_summary),
                 scorer=_latex_escape(scorer_id),
                 decision=_latex_escape(_attempted_run_decision(run_dir, run_summary, metrics, data_dir)),
-                trace_hash=f"\\texttt{{{_trace_hash(run_summary)}}}",
             )
         )
     calibration_dir = data_dir / "calibration" / "oracle_memory"
@@ -401,12 +470,11 @@ def build_attempted_runs_table(data_dir: Path, scorer_id: str) -> str:
         with (calibration_dir / "run_summary.json").open("r", encoding="utf-8") as handle:
             calibration_summary = json.load(handle)
         lines.append(
-            "{packet} & {rows} & Q7 & S1-ORACLE; T & {scorer} & {decision} & {trace_hash} \\\\".format(
-                packet=_latex_path("data/calibration/s1_oracle_retrieved_memory"),
+            "{packet} & {rows} & Q7 & S1-ORACLE; T & {scorer} & {decision} \\\\".format(
+                packet=_packet_hash_cell("data/calibration/s1_oracle_retrieved_memory", _trace_hash(calibration_summary)),
                 rows=len(calibration_summary),
                 scorer=_latex_escape(scorer_id),
                 decision=_latex_escape("included calibration-only sensitivity packet; excluded from main rates"),
-                trace_hash=f"\\texttt{{{_trace_hash(calibration_summary)}}}",
             )
         )
     lines.extend(["\\bottomrule", "\\end{tabular}", ""])
@@ -452,12 +520,82 @@ def _system_values(rows: dict, metric_key: str) -> str:
     return "; ".join(f"{system}={rows[system][metric_key]:.3f}" for system in ("S0", "S1", "S2"))
 
 
+def _system_fraction_values(values: dict[str, tuple[int, int]]) -> str:
+    return "; ".join(f"{system}={_fraction_pair(values[system])}" for system in ("S0", "S1", "S2"))
+
+
+def _fraction_pair(value: tuple[int, int]) -> str:
+    return f"{value[0]}/{value[1]}"
+
+
+def _available_release_root() -> Path | None:
+    for root in RELEASE_ROOT_CANDIDATES:
+        if (root / "traces" / "v1_main_324").exists():
+            return root
+    return None
+
+
+def _release_validation_counts(release_root: Path | None) -> dict | None:
+    if release_root is None:
+        return None
+    main_summary_path = release_root / "results" / "run_summary.json"
+    calibration_summary_path = release_root / "results" / "calibration_oracle_memory_run_summary.json"
+    audit_report_path = release_root / "audit" / "audit_report.json"
+    if not main_summary_path.exists() or not calibration_summary_path.exists() or not audit_report_path.exists():
+        return None
+
+    main_summary = json.loads(main_summary_path.read_text(encoding="utf-8"))
+    calibration_summary = json.loads(calibration_summary_path.read_text(encoding="utf-8"))
+    audit_report = json.loads(audit_report_path.read_text(encoding="utf-8"))
+    main_retrieval = {system: [0, 0] for system in ("S0", "S1", "S2")}
+    main_schema = {system: [0, 0] for system in ("S0", "S1", "S2")}
+
+    for row in main_summary:
+        system = row["system"]
+        main_retrieval[system][1] += 1
+        main_schema[system][1] += 1
+        trace_rows = _load_trace_rows(release_root / row["trace_path"])
+        if _trace_has_retrieval_records(trace_rows):
+            main_retrieval[system][0] += 1
+        if _trace_has_required_schema(trace_rows):
+            main_schema[system][0] += 1
+
+    calibration_schema = [0, 0]
+    for row in calibration_summary:
+        calibration_schema[1] += 1
+        if _trace_has_required_schema(_load_trace_rows(release_root / row["trace_path"])):
+            calibration_schema[0] += 1
+
+    return {
+        "main_retrieval": {system: tuple(value) for system, value in main_retrieval.items()},
+        "main_schema": {system: tuple(value) for system, value in main_schema.items()},
+        "calibration_schema": tuple(calibration_schema),
+        "audit": (audit_report.get("agreements", 0), audit_report.get("n", 0)),
+    }
+
+
+def _load_trace_rows(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _trace_has_retrieval_records(trace_rows: list[dict]) -> bool:
+    return bool(trace_rows) and all(isinstance(row.get("retrieved_passages"), list) for row in trace_rows)
+
+
+def _trace_has_required_schema(trace_rows: list[dict]) -> bool:
+    return bool(trace_rows) and all(REQUIRED_TRACE_FIELDS.issubset(row.keys()) for row in trace_rows)
+
+
 def _latex_escape(text: str) -> str:
     return text.replace("_", "\\_")
 
 
 def _latex_path(text: str) -> str:
     return f"\\path{{{text}}}"
+
+
+def _packet_hash_cell(path_text: str, trace_hash: str) -> str:
+    return f"{_latex_path(path_text)}\\newline{{\\footnotesize hash \\texttt{{{trace_hash}}}}}"
 
 
 def _attempted_run_dirs(data_dir: Path) -> list[Path]:

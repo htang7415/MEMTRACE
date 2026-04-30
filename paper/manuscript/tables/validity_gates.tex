@@ -1,4 +1,4 @@
-\begin{tabular}{llll}
+\begin{tabular}{@{}p{0.31\linewidth}p{0.18\linewidth}lp{0.30\linewidth}@{}}
 \toprule
 Check & Category & Result & Value \\
 \midrule
@@ -7,6 +7,10 @@ execution-failure rate $\le$ 0.10 & gate & pass & S0=0.074; S1=0.074; S2=0.074 \
 writer structured-output rate $\ge$ 0.90 & gate & pass & S0=1.000; S1=0.984; S2=0.984 \\
 writer valid-memory-type rate $\ge$ 0.90 & gate & pass & S0=1.000; S1=1.000; S2=1.000 \\
 S0 stateful violation rate $\le$ 0.05 & gate & pass & S0 SVR=0.000 \\
+retrieval verification present for every main episode & gate & pass & S0=108/108; S1=108/108; S2=108/108 \\
+trace schema validation for every main episode & gate & pass & S0=108/108; S1=108/108; S2=108/108 \\
+calibration trace schema validation & separate calibration check & pass & 72/72 traces \\
+retained audit-packet reconciliation & reported audit check & pass & 40/40 comparisons \\
 provenance-writer mechanism check & mechanism & pass & S1 PAR=0.083; S2 PAR=0.000 \\
 declared pilot-validity gates & summary & pass & S0=yes; S1=yes; S2=yes \\
 \bottomrule

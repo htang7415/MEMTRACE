@@ -17,11 +17,12 @@ $ .venv/bin/python scripts/validate_release.py
 PASS main_traces=324, main_rows=324, calibration_traces=72, calibration_rows=72, total_traces=396
 PASS required release files present
 PASS trace schema contract holds for 396 traces
+PASS retrieval verification records present for all 396 traces
 PASS Table 2 locked counts match metrics
 PASS Table 5 causal-chain counts match locked values
 PASS Table 9 calibration values match locked values
 PASS declared pilot-validity gates pass
-PASS audit agreement is 40/40
+PASS retained audit-packet reconciliation is 40/40
 PASS regenerated metric tables are packaged and nonempty
 PASS no excluded development run contributes to release main tables
 $ .venv/bin/python scripts/check_submission_package.py --local-only

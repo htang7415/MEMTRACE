@@ -27,6 +27,7 @@ REQUIRED_FILES = (
 )
 REQUIRED_ZIP_MEMBERS = (
     "README.md",
+    "VALIDATION.md",
     "REPRODUCE.md",
     "RELEASE_MANIFEST.md",
     "TRACE_SCHEMA.md",

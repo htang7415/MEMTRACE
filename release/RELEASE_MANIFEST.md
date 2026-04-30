@@ -11,6 +11,7 @@
 ## Top-level files
 
 - README.md
+- VALIDATION.md
 - REPRODUCE.md
 - RELEASE_MANIFEST.md
 - TRACE_SCHEMA.md

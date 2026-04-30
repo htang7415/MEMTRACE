@@ -115,7 +115,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Appendix Table~\ref{tab:compute-resources} reports episode counts, actor/backend metadata, local reproducibility hardware, measured trace-regeneration and readiness-check runtimes, and explicitly states which original generation telemetry was not retained.
+    \item[] Justification: Appendix Tables~\ref{tab:compute-generation} and~\ref{tab:compute-validation} report episode counts, actor/backend metadata, local reproducibility hardware, measured trace-regeneration and readiness-check runtimes, and explicitly state which original generation telemetry was not retained.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.
@@ -165,7 +165,7 @@
 \item {\bf Licenses for existing assets}
     \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
     \item[] Answer: \answerYes{}
-    \item[] Justification: Appendix Table~\ref{tab:asset-licenses} and the release file \texttt{THIRD\_PARTY\_ASSETS.md} list the actor model, tokenizer, inference backend, embedding model, Python dependencies, MEMTRACE corpus, and MEMTRACE traces with licenses and sources.
+    \item[] Justification: Appendix Tables~\ref{tab:asset-licenses-external} and~\ref{tab:asset-licenses-dependencies} and the release file \texttt{THIRD\_PARTY\_ASSETS.md} list the actor model, tokenizer, inference backend, embedding model, Python dependencies, MEMTRACE corpus, and MEMTRACE traces with licenses and sources.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not use existing assets.

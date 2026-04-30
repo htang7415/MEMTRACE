@@ -100,6 +100,7 @@ REQUIRED_TRACE_FIELDS = {
 }
 REQUIRED_TOP_LEVEL = {
     "README.md",
+    "VALIDATION.md",
     "REPRODUCE.md",
     "RELEASE_MANIFEST.md",
     "TRACE_SCHEMA.md",
@@ -117,6 +118,7 @@ def main() -> None:
         _check_counts(root),
         _check_required_files(root),
         _check_trace_schema(root),
+        _check_retrieval_records(root),
         _check_locked_main_counts(root),
         _check_locked_causal_counts(root),
         _check_calibration(root),
@@ -202,6 +204,20 @@ def _check_trace_schema(root: Path) -> tuple[bool, str]:
     return not bad, "trace schema contract holds for 396 traces" if not bad else "trace schema errors: " + "; ".join(bad[:5])
 
 
+def _check_retrieval_records(root: Path) -> tuple[bool, str]:
+    missing = []
+    for path in _trace_paths(root, MAIN_TRACE_DIR) + _trace_paths(root, CALIBRATION_TRACE_DIR):
+        rows = _load_jsonl(path)
+        if not rows or any(not isinstance(row.get("retrieved_passages"), list) for row in rows):
+            missing.append(path.name)
+    return (
+        not missing,
+        "retrieval verification records present for all 396 traces"
+        if not missing
+        else "retrieval records missing in " + ", ".join(missing[:5]),
+    )
+
+
 def _check_locked_main_counts(root: Path) -> tuple[bool, str]:
     metrics = _load_json(root / "results" / "metrics.json")
     rows = next(iter(metrics["by_configuration"].values()))
@@ -254,7 +270,7 @@ def _check_pilot_gates(root: Path) -> tuple[bool, str]:
 
 def _check_audit(root: Path) -> tuple[bool, str]:
     report = _load_json(root / "audit" / "audit_report.json")
-    return report.get("n") == 40 and report.get("agreements") == 40, "audit agreement is 40/40"
+    return report.get("n") == 40 and report.get("agreements") == 40, "retained audit-packet reconciliation is 40/40"
 
 
 def _check_tables(root: Path) -> tuple[bool, str]:

@@ -29,6 +29,7 @@ def main() -> None:
         _episode_metadata_is_valid(),
         _stateful_scores_have_causal_diagnostics(),
         _generated_table_matches_metrics(),
+        _third_party_assets_match_paper(),
         _artifact_is_anonymous(),
     ]
     failed = [message for ok, message in checks if not ok]
@@ -43,6 +44,7 @@ def main() -> None:
 def _required_files_present() -> tuple[bool, str]:
     required = [
         "README.md",
+        "VALIDATION.md",
         "REPRODUCE.md",
         "RELEASE_MANIFEST.md",
         "TRACE_SCHEMA.md",
@@ -160,6 +162,31 @@ def _generated_table_matches_metrics() -> tuple[bool, str]:
         if calibration_metrics == table_calibration_metrics
         else "tables/calibration_metrics.json differs from results/calibration_oracle_memory_metrics.json",
     )
+
+
+def _third_party_assets_match_paper() -> tuple[bool, str]:
+    assets_path = ROOT / "THIRD_PARTY_ASSETS.md"
+    paper_path = ROOT / "paper" / "manuscript" / "main.tex"
+    if not assets_path.exists() or not paper_path.exists():
+        return False, "missing THIRD_PARTY_ASSETS.md or paper source"
+    assets = assets_path.read_text(encoding="utf-8")
+    paper = paper_path.read_text(encoding="utf-8")
+    required = [
+        "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        "c26a38f6",
+        "mlx-lm",
+        "0.18.1",
+        "BAAI/bge-small-en-v1.5",
+        "5c38ec7c",
+        "sentence-transformers",
+        "numpy",
+        "pydantic",
+        "pytest",
+        "MEMTRACE synthetic corpus",
+        "MEMTRACE traces",
+    ]
+    missing = [item for item in required if item not in assets or item not in paper]
+    return not missing, "third-party assets match paper table" if not missing else "asset rows differ: " + ", ".join(missing)
 
 
 def _artifact_is_anonymous() -> tuple[bool, str]:
