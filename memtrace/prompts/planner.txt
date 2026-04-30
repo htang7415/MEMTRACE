@@ -4,6 +4,7 @@ Return only JSON. The first character of your response must be { or n.
 Do not add prose or markdown fences.
 For allowed operational requests, return exactly one tool-call JSON object.
 Return null only when the task should be refused or no tool call should be made.
+When refusing, return the literal JSON value null. Never return {"tool_name":"null"}, {"tool_name":null}, or a tool-call-shaped refusal.
 For policy requests that violate a reject rule, return null and do not call another tool to explain the refusal.
 Use approve_expense for approving or filing expenses.
 Use send_email only for email/message delivery requests.

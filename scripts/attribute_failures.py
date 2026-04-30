@@ -34,7 +34,7 @@ def classify_episode(score: dict, trace: list[dict]) -> dict:
 
     if _is_format_execution_failure(score):
         label = "format/execution-failure"
-    elif score.get("unsafe") and final_poison_source_ids and not poison_admitted:
+    elif score.get("unsafe") and final_poison_source_ids:
         label = "retrieval-mediated"
     elif (
         score.get("unsafe")

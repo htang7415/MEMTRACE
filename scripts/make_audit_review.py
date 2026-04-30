@@ -7,7 +7,7 @@ import argparse
 import json
 from pathlib import Path
 
-from memtrace.benchmark import build_gold_labels
+from memtrace.benchmark import gold_label_for_episode
 from memtrace.config import AUDIT_REVIEW_MD_PATH, AUDIT_TEMPLATE_PATH, EPISODE_SCORES_PATH
 
 
@@ -30,7 +30,6 @@ def main() -> None:
 
 def build_audit_review_markdown(audit_records: list[dict], episode_scores: list[dict]) -> str:
     score_by_id = {score["episode_id"]: score for score in episode_scores}
-    gold_by_task = {label.task_id: label for label in build_gold_labels()}
     lines = [
         "# Label Audit Review Packet",
         "",
@@ -40,7 +39,7 @@ def build_audit_review_markdown(audit_records: list[dict], episode_scores: list[
     ]
     for index, record in enumerate(audit_records, start=1):
         score = score_by_id[record["episode_id"]]
-        gold = gold_by_task.get(record["task_id"])
+        gold = gold_label_for_episode(score | record)
         trace = _load_jsonl(Path(record["trace_path"]))
         final_turn = trace[-1] if trace else {}
         poison_turns = [row["turn"] for row in trace if _turn_has_poison(row)]
@@ -55,7 +54,7 @@ def build_audit_review_markdown(audit_records: list[dict], episode_scores: list[
                 f"- kind: `{record['episode_kind']}`",
                 f"- payload: `{record['payload_type']}`",
                 f"- horizon: `{record['horizon']}`",
-                f"- trace: `{record['trace_path']}`",
+                f"- trace: `{_display_path(record['trace_path'])}`",
                 f"- poison retrieved on turns: `{poison_turns or []}`",
                 f"- poison admitted on turns: `{admitted_poison_turns or []}`",
                 "",
@@ -137,6 +136,14 @@ def _memory_summary(records: list[dict]) -> str:
 
 def _compact_json(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _display_path(path: str) -> str:
+    parsed = Path(path)
+    try:
+        return str(parsed.relative_to(Path.cwd()))
+    except ValueError:
+        return path
 
 
 def _inline(text: str) -> str:

@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import scripts.run_experiments as run_experiments_module
 from memtrace.episodes import save_episodes
@@ -45,6 +47,7 @@ def test_main_reruns_when_summary_protocol_is_stale(tmp_path, monkeypatch) -> No
                     "turn_count": 1,
                     "memory_writer_backend": "mlx",
                     "planner_backend": "mlx",
+                    "planner_prompt_path": "old_prompt.txt",
                     "protocol_version": "project-md-v1",
                 }
             ],
@@ -66,15 +69,17 @@ def test_main_reruns_when_summary_protocol_is_stale(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(run_experiments_module, "PROTOCOL_VERSION", "project-md-v2")
     monkeypatch.setattr(run_experiments_module, "MEMORY_WRITER_BACKEND", "mlx")
     monkeypatch.setattr(run_experiments_module, "PLANNER_BACKEND", "mlx")
+    monkeypatch.setattr(run_experiments_module, "PLANNER_PROMPT_PATH", tmp_path / "planner.txt")
     monkeypatch.setattr(run_experiments_module, "run_episode", fake_run_episode)
 
-    run_experiments_module.main()
+    run_experiments_module.main([])
 
     assert calls == ["ep1"]
     trace_rows = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
     assert trace_rows == [{"episode_id": "ep1", "turn": 1, "fresh": True}]
     summary = json.loads(run_summary_path.read_text(encoding="utf-8"))
     assert summary[0]["protocol_version"] == "project-md-v2"
+    assert summary[0]["planner_prompt_path"] == str(tmp_path / "planner.txt")
 
 
 def test_main_reruns_when_trace_exists_without_summary(tmp_path, monkeypatch) -> None:
@@ -113,8 +118,21 @@ def test_main_reruns_when_trace_exists_without_summary(tmp_path, monkeypatch) ->
     monkeypatch.setattr(run_experiments_module, "PLANNER_BACKEND", "mlx")
     monkeypatch.setattr(run_experiments_module, "run_episode", fake_run_episode)
 
-    run_experiments_module.main()
+    run_experiments_module.main([])
 
     assert calls == ["ep2"]
     trace_rows = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
     assert trace_rows == [{"episode_id": "ep2", "turn": 1, "fresh": True}]
+
+
+def test_main_help_exits_before_backend_check(monkeypatch, capsys) -> None:
+    def fail_backend_check():
+        raise AssertionError("backend check should not run for --help")
+
+    monkeypatch.setattr(run_experiments_module, "_require_official_backends", fail_backend_check)
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_experiments_module.main(["--help"])
+
+    assert excinfo.value.code == 0
+    assert "Run official MEMTRACE experiments." in capsys.readouterr().out

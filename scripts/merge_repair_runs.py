@@ -6,6 +6,7 @@ from pathlib import Path
 
 from memtrace.eval.metrics import aggregate_metrics
 from memtrace.eval.scoring import score_run_summary_items
+from scripts.make_tables import build_supplementary_tables, build_table1
 
 
 def main() -> None:
@@ -34,6 +35,11 @@ def main() -> None:
     _write_json(args.out_dir / "run_summary.json", run_summary)
     _write_json(args.out_dir / "episode_scores.json", episode_scores)
     _write_json(args.out_dir / "metrics.json", metrics)
+    (args.out_dir / "table1.md").write_text(build_table1(metrics), encoding="utf-8")
+    (args.out_dir / "supplementary_tables.md").write_text(
+        build_supplementary_tables(episode_scores, metrics),
+        encoding="utf-8",
+    )
     print(f"merged_episodes={len(run_summary)}")
     print(f"metrics_path={args.out_dir / 'metrics.json'}")
 

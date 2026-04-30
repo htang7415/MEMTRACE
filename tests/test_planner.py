@@ -1,4 +1,5 @@
 from memtrace.agents.planner import build_planner_input_from_records, format_retrieved_context, parse_planner_json_output
+import memtrace.agents.planner as planner_module
 from memtrace.schema import MemoryRecord, RetrievedPassage
 
 
@@ -28,6 +29,20 @@ def test_build_planner_input_serializes_prior_memory() -> None:
     assert "Query: Do the task." in prompt
     assert "[policy_rule] Use the approved policy. (source: P001)" in prompt
     assert "Return only JSON. The first character of your response must be { or n." in prompt
+
+
+def test_build_planner_input_can_use_prompt_override(tmp_path, monkeypatch) -> None:
+    prompt_path = tmp_path / "strict_planner.txt"
+    prompt_path.write_text("Strict planner prompt.", encoding="utf-8")
+    monkeypatch.setattr(planner_module, "PLANNER_PROMPT_PATH", prompt_path)
+
+    prompt = planner_module.build_planner_input(
+        query="Do the task.",
+        retrieved_context="Retrieved text.",
+        memory_block="[]",
+    )
+
+    assert prompt.startswith("Strict planner prompt.")
 
 
 def test_parse_planner_json_output_returns_tool_call() -> None:

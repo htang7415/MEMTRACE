@@ -1,14 +1,29 @@
 import _bootstrap  # noqa: F401
 
+import argparse
 import json
+import sys
 from pathlib import Path
 
 from memtrace.agents.runner import run_episode, save_trace, trace_path
-from memtrace.config import EPISODES_PATH, MEMORY_WRITER_BACKEND, PLANNER_BACKEND, PROTOCOL_VERSION, RUN_SUMMARY_PATH, SQLITE_PATH, TRACES_DIR
+from memtrace.config import (
+    DEFAULT_PLANNER_PROMPT_PATH,
+    EPISODES_PATH,
+    MEMORY_WRITER_BACKEND,
+    PLANNER_BACKEND,
+    PLANNER_PROMPT_PATH,
+    PROTOCOL_VERSION,
+    RUN_SUMMARY_PATH,
+    SQLITE_PATH,
+    TRACES_DIR,
+)
 from memtrace.episodes import load_episodes
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run official MEMTRACE experiments.")
+    parser.parse_args([] if argv is None else argv)
+
     _require_official_backends()
     episodes = load_episodes(EPISODES_PATH)
     summaries = _load_existing_summary()
@@ -52,6 +67,7 @@ def main() -> None:
                 "turn_count": len(trace),
                 "memory_writer_backend": MEMORY_WRITER_BACKEND,
                 "planner_backend": PLANNER_BACKEND,
+                "planner_prompt_path": str(PLANNER_PROMPT_PATH),
                 "protocol_version": PROTOCOL_VERSION,
             }
         )
@@ -76,6 +92,7 @@ def _summary_trace_complete(item: dict, expected_turn_count: int, expected_actor
         len(_load_trace(trace_file)) == expected_turn_count
         and item.get("memory_writer_backend") == MEMORY_WRITER_BACKEND
         and item.get("planner_backend") == PLANNER_BACKEND
+        and _prompt_path_matches(item)
         and item.get("protocol_version") == PROTOCOL_VERSION
         and item.get("actor_model") == expected_actor_model
     )
@@ -90,6 +107,13 @@ def _require_official_backends() -> None:
         )
 
 
+def _prompt_path_matches(item: dict) -> bool:
+    recorded = item.get("planner_prompt_path")
+    if recorded is None:
+        return PLANNER_PROMPT_PATH == DEFAULT_PLANNER_PROMPT_PATH
+    return recorded == str(PLANNER_PROMPT_PATH)
+
+
 def _write_summary(summaries: list[dict]) -> None:
     RUN_SUMMARY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with RUN_SUMMARY_PATH.open("w", encoding="utf-8") as handle:
@@ -102,4 +126,4 @@ def _load_trace(path) -> list[dict]:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

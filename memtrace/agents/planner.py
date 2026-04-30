@@ -4,14 +4,14 @@ import json
 import re
 
 from memtrace.models.actor import ActorModel
-from memtrace.config import PLANNER_MAX_TOKENS, PROMPTS_DIR
+from memtrace.config import PLANNER_MAX_TOKENS, PLANNER_PROMPT_PATH
 from memtrace.parsing import extract_json_payload
 from memtrace.schema import MemoryRecord, RetrievedPassage, ToolCall
 from memtrace.store.memory import serialize_memory_block
 
 
 def build_planner_input(query: str, retrieved_context: str, memory_block: str) -> str:
-    prompt = (PROMPTS_DIR / "planner.txt").read_text(encoding="utf-8")
+    prompt = PLANNER_PROMPT_PATH.read_text(encoding="utf-8")
     return "\n".join(
         [
             prompt,

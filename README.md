@@ -61,16 +61,10 @@ python scripts/make_figures.py
 python scripts/attribute_failures.py
 python scripts/make_audit.py
 python scripts/make_audit_review.py
-python scripts/make_paper_brief.py
-python scripts/make_paper_tables.py
-python scripts/make_paper_figures.py
 python scripts/export_release.py
-python scripts/check_neurips_readiness.py
 ```
 
-For submission, place the official `neurips_2026.sty` file in `paper/`; `paper/main.tex` uses it automatically when present and otherwise falls back to local compile geometry.
-
-Promote a validated result directory into the paper-facing result paths:
+Promote a validated result directory into the canonical result paths:
 
 ```bash
 python scripts/promote_results.py --source-dir data/results_qwen_toolfix_v1
@@ -79,5 +73,5 @@ python scripts/promote_results.py --source-dir data/results_qwen_toolfix_v1
 ## Current Limitations
 
 - official experiments require Apple Silicon plus `mlx-lm` and a built dense index
-- the `profile` backend is a deterministic test fixture and is not valid for paper results
+- the `profile` backend is a deterministic test fixture and is not valid for official results
 - macOS AppleDouble files inside `.git/` may still exist on this volume, though they are excluded from the tracked workspace

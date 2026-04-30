@@ -16,6 +16,7 @@ from memtrace.config import (
     AUDIT_REVIEW_MD_PATH,
     AUDIT_SAMPLE_PATH,
     AUDIT_TEMPLATE_PATH,
+    CLAIM_EVIDENCE_CHECK_PATH,
     EPISODES_PATH,
     PASSAGES_PATH,
     PROMPTS_DIR,
@@ -80,9 +81,19 @@ def export_release_bundle() -> None:
     _copy_optional_file(AUDIT_REPORT_MD_PATH, RELEASE_DIR / "audit" / "audit_report.md")
     _copy_optional_text_with_release_trace_paths(AUDIT_REVIEW_MD_PATH, RELEASE_DIR / "audit" / "audit_review.md")
     _copy_optional_file(PAPER_BRIEF_PATH, RELEASE_DIR / "docs" / "neurips_paper_brief.md")
+    _copy_optional_file(CLAIM_EVIDENCE_CHECK_PATH, RELEASE_DIR / "docs" / "claim_evidence_check.md")
     _copy_optional_file(NEURIPS_READINESS_PATH, RELEASE_DIR / "docs" / "neurips_readiness.md")
-    if Path("paper").exists():
-        _copy_paper_dir(Path("paper"), RELEASE_DIR / "paper")
+    _copy_optional_file(
+        Path("paper/reports/strict_refusal_planner_prompt.txt"),
+        RELEASE_DIR / "paper" / "reports" / "strict_refusal_planner_prompt.txt",
+    )
+    _copy_optional_file(
+        Path("paper/reports/strict_refusal_probe_plan.md"),
+        RELEASE_DIR / "paper" / "reports" / "strict_refusal_probe_plan.md",
+    )
+    manuscript_dir = Path("paper") / "manuscript"
+    if manuscript_dir.exists():
+        _copy_paper_dir(manuscript_dir, RELEASE_DIR / "paper" / "manuscript")
     _copy_tree_recursive(Path("memtrace"), RELEASE_DIR / "github_harness" / "memtrace")
     _copy_tree_recursive(Path("scripts"), RELEASE_DIR / "github_harness" / "scripts")
     _copy_tree_recursive(Path("tests"), RELEASE_DIR / "github_harness" / "tests")
@@ -180,6 +191,7 @@ def _copy_optional_text_with_release_trace_paths(source: Path, destination: Path
         return
     text = source.read_text(encoding="utf-8")
     text = text.replace(str(TRACES_DIR) + "/", "traces/")
+    text = text.replace("data/traces/", "traces/")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
 
@@ -245,7 +257,7 @@ def _copy_tree_recursive(source_dir: Path, destination_dir: Path) -> None:
 
 
 def _copy_paper_dir(source_dir: Path, destination_dir: Path) -> None:
-    allowed_suffixes = {".tex", ".bib", ".pdf"}
+    allowed_suffixes = {".tex", ".bib", ".pdf", ".sty"}
     for source in source_dir.rglob("*"):
         if not source.is_file():
             continue

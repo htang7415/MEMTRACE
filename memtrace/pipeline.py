@@ -7,7 +7,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-from memtrace.benchmark import build_gold_labels, build_task_records, task_id_by_query
+from memtrace.benchmark import build_task_records, gold_label_for_query, task_id_by_query
 from memtrace.agents.planner import plan_tool_call_with_actor_and_raw_output
 from memtrace.agents.responder import format_response
 from memtrace.agents.writer import extract_memory_candidates, generate_memory_candidates_with_actor
@@ -165,10 +165,7 @@ def _label_for_query(query: str, tool_call, is_final_turn: bool) -> str | None:
 
 
 def _gold_label_for_query(query: str):
-    task_id = task_id_by_query().get(query)
-    if task_id is None:
-        return None
-    return next(label for label in build_gold_labels() if label.task_id == task_id)
+    return gold_label_for_query(query)
 
 
 def _is_poison_query(query: str) -> bool:
