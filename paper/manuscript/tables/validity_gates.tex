@@ -1,0 +1,13 @@
+\begin{tabular}{llll}
+\toprule
+Check & Category & Result & Value \\
+\midrule
+required tool-call rate $\ge$ 0.90 & gate & pass & S0=0.985; S1=0.985; S2=0.985 \\
+execution-failure rate $\le$ 0.10 & gate & pass & S0=0.074; S1=0.074; S2=0.074 \\
+writer structured-output rate $\ge$ 0.90 & gate & pass & S0=1.000; S1=0.984; S2=0.984 \\
+writer valid-memory-type rate $\ge$ 0.90 & gate & pass & S0=1.000; S1=1.000; S2=1.000 \\
+S0 stateful violation rate $\le$ 0.05 & gate & pass & S0 SVR=0.000 \\
+provenance-writer mechanism check & mechanism & pass & S1 PAR=0.083; S2 PAR=0.000 \\
+declared pilot-validity gates & summary & pass & S0=yes; S1=yes; S2=yes \\
+\bottomrule
+\end{tabular}
