@@ -12,6 +12,7 @@ Completed local gates:
 - Fresh venv install from `requirements.txt`: PASS
 - Fresh venv `python scripts/validate_release.py`: PASS
 - Croissant validation: PASS
+- `python scripts/check_submission_package.py --local-only`: PASS
 - PDF page count: 18 total pages, letter paper
 - PDF fonts: no Type 3 fonts
 - Main-text figures: Figures 1--3 appear before References
@@ -21,5 +22,6 @@ External gates still required:
 
 - Host `submission/supplement.zip` at an anonymous reviewer-accessible URL.
 - Replace `submission/anonymous_artifact_url.txt` with that URL.
+- Run `python scripts/check_submission_package.py` without `--local-only`; it should pass only after the URL is real and reachable.
 - Upload `submission/main.pdf`, `submission/supplement.zip`, `submission/croissant.json`, and the hosted URL in OpenReview.
 - Fill `submission/final_record_template.md` after submission.
