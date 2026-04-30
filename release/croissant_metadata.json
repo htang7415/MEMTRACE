@@ -1,0 +1,92 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "rai": "https://w3id.org/croissant/RAI/"
+  },
+  "@type": "Dataset",
+  "name": "MEMTRACE v1.0",
+  "description": "Synthetic benchmark traces for evaluating persistent-memory safety in memory-enabled agents under fixed retrieval, deterministic tools, and validity-gated metrics.",
+  "url": "anonymous-review-url-to-be-filled-at-submission",
+  "license": "MIT",
+  "version": "1.0",
+  "keywords": [
+    "LLM agents",
+    "persistent memory",
+    "prompt injection",
+    "benchmark",
+    "safety evaluation"
+  ],
+  "isAccessibleForFree": true,
+  "creator": {
+    "@type": "Organization",
+    "name": "Anonymous"
+  },
+  "distribution": [
+    {
+      "@type": "DataDownload",
+      "name": "Synthetic corpus",
+      "contentUrl": "corpus/passages.jsonl",
+      "encodingFormat": "application/jsonl"
+    },
+    {
+      "@type": "DataDownload",
+      "name": "Main v1.0 traces",
+      "contentUrl": "traces/v1_main_324/",
+      "encodingFormat": "application/jsonl"
+    },
+    {
+      "@type": "DataDownload",
+      "name": "Forced-memory calibration traces",
+      "contentUrl": "traces/calibration_oracle_memory_72/",
+      "encodingFormat": "application/jsonl"
+    },
+    {
+      "@type": "DataDownload",
+      "name": "Aggregate metrics",
+      "contentUrl": "results/metrics.json",
+      "encodingFormat": "application/json"
+    },
+    {
+      "@type": "DataDownload",
+      "name": "Calibration metrics",
+      "contentUrl": "results/calibration_oracle_memory_metrics.json",
+      "encodingFormat": "application/json"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "Dataset",
+      "name": "corpus records",
+      "description": "Synthetic retrieved passages with authoritative, support, and poison passage roles."
+    },
+    {
+      "@type": "Dataset",
+      "name": "episode specifications",
+      "description": "Clean-control, one-shot attack, and stateful attack episode specifications."
+    },
+    {
+      "@type": "Dataset",
+      "name": "trace records",
+      "description": "Turn-level JSONL traces for 324 main episodes and 72 calibration episodes."
+    },
+    {
+      "@type": "Dataset",
+      "name": "run-summary records",
+      "description": "Main and calibration run summaries used by metric-regeneration scripts."
+    },
+    {
+      "@type": "Dataset",
+      "name": "calibration records",
+      "description": "S1-ORACLE-RETRIEVED-MEMORY forced-memory sensitivity packet."
+    }
+  ],
+  "rai:dataCollection": "All benchmark tasks, passages, payloads, and traces are synthetic. No human-subject data is included.",
+  "rai:personalSensitiveInformation": "No personal or sensitive human-subject information is included.",
+  "rai:intendedUse": "Defensive evaluation of memory-enabled agents and reproduction of the MEMTRACE v1.0 pilot metrics.",
+  "rai:limitations": "Synthetic enterprise-assistant tasks; one actor/backend pair in the reported pilot; compact task domain; deterministic retrieval and tools.",
+  "rai:dataUseCases": "Defensive evaluation of persistent-memory risk in tool-using agents.",
+  "rai:dataNonUseCases": "Production security certification; cross-model prevalence estimation; proof that memory-enabled agents are safe.",
+  "rai:provenance": "Human-authored synthetic task and payload specifications; deterministic generation of episodes and traces; post-audit scorer version v1.",
+  "rai:syntheticData": true
+}
