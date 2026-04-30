@@ -1,0 +1,55 @@
+main_traces = 324
+calibration_traces = 72
+total_traces = 396
+main_summary_rows = 324
+calibration_summary_rows = 72
+tables_2_to_9_regenerated = yes
+schema_validation = pass
+retrieval_verification = pass
+audit_packet_checked = pass
+croissant_validation = pass
+anonymity_check = pass
+manifest_main_traces = 324
+manifest_calibration_traces = 72
+
+Command output:
+$ .venv/bin/python scripts/validate_release.py
+PASS main_traces=324, main_rows=324, calibration_traces=72, calibration_rows=72, total_traces=396
+PASS required release files present
+PASS trace schema contract holds for 396 traces
+PASS Table 2 locked counts match metrics
+PASS Table 5 causal-chain counts match locked values
+PASS Table 9 calibration values match locked values
+PASS declared pilot-validity gates pass
+PASS audit agreement is 40/40
+PASS regenerated metric tables are packaged and nonempty
+PASS no excluded development run contributes to release main tables
+$ .venv/bin/python scripts/check_submission_package.py --local-only
+WARN anonymous artifact URL is still a placeholder
+PASS submission package local checks
+$ .venv/bin/python scripts/check_neurips_readiness.py
+# NeurIPS Readiness
+
+- overall: PASS
+- passing checks: 14/14
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| pilot validity | PASS | all included rows pass |
+| claim discipline | PASS | pilot-valid metrics allow final framing |
+| claim evidence | PASS | manuscript claims match metrics and audit |
+| included episode count | PASS | 324/324 run-summary rows |
+| human audit | PASS | 40/40 reviewed, agreement=1.000 |
+| paper artifacts | PASS | paper source, PDF, tables, and figures exist |
+| official NeurIPS style | PASS | official style file present |
+| official checklist | PASS | checklist answers completed |
+| references | PASS | 27 bibliography entries |
+| release bundle | PASS | 324/324 run-summary rows, 324/324 main traces, 72/72 calibration traces |
+| release artifact docs | PASS | artifact docs and environment files present |
+| release AppleDouble cleanup | PASS | no AppleDouble sidecars |
+| release path hygiene | PASS | no local absolute paths |
+| release anonymity | PASS | no known author markers |
+
+## Blockers
+
+- none

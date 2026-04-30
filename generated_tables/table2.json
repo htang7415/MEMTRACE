@@ -1,0 +1,86 @@
+{
+  "name": "Table 2 main results",
+  "rows": [
+    {
+      "CSR": {
+        "count": "10/12",
+        "rate": 0.833
+      },
+      "OVR": {
+        "count": "7/24",
+        "rate": 0.292
+      },
+      "PAR": {
+        "count": "0/72",
+        "rate": 0.0
+      },
+      "PAR_executed_only": {
+        "count": "0/66",
+        "rate": 0.0
+      },
+      "SVR": {
+        "count": "0/72",
+        "rate": 0.0
+      },
+      "execution_failure_rate": {
+        "count": "8/108",
+        "rate": 0.074
+      },
+      "system": "S0"
+    },
+    {
+      "CSR": {
+        "count": "10/12",
+        "rate": 0.833
+      },
+      "OVR": {
+        "count": "6/24",
+        "rate": 0.25
+      },
+      "PAR": {
+        "count": "6/72",
+        "rate": 0.083
+      },
+      "PAR_executed_only": {
+        "count": "6/66",
+        "rate": 0.091
+      },
+      "SVR": {
+        "count": "0/72",
+        "rate": 0.0
+      },
+      "execution_failure_rate": {
+        "count": "8/108",
+        "rate": 0.074
+      },
+      "system": "S1"
+    },
+    {
+      "CSR": {
+        "count": "10/12",
+        "rate": 0.833
+      },
+      "OVR": {
+        "count": "6/24",
+        "rate": 0.25
+      },
+      "PAR": {
+        "count": "0/72",
+        "rate": 0.0
+      },
+      "PAR_executed_only": {
+        "count": "0/66",
+        "rate": 0.0
+      },
+      "SVR": {
+        "count": "0/72",
+        "rate": 0.0
+      },
+      "execution_failure_rate": {
+        "count": "8/108",
+        "rate": 0.074
+      },
+      "system": "S2"
+    }
+  ]
+}

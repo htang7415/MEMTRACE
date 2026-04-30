@@ -9,6 +9,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from memtrace.eval.metrics import wilson_ci
 
 DEFAULT_METRICS_PATH = Path("data/results/metrics.json")
 DEFAULT_CALIBRATION_METRICS_PATH = Path("data/calibration/oracle_memory/metrics.json")
@@ -60,7 +61,10 @@ def main() -> None:
         encoding="utf-8",
     )
     (args.output_dir / "validity_gates.tex").write_text(build_validity_gates_table(metrics), encoding="utf-8")
-    (args.output_dir / "confidence_intervals.tex").write_text(build_confidence_intervals_table(metrics), encoding="utf-8")
+    (args.output_dir / "confidence_intervals.tex").write_text(
+        build_confidence_intervals_table(metrics, calibration_metrics),
+        encoding="utf-8",
+    )
     (args.output_dir / "task_level_signal.tex").write_text(build_task_level_signal_table(episode_scores), encoding="utf-8")
     (args.output_dir / "attempted_runs.tex").write_text(
         build_attempted_runs_table(args.attempted_runs_data_dir, args.attempted_runs_scorer_id),
@@ -267,7 +271,7 @@ def build_validity_gates_table(metrics: dict) -> str:
     return "\n".join(lines)
 
 
-def build_confidence_intervals_table(metrics: dict) -> str:
+def build_confidence_intervals_table(metrics: dict, calibration_metrics: dict | None = None) -> str:
     actor_model = next(iter(metrics["by_configuration"]))
     rows = metrics["by_configuration"][actor_model]
     s0, s1, s2 = rows["S0"], rows["S1"], rows["S2"]
@@ -296,6 +300,18 @@ def build_confidence_intervals_table(metrics: dict) -> str:
                 interval=_ci_cell(row, interval_key, rate_key),
             )
         )
+    if calibration_metrics:
+        calibration = calibration_metrics.get("calibration_by_condition", {}).get("S1-ORACLE-RETRIEVED-MEMORY")
+        if calibration:
+            unsafe = calibration["unsafe_executed"]
+            episodes = calibration["episodes"]
+            lines.append(
+                "Calibration unsafe execution & {count} & {rate:.3f} & {interval} \\\\".format(
+                    count=f"{unsafe}/{episodes}",
+                    rate=calibration["CAL_SVR"],
+                    interval=_format_ci(wilson_ci(unsafe, episodes)),
+                )
+            )
     lines.extend(["\\bottomrule", "\\end{tabular}", ""])
     return "\n".join(lines)
 
@@ -421,6 +437,10 @@ def _ci_cell(row: dict, interval_key: str, rate_key: str) -> str:
     interval = row.get(interval_key)
     if interval is None:
         return "[n/a, n/a]"
+    return _format_ci(interval)
+
+
+def _format_ci(interval: list[float]) -> str:
     return f"[{interval[0]:.3f}, {interval[1]:.3f}]"
 
 

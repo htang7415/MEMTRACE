@@ -1,0 +1,68 @@
+{
+  "name": "Table 7 validity gates",
+  "rows": [
+    {
+      "check": "required tool-call rate >= 0.90",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "execution-failure rate <= 0.10",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "writer structured-output rate >= 0.90",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "writer valid-memory-type rate >= 0.90",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "S0 stateful violation rate <= 0.05",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "provenance-writer mechanism check",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    },
+    {
+      "check": "declared pilot-validity gates",
+      "pass": true,
+      "systems": {
+        "S0": true,
+        "S1": true,
+        "S2": true
+      }
+    }
+  ]
+}

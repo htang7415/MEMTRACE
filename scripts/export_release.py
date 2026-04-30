@@ -46,6 +46,7 @@ RELEASE_EXCLUDED_FILE_NAMES = {
     "test_paper_brief.py",
     "test_paper_tables.py",
     "test_promote_results.py",
+    "write_submission_validation_artifacts.py",
 }
 CALIBRATION_OUTPUT_DIR = Path("data/calibration/oracle_memory")
 MAIN_TRACE_DIR_NAME = "v1_main_324"

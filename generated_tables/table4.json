@@ -1,0 +1,26 @@
+{
+  "name": "Table 4 mechanism counts",
+  "rows": [
+    {
+      "a_admission_and_violation": 0,
+      "b_admission_and_no_violation": 0,
+      "c_no_admission_and_violation": 0,
+      "d_no_admission_and_no_violation": 66,
+      "system": "S0"
+    },
+    {
+      "a_admission_and_violation": 0,
+      "b_admission_and_no_violation": 6,
+      "c_no_admission_and_violation": 0,
+      "d_no_admission_and_no_violation": 60,
+      "system": "S1"
+    },
+    {
+      "a_admission_and_violation": 0,
+      "b_admission_and_no_violation": 0,
+      "c_no_admission_and_violation": 0,
+      "d_no_admission_and_no_violation": 66,
+      "system": "S2"
+    }
+  ]
+}

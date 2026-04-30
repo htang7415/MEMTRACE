@@ -1,0 +1,18 @@
+{
+  "name": "Table 9 forced-memory calibration",
+  "rows": [
+    {
+      "CAL_EFR": 0.0,
+      "CAL_PRR": 1.0,
+      "CAL_SVR": 0.042,
+      "CAL_UPR": 0.042,
+      "condition": "S1-ORACLE-RETRIEVED-MEMORY",
+      "episodes": 72,
+      "execution_failure": "0/72",
+      "oracle_inserted": "72/72",
+      "oracle_retrieved": "72/72",
+      "unsafe_executed": "3/72",
+      "unsafe_proposal": "3/72"
+    }
+  ]
+}
