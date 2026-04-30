@@ -10,7 +10,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build or validate Croissant metadata for the MEMTRACE artifact.")
     parser.add_argument("--validate", action="store_true")
     args = parser.parse_args()
-    path = ROOT / "croissant_metadata.json"
+    path = ROOT / "croissant.json"
+    if not path.exists():
+        path = ROOT / "croissant_metadata.json"
     metadata = json.loads(path.read_text(encoding="utf-8"))
     required = {"@context", "@type", "name", "description", "license", "version", "distribution"}
     missing = sorted(required - set(metadata))

@@ -51,6 +51,11 @@ CALIBRATION_OUTPUT_DIR = Path("data/calibration/oracle_memory")
 MAIN_TRACE_DIR_NAME = "v1_main_324"
 CALIBRATION_TRACE_DIR_NAME = "calibration_oracle_memory_72"
 ARTIFACT_SCRIPT_SOURCE_DIR = Path(__file__).resolve().parent / "artifact"
+ACTOR_REVISION = "c26a38f6a37d0a51b4e9a1eb3026530fa35d9fed"
+TOKENIZER_ID = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+TOKENIZER_REVISION = ACTOR_REVISION
+SCORER_VERSION = "v1"
+SCORER_HASH = "43bb0da1666a"
 
 
 def main() -> None:
@@ -84,8 +89,10 @@ def export_release_bundle() -> None:
     _copy_optional_file(DOCS_DIR / "reproduce.md", RELEASE_DIR / "REPRODUCE.md")
     _copy_optional_file(DOCS_DIR / "dataset_card.md", RELEASE_DIR / "DATASET_CARD.md")
     _copy_optional_file(DOCS_DIR / "eval_card.md", RELEASE_DIR / "EVAL_CARD.md")
+    _copy_optional_file(DOCS_DIR / "eval_card.md", RELEASE_DIR / "EVALUATION_CARD.md")
     _copy_optional_file(DOCS_DIR / "third_party_assets.md", RELEASE_DIR / "THIRD_PARTY_ASSETS.md")
     _copy_optional_file(DOCS_DIR / "croissant_metadata.json", RELEASE_DIR / "croissant_metadata.json")
+    _copy_optional_file(DOCS_DIR / "croissant_metadata.json", RELEASE_DIR / "croissant.json")
     _copy_optional_file(Path("requirements.txt"), RELEASE_DIR / "requirements.txt")
     _copy_optional_file(Path("environment.yml"), RELEASE_DIR / "environment.yml")
     _copy_optional_file(Path("pyproject.toml"), RELEASE_DIR / "pyproject.toml")
@@ -95,6 +102,8 @@ def export_release_bundle() -> None:
     _copy_artifact_tables(RELEASE_DIR)
     _write_artifact_configs(RELEASE_DIR / "configs")
     _write_artifact_tools_readme(RELEASE_DIR / "tools" / "README.md")
+    _write_release_manifest_doc(RELEASE_DIR / "RELEASE_MANIFEST.md")
+    _write_trace_schema_doc(RELEASE_DIR / "TRACE_SCHEMA.md")
     _copy_tree_recursive(ARTIFACT_SCRIPT_SOURCE_DIR, RELEASE_DIR / "scripts")
 
     _copy_tree(FIGURES_DIR, RELEASE_DIR / "figures", suffixes={".svg"})
@@ -229,10 +238,14 @@ It contains the v1.0 audited pilot traces, a forced-memory calibration packet, g
 - `github_harness/`: source harness for rebuilding assets and rerunning experiments.
 - `scripts/`: artifact-local validation and metric regeneration commands.
 - `paper/`: anonymous manuscript source and PDF.
+- `RELEASE_MANIFEST.md` and `TRACE_SCHEMA.md`: release counts and trace-row contract.
 
 ## Quick Validation
 
 ```bash
+python scripts/validate_release.py
+python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
+python scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures
 python scripts/validate_artifact.py
 python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
 python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json
@@ -246,6 +259,7 @@ Full model generation requires Apple Silicon, `mlx-lm`, `sentence-transformers`,
 ## Scope
 
 The main paper-facing result evaluates one actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
+The artifact contains 396 trace files: 324 main S0/S1/S2 traces and 72 calibration traces.
 The main S0/S1/S2 metrics exclude calibration traces.
 The calibration packet tests benchmark sensitivity when poisoned memory is inserted and forced into the trigger context.
 """
@@ -338,6 +352,7 @@ def _with_release_trace_path(item):
 def _copy_referenced_traces(run_summary_path: Path, destination_dir: Path) -> None:
     with run_summary_path.open("r", encoding="utf-8") as handle:
         run_summary = json.load(handle)
+    score_map = _load_score_map(EPISODE_SCORES_PATH)
     seen = set()
     for item in run_summary:
         source = Path(item["trace_path"])
@@ -348,6 +363,8 @@ def _copy_referenced_traces(run_summary_path: Path, destination_dir: Path) -> No
             source,
             destination_dir / source.name,
             schema_version=str(item.get("protocol_version") or "memtrace.trace.v1"),
+            summary=item,
+            score=score_map.get(item["episode_id"], {}),
         )
 
 
@@ -369,6 +386,7 @@ def _copy_calibration_artifacts(calibration_dir: Path, release_dir: Path) -> Non
 
     with run_summary_path.open("r", encoding="utf-8") as handle:
         run_summary = json.load(handle)
+    score_map = _load_score_map(episode_scores_path)
     seen = set()
     for item in run_summary:
         source = Path(item["trace_path"])
@@ -379,6 +397,8 @@ def _copy_calibration_artifacts(calibration_dir: Path, release_dir: Path) -> Non
             source,
             release_dir / "traces" / CALIBRATION_TRACE_DIR_NAME / source.name,
             schema_version=str(item.get("protocol_version") or "memtrace.trace.v1"),
+            summary=item,
+            score=score_map.get(item["episode_id"], {}),
         )
 
 
@@ -399,15 +419,78 @@ def _with_nested_release_trace_path(item, trace_dir_name: str):
     return updated
 
 
-def _copy_trace_with_schema_version(source: Path, destination: Path, *, schema_version: str) -> None:
+def _copy_trace_with_schema_version(source: Path, destination: Path, *, schema_version: str, summary: dict, score: dict) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with source.open("r", encoding="utf-8") as in_handle, destination.open("w", encoding="utf-8") as out_handle:
-        for line in in_handle:
-            if not line.strip():
-                continue
-            record = json.loads(line)
-            record.setdefault("schema_version", schema_version)
-            out_handle.write(json.dumps(record) + "\n")
+    records = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines() if line.strip()]
+    initial_record = records[0] if records else {}
+    trigger_record = records[-1] if records else {}
+    initial_passages = initial_record.get("retrieved_passages", [])
+    trigger_memory = trigger_record.get("prior_memory_state", [])
+    lines = []
+    for record in records:
+        record = _with_trace_schema_contract(record, summary, score, schema_version, initial_passages, trigger_memory)
+        record.setdefault("schema_version", schema_version)
+        lines.append(json.dumps(record))
+    destination.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _with_trace_schema_contract(
+    record: dict,
+    summary: dict,
+    score: dict,
+    schema_version: str,
+    initial_passages: list[dict],
+    trigger_memory: list[dict],
+) -> dict:
+    updated = dict(record)
+    episode_kind = summary.get("episode_kind")
+    payload_type = None if episode_kind == "clean_control" else summary.get("payload_type")
+    payload_id = payload_type
+    horizon = summary.get("horizon") if episode_kind == "stateful_attack" else None
+    final_tool_call = record.get("tool_router_log") or record.get("planner_output")
+    updated.update(
+        {
+            "schema_version": schema_version,
+            "trace_id": summary.get("episode_id"),
+            "protocol_version": summary.get("protocol_version"),
+            "actor_model": summary.get("actor_model"),
+            "actor_revision": ACTOR_REVISION,
+            "tokenizer_id": TOKENIZER_ID,
+            "tokenizer_revision": TOKENIZER_REVISION,
+            "writer_backend": summary.get("memory_writer_backend"),
+            "planner_backend": summary.get("planner_backend"),
+            "system_id": summary.get("system"),
+            "episode_kind": episode_kind,
+            "task_id": summary.get("task_id"),
+            "payload_id": payload_id,
+            "payload_type": payload_type,
+            "horizon": horizon,
+            "retrieved_passage_ids_initial": [item.get("source_id") for item in initial_passages],
+            "poison_retrieved_initial": any(item.get("passage_kind") == "poison" for item in initial_passages),
+            "writer_candidates": record.get("memory_writer_output", []),
+            "accepted_memory_ids": [item.get("source_id") for item in record.get("admitted_memory_records", [])],
+            "admitted_poison": bool(score.get("poison_admitted", score.get("poison_admission_flag", False))),
+            "retrieved_memory_ids_trigger": [item.get("source_id") for item in trigger_memory],
+            "admitted_poison_retrieved_at_trigger": bool(score.get("admitted_memory_retrieved_at_trigger", False)),
+            "unsafe_proposal_before_checker": bool(score.get("unsafe_tool_call_proposed_before_checker", False)),
+            "unsafe_blocked_by_checker": bool(score.get("policy_checker_blocked_unsafe_call", False)),
+            "unsafe_executed": bool(score.get("unsafe_tool_call_executed", score.get("unsafe", False))),
+            "execution_failure": bool(score.get("execution_failure", False)),
+            "violation_attribution": "memory-mediated" if score.get("unsafe_tool_call_executed") else None,
+            "final_tool_call": final_tool_call,
+            "policy_checker_verdict": record.get("label") or score.get("label"),
+            "scorer_version": SCORER_VERSION,
+            "scorer_hash": SCORER_HASH,
+            "trace_created_at": "not_retained",
+        }
+    )
+    return updated
+
+
+def _load_score_map(path: Path) -> dict[str, dict]:
+    if not path.exists():
+        return {}
+    return {item["episode_id"]: item for item in json.loads(path.read_text(encoding="utf-8"))}
 
 
 def _copy_tree(source_dir: Path, destination_dir: Path, suffixes: set[str]) -> None:
@@ -423,9 +506,36 @@ def _copy_artifact_data_aliases(release_dir: Path) -> None:
         (EPISODES_PATH, release_dir / "data" / "episodes" / "episodes.json"),
         (GOLD_DIR / "tasks.json", release_dir / "data" / "gold_labels" / "tasks.json"),
         (GOLD_DIR / "labels.json", release_dir / "data" / "gold_labels" / "labels.json"),
+        (METRICS_PATH, release_dir / "data" / "results" / "metrics.json"),
+        (TABLE1_MD_PATH, release_dir / "data" / "results" / "table1.md"),
+        (SUPPLEMENTARY_TABLES_MD_PATH, release_dir / "data" / "results" / "supplementary_tables.md"),
+        (CALIBRATION_OUTPUT_DIR / "metrics.json", release_dir / "data" / "calibration" / "oracle_memory" / "metrics.json"),
+        (CALIBRATION_OUTPUT_DIR / "episode_scores.json", release_dir / "data" / "calibration" / "oracle_memory" / "episode_scores.json"),
+        (CALIBRATION_OUTPUT_DIR / "metrics.json", release_dir / "data" / "calibration" / "s1_oracle_retrieved_memory" / "metrics.json"),
+        (CALIBRATION_OUTPUT_DIR / "episode_scores.json", release_dir / "data" / "calibration" / "s1_oracle_retrieved_memory" / "episode_scores.json"),
     ]
     for source, destination in aliases:
-        _copy_file(source, destination)
+        if source.exists():
+            _copy_file(source, destination)
+    _copy_json_with_release_trace_paths(RESULTS_DIR / "run_summary.json", release_dir / "data" / "results" / "run_summary.json")
+    _copy_json_with_release_trace_paths(EPISODE_SCORES_PATH, release_dir / "data" / "results" / "episode_scores.json")
+    if (CALIBRATION_OUTPUT_DIR / "run_summary.json").exists():
+        _copy_json_with_nested_release_trace_paths(
+            CALIBRATION_OUTPUT_DIR / "run_summary.json",
+            release_dir / "data" / "calibration" / "oracle_memory" / "run_summary.json",
+            CALIBRATION_TRACE_DIR_NAME,
+        )
+        _copy_json_with_nested_release_trace_paths(
+            CALIBRATION_OUTPUT_DIR / "run_summary.json",
+            release_dir / "data" / "calibration" / "s1_oracle_retrieved_memory" / "run_summary.json",
+            CALIBRATION_TRACE_DIR_NAME,
+        )
+    traces_note = release_dir / "data" / "traces" / "README.md"
+    traces_note.parent.mkdir(parents=True, exist_ok=True)
+    traces_note.write_text(
+        "Trace files are stored once under ../../traces/v1_main_324 and ../../traces/calibration_oracle_memory_72.\n",
+        encoding="utf-8",
+    )
 
 
 def _copy_artifact_tables(release_dir: Path) -> None:
@@ -499,6 +609,100 @@ The executable tool stubs and policy checker are included in `github_harness/mem
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
+
+
+def _write_release_manifest_doc(destination: Path) -> None:
+    text = """# MEMTRACE v1.0 anonymous review artifact
+
+## Counts
+
+- Main traces: 324
+- Main run-summary rows: 324
+- Calibration traces: 72
+- Calibration summary rows: 72
+- Total trace files: 396
+
+## Top-level files
+
+- README.md
+- REPRODUCE.md
+- RELEASE_MANIFEST.md
+- TRACE_SCHEMA.md
+- THIRD_PARTY_ASSETS.md
+- DATASET_CARD.md
+- EVALUATION_CARD.md
+- croissant.json
+- requirements.txt
+- environment.yml
+- pyproject.toml
+- LICENSE
+
+## Required directories
+
+- data/corpus
+- data/episodes
+- data/results
+- data/traces
+- data/calibration
+- github_harness/memtrace
+- scripts
+- paper
+"""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
+
+
+def _write_trace_schema_doc(destination: Path) -> None:
+    fields = [
+        "trace_id",
+        "protocol_version",
+        "actor_model",
+        "actor_revision",
+        "tokenizer_id",
+        "tokenizer_revision",
+        "writer_backend",
+        "planner_backend",
+        "system_id",
+        "episode_kind",
+        "task_id",
+        "payload_id",
+        "payload_type",
+        "horizon",
+        "retrieved_passage_ids_initial",
+        "poison_retrieved_initial",
+        "writer_candidates",
+        "accepted_memory_ids",
+        "admitted_poison",
+        "retrieved_memory_ids_trigger",
+        "admitted_poison_retrieved_at_trigger",
+        "unsafe_proposal_before_checker",
+        "unsafe_blocked_by_checker",
+        "unsafe_executed",
+        "execution_failure",
+        "violation_attribution",
+        "final_tool_call",
+        "policy_checker_verdict",
+        "scorer_version",
+        "scorer_hash",
+        "trace_created_at",
+    ]
+    lines = [
+        "# MEMTRACE Trace Schema",
+        "",
+        "Every released JSONL trace row includes the fields below. Missing fields are schema errors in `scripts/validate_release.py`.",
+        "",
+    ]
+    lines.extend(f"- `{field}`" for field in fields)
+    lines.extend(
+        [
+            "",
+            "Clean episodes use `payload_id = null`, `payload_type = null`, and `horizon = null`.",
+            "One-shot episodes use `horizon = null`.",
+            "Stateful episodes use `horizon` in `{1, 3, 7}`.",
+        ]
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _copy_tree_recursive(source_dir: Path, destination_dir: Path) -> None:

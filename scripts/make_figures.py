@@ -4,7 +4,9 @@ except ModuleNotFoundError:
     pass
 
 import json
+import argparse
 from collections import defaultdict
+from pathlib import Path
 
 from memtrace.config import (
     EPISODE_SCORES_PATH,
@@ -19,23 +21,43 @@ from memtrace.config import (
 
 
 def main() -> None:
-    with METRICS_PATH.open("r", encoding="utf-8") as handle:
+    parser = argparse.ArgumentParser(description="Generate MEMTRACE figures from retained metrics.")
+    parser.add_argument("--metrics", type=Path, default=None)
+    parser.add_argument("--out", type=Path, default=None)
+    args = parser.parse_args()
+
+    metrics_path = _metrics_path(args.metrics)
+    episode_scores_path = EPISODE_SCORES_PATH
+    figures_dir = args.out or FIGURES_DIR
+    with metrics_path.open("r", encoding="utf-8") as handle:
         metrics = json.load(handle)
-    with EPISODE_SCORES_PATH.open("r", encoding="utf-8") as handle:
+    with episode_scores_path.open("r", encoding="utf-8") as handle:
         episode_scores = json.load(handle)
 
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    FIGURE1_PATH.write_text(build_pipeline_figure(), encoding="utf-8")
-    FIGURE2_PATH.write_text(build_ovr_vs_svr(metrics), encoding="utf-8")
-    FIGURE3_PATH.write_text(build_par_by_task_family(episode_scores), encoding="utf-8")
-    FIGURE4_PATH.write_text(build_one_shot_vs_stateful(metrics), encoding="utf-8")
-    FIGURE5_PATH.write_text(build_violation_by_horizon(metrics), encoding="utf-8")
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    output_paths = {
+        "figure1_path": figures_dir / "figure1_pipeline.svg",
+        "figure2_path": figures_dir / "figure2_ovr_vs_svr.svg",
+        "figure3_path": figures_dir / "figure3_par_by_task_family.svg",
+        "figure4_path": figures_dir / "figure4_one_shot_vs_stateful.svg",
+        "figure5_path": figures_dir / "figure5_violation_by_horizon.svg",
+    }
+    output_paths["figure1_path"].write_text(build_pipeline_figure(), encoding="utf-8")
+    output_paths["figure2_path"].write_text(build_ovr_vs_svr(metrics), encoding="utf-8")
+    output_paths["figure3_path"].write_text(build_par_by_task_family(episode_scores), encoding="utf-8")
+    output_paths["figure4_path"].write_text(build_one_shot_vs_stateful(metrics), encoding="utf-8")
+    output_paths["figure5_path"].write_text(build_violation_by_horizon(metrics), encoding="utf-8")
 
-    print(f"figure1_path={FIGURE1_PATH}")
-    print(f"figure2_path={FIGURE2_PATH}")
-    print(f"figure3_path={FIGURE3_PATH}")
-    print(f"figure4_path={FIGURE4_PATH}")
-    print(f"figure5_path={FIGURE5_PATH}")
+    for label, path in output_paths.items():
+        print(f"{label}={path}")
+
+
+def _metrics_path(metrics_arg: Path | None) -> Path:
+    if metrics_arg is None:
+        return METRICS_PATH
+    if metrics_arg.is_dir():
+        return metrics_arg / "main_metrics.json"
+    return metrics_arg
 
 
 def build_pipeline_figure() -> str:
