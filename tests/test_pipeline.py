@@ -4,6 +4,7 @@ from pathlib import Path
 import memtrace.pipeline as pipeline_module
 from memtrace.config import ACTOR_MODELS
 from memtrace.benchmark import POLICY_TASKS
+from memtrace.constants import STATEFUL_STRESS_PAYLOAD_TYPE
 from memtrace.corpus import build_corpus, save_jsonl
 from memtrace.pipeline import run_turn
 from memtrace.schema import RetrievedPassage
@@ -221,6 +222,23 @@ def test_trace_records_effective_retrieval_only(monkeypatch) -> None:
             if hit["task_id"] == task["task_id"] and hit["passage_kind"] == "poison"
         }
         assert payload_types == {"direct_override"}
+
+
+def test_payload_filter_handles_stateful_stress_payload_type() -> None:
+    task = POLICY_TASKS[0]
+    passages = [
+        RetrievedPassage(source_id="P1", text="direct", task_id=task["task_id"], payload_type="direct_override", passage_kind="poison"),
+        RetrievedPassage(source_id="P2", text="stress", task_id=task["task_id"], payload_type=STATEFUL_STRESS_PAYLOAD_TYPE, passage_kind="poison"),
+        RetrievedPassage(source_id="P3", text="trusted", task_id=task["task_id"], allowlisted=True, passage_kind="authoritative"),
+    ]
+
+    filtered = pipeline_module._filter_payload_retrieval(
+        retrieved_passages=passages,
+        task_id=task["task_id"],
+        episode_payload_type=STATEFUL_STRESS_PAYLOAD_TYPE,
+    )
+
+    assert [passage.source_id for passage in filtered] == ["P2", "P3"]
 
 
 def test_planner_output_matches_actual_planner_decision(monkeypatch) -> None:

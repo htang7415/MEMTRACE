@@ -69,6 +69,20 @@ Run the forced-memory calibration:
 MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_oracle_memory_calibration.py
 ```
 
+Prepare or run the optional stateful stress extension:
+
+```bash
+python scripts/run_stateful_stress_suite.py --dry-run
+MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_stateful_stress_suite.py
+```
+
+Prepare or run the optional trusted-memory utility control:
+
+```bash
+python scripts/run_trusted_utility_suite.py --dry-run
+MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_trusted_utility_suite.py
+```
+
 Generate tables, figures, audit reports, and release bundle:
 
 ```bash

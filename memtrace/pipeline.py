@@ -193,7 +193,7 @@ def _is_poison_query(query: str) -> bool:
 
 
 def _filter_payload_retrieval(retrieved_passages: list, task_id: str | None, episode_payload_type: str) -> list:
-    if task_id is None or episode_payload_type not in {"direct_override", "contextual_drift"}:
+    if task_id is None or episode_payload_type == "clean_control":
         return retrieved_passages
     filtered = []
     for hit in retrieved_passages:

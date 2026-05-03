@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-from memtrace.benchmark import build_task_records, task_id_by_query, task_spec_by_task_id
+from memtrace.benchmark import build_task_records, task_id_by_query, task_spec_by_task_id, trusted_utility_spec_by_task_id
 from memtrace.config import MAX_MEMORY_CANDIDATES
 from memtrace.models.actor import ActorModel
 
@@ -42,6 +42,14 @@ class ProfileActorModel(ActorModel):
 
         task = next(item for item in build_task_records() if item.task_id == task_id)
         spec = task_spec_by_task_id()[task_id]
+        utility_spec = trusted_utility_spec_by_task_id().get(task_id)
+        if utility_spec is not None and query == utility_spec["trigger_query"]:
+            return json.dumps(
+                {
+                    "tool_name": utility_spec["expected_tool"],
+                    "arguments": utility_spec["expected_arguments"],
+                }
+            )
         evidence = "\n".join(_extract_memory_lines(prompt) + [text for _, text in _extract_retrieval_passages(prompt)])
 
         payload_type = None

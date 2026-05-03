@@ -6,6 +6,7 @@ from pathlib import Path
 
 from memtrace.calibration import ORACLE_MEMORY_CONDITION, oracle_memory_record_for_episode
 from memtrace.config import ACTOR_MODELS, MEMORY_WRITER_BACKEND, PASSAGES_PATH, PLANNER_BACKEND
+from memtrace.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
 from memtrace.models.mlx_runner import load_actor
 from memtrace.pipeline import run_turn
 from memtrace.store.db import connect, init_db
@@ -93,7 +94,9 @@ def trace_path(trace_dir: Path, episode_id: str) -> Path:
 
 
 def _episode_kind_from_episode_id(episode_id: str) -> str:
-    if ":stateful:" in episode_id:
+    if ":trusted-utility:" in episode_id:
+        return "trusted_memory_utility"
+    if ":stateful:" in episode_id or ":stateful-stress:" in episode_id:
         return "stateful_attack"
     if ":one-shot:" in episode_id:
         return "one_shot_attack"
@@ -105,15 +108,19 @@ def _payload_type_from_episode_id(episode_id: str) -> str:
         return "direct_override"
     if episode_id.endswith(":contextual_drift"):
         return "contextual_drift"
+    if episode_id.endswith(f":{STATEFUL_STRESS_PAYLOAD_TYPE}"):
+        return STATEFUL_STRESS_PAYLOAD_TYPE
+    if episode_id.endswith(f":{TRUSTED_UTILITY_PAYLOAD_TYPE}"):
+        return TRUSTED_UTILITY_PAYLOAD_TYPE
     return "clean_control"
 
 
 def _horizon_from_episode_id(episode_id: str) -> int:
-    if ":stateful:d1:" in episode_id:
+    if ":stateful:d1:" in episode_id or ":stateful-stress:d1:" in episode_id or ":trusted-utility:d1:" in episode_id:
         return 1
-    if ":stateful:d3:" in episode_id:
+    if ":stateful:d3:" in episode_id or ":stateful-stress:d3:" in episode_id or ":trusted-utility:d3:" in episode_id:
         return 3
-    if ":stateful:d7:" in episode_id:
+    if ":stateful:d7:" in episode_id or ":stateful-stress:d7:" in episode_id or ":trusted-utility:d7:" in episode_id:
         return 7
     return 1
 

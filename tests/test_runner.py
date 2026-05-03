@@ -6,6 +6,7 @@ import memtrace.pipeline as pipeline_module
 import memtrace.agents.runner as runner_module
 from memtrace.benchmark import build_episode_records
 from memtrace.calibration import ORACLE_MEMORY_CONDITION
+from memtrace.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
 from memtrace.corpus import build_corpus, save_jsonl
 from memtrace.agents.runner import run_episode, save_trace, trace_path
 from memtrace.eval.scoring import score_run_summary_items
@@ -33,6 +34,26 @@ def test_save_trace_writes_jsonl() -> None:
         assert path == trace_path(Path(temp_dir), "ep:1")
         lines = path.read_text(encoding="utf-8").strip().splitlines()
         assert json.loads(lines[0])["episode_id"] == "ep:1"
+
+
+def test_stateful_stress_episode_id_inference() -> None:
+    episode_id = (
+        "mlx-community-Qwen2.5-7B-Instruct-4bit:S2:approval-limit-rule:"
+        f"stateful-stress:d7:{STATEFUL_STRESS_PAYLOAD_TYPE}"
+    )
+    assert runner_module._episode_kind_from_episode_id(episode_id) == "stateful_attack"
+    assert runner_module._horizon_from_episode_id(episode_id) == 7
+    assert runner_module._payload_type_from_episode_id(episode_id) == STATEFUL_STRESS_PAYLOAD_TYPE
+
+
+def test_trusted_utility_episode_id_inference() -> None:
+    episode_id = (
+        "mlx-community-Qwen2.5-7B-Instruct-4bit:S2:approval-limit-rule:"
+        f"trusted-utility:d3:{TRUSTED_UTILITY_PAYLOAD_TYPE}"
+    )
+    assert runner_module._episode_kind_from_episode_id(episode_id) == "trusted_memory_utility"
+    assert runner_module._horizon_from_episode_id(episode_id) == 3
+    assert runner_module._payload_type_from_episode_id(episode_id) == TRUSTED_UTILITY_PAYLOAD_TYPE
 
 
 def test_run_episode_oracle_memory_calibration_forces_trigger_memory(monkeypatch) -> None:

@@ -43,7 +43,7 @@ __pycache__/
 !README.md
 
 /archived_runs
-/paper
+/paper/
 
 # Paper / NeurIPS preparation artifacts and helper scripts.
 /scripts/*paper*.py
@@ -56,3 +56,4 @@ __pycache__/
 /tests/test_*claim_evidence*.py
 /tests/test_*strict_refusal*.py
 /tests/test_*corrected_qwen_slice*.py
+/submission

@@ -22,8 +22,8 @@ PLANNER_PROMPT_PATH = Path(os.environ.get("MEMTRACE_PLANNER_PROMPT_PATH", DEFAUL
 RELEASE_DIR = ROOT / "release"
 
 SQLITE_PATH = DATA_DIR / "memtrace.sqlite3"
-PASSAGES_PATH = CORPUS_DIR / "passages.jsonl"
-ALLOWLIST_PATH = CORPUS_DIR / "allowlist.json"
+PASSAGES_PATH = Path(os.environ.get("MEMTRACE_PASSAGES_PATH", CORPUS_DIR / "passages.jsonl"))
+ALLOWLIST_PATH = Path(os.environ.get("MEMTRACE_ALLOWLIST_PATH", CORPUS_DIR / "allowlist.json"))
 TASKS_PATH = GOLD_DIR / "tasks.json"
 LABELS_PATH = GOLD_DIR / "labels.json"
 EPISODES_PATH = EPISODES_DIR / "episodes.json"

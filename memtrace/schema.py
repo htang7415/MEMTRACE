@@ -108,7 +108,7 @@ class EpisodeRecord(BaseModel):
     episode_id: str
     task_id: str
     family: str
-    episode_kind: Literal["clean_control", "one_shot_attack", "stateful_attack"]
+    episode_kind: Literal["clean_control", "one_shot_attack", "stateful_attack", "trusted_memory_utility"]
     payload_type: str
     system: str
     actor_model: str | None = None
