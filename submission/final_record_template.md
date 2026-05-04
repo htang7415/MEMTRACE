@@ -14,7 +14,7 @@ Fill this after the OpenReview submission is complete.
 Current local checksums:
 
 ```text
-aae24e9259612967aa30b855b1f7d8d6c46a8b5369ce4a01e4834d1094261612  submission/main.pdf
-06df1ef2165ae089dfe227a6f8b315e4d4f98d5dcc9c5509d8fa827808114046  submission/supplement.zip
+a66f92beaf2704ca0845ed37af97e0312409169b422b8021555d7c524fddbe3b  submission/main.pdf
+6ace365dd3d73abe7ffa28091ed7681b8d02f9c19ea6c0a48ab55bd1589e346d  submission/supplement.zip
 0ed722dac626ee21fdfbb7d3d7cb73c7ddb4d72b7ffddb2405e4a77cbd44fabe  submission/croissant.json
 ```

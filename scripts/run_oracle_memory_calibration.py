@@ -26,7 +26,7 @@ DEFAULT_OUT_DIR = Path("data/calibration/oracle_memory")
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Run the MEMTRACE forced-memory oracle calibration.")
+    parser = argparse.ArgumentParser(description="Run the MEMTRACE oracle-retrieved-memory calibration.")
     parser.add_argument("--actor-model", default=ACTOR_MODELS[0])
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--db-path", type=Path, default=SQLITE_PATH)

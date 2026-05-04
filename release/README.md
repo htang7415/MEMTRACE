@@ -2,9 +2,9 @@
 
 ## 1. What MEMTRACE Is
 
-MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
+MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
 This anonymous artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
-It contains the v1.0 audited pilot traces, a separate forced-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+It contains the v1.0 audited pilot traces, a separate oracle-retrieved-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
 
 ## 2. What Claims This Artifact Supports
 
@@ -21,13 +21,12 @@ Calibration traces are excluded from the main S0/S1/S2 rates.
 ## 4. File Layout
 
 - `traces/v1_main_324/`: 324 main traces, with 108 traces each for `S0`, `S1`, and `S2`.
-- `traces/calibration_oracle_memory_72/`: 72 forced-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
+- `traces/calibration_oracle_memory_72/`: 72 oracle-retrieved-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
 - `results/`: packaged run summaries, episode scores, main metrics, calibration metrics, and attribution reports.
-- `tables/`: regenerated JSON metric tables used by the paper.
+- `tables/`: regenerated JSON metric tables used by the benchmark report.
 - `data/`: synthetic corpus, allowlist, episode specifications, and gold labels.
 - `github_harness/`: source harness for rebuilding assets and rerunning experiments.
 - `scripts/`: artifact-local validation and metric regeneration commands.
-- `paper/`: anonymous manuscript source and PDF.
 - `VALIDATION.md`, `RELEASE_MANIFEST.md`, and `TRACE_SCHEMA.md`: validation record, release counts, and trace-row contract.
 
 ## 5. Reproduce Metrics Without Model Execution
@@ -47,7 +46,7 @@ python scripts/validate_artifact.py
 python scripts/build_croissant.py --validate
 ```
 
-`scripts/validate_release.py` checks the 324 main traces, 72 calibration traces, 396 total traces, run-summary counts, schema contract, locked paper counts, calibration values, pilot gates, audit reconciliation, and packaged tables.
+`scripts/validate_release.py` checks the 324 main traces, 72 calibration traces, 396 total traces, run-summary counts, schema contract, locked result counts, calibration values, pilot gates, audit reconciliation, and packaged tables.
 
 ## 7. Reproduce Calibration Metrics
 
@@ -82,7 +81,7 @@ Model weights are referenced, not redistributed.
 ```bash
 python scripts/validate_release.py
 python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
-python scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures
+python scripts/make_figures.py --metrics artifacts/recomputed --out figures
 python scripts/validate_artifact.py
 python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
 python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json

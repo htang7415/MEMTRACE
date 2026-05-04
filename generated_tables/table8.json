@@ -21,7 +21,7 @@
     },
     {
       "count": "6/24",
-      "quantity": "S1/S2 one-shot unsafe",
+      "quantity": "S1 and S2 one-shot unsafe",
       "rate": 0.25,
       "wilson_95": [
         0.12,

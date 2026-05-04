@@ -5,9 +5,20 @@ description = "Stateful safety evaluation for memory-enabled agents"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "mlx-lm>=0.21",
+  "matplotlib>=3.8",
   "numpy>=1.26",
   "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+inference = [
+  "mlx-lm>=0.21",
+  "sentence-transformers>=3.0",
+]
+retrieval = [
   "sentence-transformers>=3.0",
 ]
 

@@ -139,10 +139,10 @@ def main() -> None:
 def _release_root() -> Path:
     if (REPO_ROOT / MAIN_TRACE_DIR).exists():
         return REPO_ROOT
-    candidate = REPO_ROOT / "paper" / "anonymous_memtrace"
+    candidate = REPO_ROOT / "release"
     if (candidate / MAIN_TRACE_DIR).exists():
         return candidate
-    candidate = REPO_ROOT / "release"
+    candidate = REPO_ROOT / "paper" / "anonymous_memtrace"
     if (candidate / MAIN_TRACE_DIR).exists():
         return candidate
     return REPO_ROOT

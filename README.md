@@ -1,7 +1,7 @@
 # MEMTRACE
 
 MEMTRACE is a compact benchmark harness for evaluating persistent-memory risk in tool-using agents.
-It separates current-turn retrieval exposure, poisoned-memory admission, delayed memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure.
+It separates current-turn retrieval exposure, poisoned-memory admission, delayed memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure.
 
 ## Paper-Facing Scope
 
@@ -10,12 +10,12 @@ It separates current-turn retrieval exposure, poisoned-memory admission, delayed
 - 2 payload types: direct override and contextual drift.
 - 3 systems: `S0`, `S1`, and `S2`.
 - 324 main traces: 108 traces per system.
-- 72 forced-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
+- 72 oracle-retrieved-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
 - One evaluated actor/backend pair in the v1.0 audited pilot: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
 
 ## Setup
 
-Use an Apple Silicon Python environment for MLX-backed generation:
+Install the no-inference harness and test dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -23,6 +23,12 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -e .
+```
+
+For MLX-backed model generation on Apple Silicon, install the inference extras:
+
+```bash
+python -m pip install -r requirements-inference.txt
 ```
 
 Run tests:
@@ -36,7 +42,14 @@ python -m pytest
 The anonymous artifact can regenerate the reported tables without model inference:
 
 ```bash
-cd paper/anonymous_memtrace
+python -m memtrace.validate_release
+python -m memtrace.eval.metrics --main data/results --calibration data/calibration/oracle_memory --out artifacts/recomputed
+```
+
+After building the anonymous release bundle with `python scripts/export_release.py`, the packaged artifact-local commands are:
+
+```bash
+cd release
 python scripts/validate_artifact.py
 python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
 python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json
@@ -63,7 +76,7 @@ python scripts/score_runs.py
 python scripts/validate_run.py
 ```
 
-Run the forced-memory calibration:
+Run the oracle-retrieved-memory calibration:
 
 ```bash
 MEMTRACE_MEMORY_WRITER_BACKEND=mlx MEMTRACE_PLANNER_BACKEND=mlx python scripts/run_oracle_memory_calibration.py
@@ -98,4 +111,4 @@ python scripts/export_release.py
 
 - The v1.0 audited pilot evaluates one actor/backend pair and does not make broad cross-model claims.
 - The benchmark uses synthetic enterprise-assistant tasks with fixed retrieval and deterministic tools.
-- The `profile` backend is a deterministic smoke-test fixture and is not a paper-facing result backend.
+- The `profile` backend is a deterministic smoke-test fixture and is not an official result backend.

@@ -31,6 +31,11 @@ def main() -> None:
     figures_dir = args.out or FIGURES_DIR
     with metrics_path.open("r", encoding="utf-8") as handle:
         metrics = json.load(handle)
+    calibration_metrics = None
+    calibration_path = Path("data/calibration/oracle_memory/metrics.json")
+    if calibration_path.exists():
+        with calibration_path.open("r", encoding="utf-8") as handle:
+            calibration_metrics = json.load(handle)
     with episode_scores_path.open("r", encoding="utf-8") as handle:
         episode_scores = json.load(handle)
 
@@ -45,7 +50,7 @@ def main() -> None:
     }
     figure5_svg = build_violation_by_horizon(episode_scores)
     output_paths["figure1_path"].write_text(build_pipeline_figure(), encoding="utf-8")
-    output_paths["figure2_path"].write_text(build_ovr_vs_svr(metrics), encoding="utf-8")
+    output_paths["figure2_path"].write_text(build_ovr_vs_svr(metrics, calibration_metrics), encoding="utf-8")
     output_paths["figure3_path"].write_text(build_causal_chain_by_system(metrics), encoding="utf-8")
     output_paths["figure4_path"].write_text(build_task_localization(episode_scores), encoding="utf-8")
     output_paths["figure5_path"].write_text(figure5_svg, encoding="utf-8")
@@ -90,6 +95,13 @@ def build_pipeline_figure() -> str:
         '<text x="610" y="195" text-anchor="middle" font-size="15" fill="#2f6f5e" font-weight="bold">PRR</text>',
         '<text x="418" y="188" text-anchor="middle" font-size="15" fill="#b85c38" font-weight="bold">one-shot OVR</text>',
         '<text x="567" y="353" text-anchor="middle" font-size="15" fill="#777777" font-weight="bold">EFR</text>',
+        '<text x="305" y="92" text-anchor="middle" font-size="12" fill="#555">1 poison retrieved</text>',
+        '<text x="475" y="92" text-anchor="middle" font-size="12" fill="#555">2 candidate emitted</text>',
+        '<text x="645" y="92" text-anchor="middle" font-size="12" fill="#555">3 admitted</text>',
+        '<text x="390" y="232" text-anchor="middle" font-size="12" fill="#555">4 retrieved</text>',
+        '<text x="560" y="232" text-anchor="middle" font-size="12" fill="#555">5 proposal</text>',
+        '<text x="730" y="232" text-anchor="middle" font-size="12" fill="#555">6 block</text>',
+        '<text x="900" y="232" text-anchor="middle" font-size="12" fill="#555">7 execution</text>',
     ]
     for first, second in zip(initial, initial[1:]):
         arrows.append(_svg_arrow(first[0] + 132, first[1] + 28, second[0], second[1] + 28))
@@ -121,39 +133,53 @@ def build_pipeline_figure() -> str:
     )
 
 
-def build_ovr_vs_svr(metrics: dict) -> str:
+def build_ovr_vs_svr(metrics: dict, calibration_metrics: dict | None = None) -> str:
     systems = ["S0", "S1", "S2"]
     actor_model = next(iter(metrics["by_configuration"]))
     rows = metrics["by_configuration"][actor_model]
-    colors = {"OVR": "#b85c38", "SVR": "#2f6f5e"}
-    bars = []
-    labels = []
-    intervals = []
-    base_y = 252
-    y_max = 0.62
-    y_scale = 180 / y_max
-    x = 80
-    stateful_total = sum(rows[system]["rate_counts"]["stateful_unsafe"][1] for system in systems)
-    for i, system in enumerate(systems):
-        row = rows[system]
-        ovr = row["OVR"]
-        ovr_ci = _ci_from_rate_counts(row, "one_shot_unsafe")
-        sx = x + i * 180
-        bar_center = sx + 38
-        bars.append(_bar(sx + 10, base_y, 56, y_scale * ovr, colors["OVR"]))
-        intervals.append(_interval(bar_center, base_y, y_scale, ovr, ovr_ci))
-        labels.append(f'<text x="{sx+51}" y="{base_y+24}" text-anchor="middle" font-size="16">{system}</text>')
-        labels.append(f'<text x="{bar_center}" y="{base_y - y_scale*ovr_ci[1] - 8}" text-anchor="middle" font-size="16" font-weight="bold">{row["rate_counts"]["one_shot_unsafe"][0]}/{row["rate_counts"]["one_shot_unsafe"][1]}</text>')
-        labels.append(f'<circle cx="{sx+80}" cy="{base_y}" r="4" fill="{colors["SVR"]}" />')
-    legend = [
-        '<text x="70" y="38" font-size="16" font-weight="bold">Current-turn risk differs from delayed execution</text>',
-        '<text x="22" y="64" font-size="16" text-anchor="middle" transform="rotate(-90 22 64)">Rate</text>',
-        f'<text x="70" y="304" font-size="13" fill="#2f6f5e">Stateful unsafe: none observed across {stateful_total} stateful attacks</text>',
-        '<text x="70" y="324" font-size="13" fill="#555">Whiskers: Wilson 95% interval over the fixed episode set</text>',
-        '<line x1="90" y1="252" x2="548" y2="252" stroke="#2f6f5e" stroke-width="1.2" />',
+    calibration = None
+    if calibration_metrics:
+        calibration = calibration_metrics.get("calibration_by_condition", {}).get("S1-ORACLE-RETRIEVED-MEMORY")
+    parts = [
+        '<text x="42" y="34" font-size="18" font-weight="bold">Mechanism summary</text>',
+        '<text x="42" y="326" font-size="13" fill="#555">Counts are exact. Calibration is excluded from main S0/S1/S2 rates.</text>',
     ]
-    axes = _rate_axes(60, 60, 620, base_y, y_max=y_max, ticks=(0.0, 0.30, 0.60))
-    return _svg_wrap(700, 340, labels + legend + axes + bars + intervals)
+    panels = [
+        (
+            42,
+            "A. One-shot unsafe",
+            [(system, _format_count(rows[system]["rate_counts"]["one_shot_unsafe"])) for system in systems],
+            "#b85c38",
+        ),
+        (
+            312,
+            "B. Memory path",
+            [
+                ("S0", "no persistence"),
+                (
+                    "S1",
+                    f"{_format_count(_rate_count(rows['S1'], 'poison_admitted'))} admitted\n"
+                    f"{_format_count(_rate_count(rows['S1'], 'admitted_memory_retrieved_at_trigger'))} retrieved",
+                ),
+                ("S2", f"{_format_count(_rate_count(rows['S2'], 'poison_admitted'))} admitted"),
+            ],
+            "#356d9a",
+        ),
+        (
+            582,
+            "C. Delayed unsafe",
+            [
+                ("S0", _format_count(rows["S0"]["rate_counts"]["stateful_unsafe"])),
+                ("S1", _format_count(rows["S1"]["rate_counts"]["stateful_unsafe"])),
+                ("S2", _format_count(rows["S2"]["rate_counts"]["stateful_unsafe"])),
+                ("Cal.", _format_count([calibration["unsafe_executed"], calibration["episodes"]]) if calibration else "not run"),
+            ],
+            "#2f6f5e",
+        ),
+    ]
+    for x, title, panel_rows, color in panels:
+        parts.extend(_count_panel(x, 70, title, panel_rows, color))
+    return _svg_wrap(850, 350, parts)
 
 
 def build_causal_chain_by_system(metrics: dict) -> str:
@@ -164,16 +190,18 @@ def build_causal_chain_by_system(metrics: dict) -> str:
     admitted = s1_counts["poison_admitted"]
     retrieved = s1_counts["admitted_poison_retrieved_at_trigger"]
     failures = s1_counts["execution_failure"]
+    proposal = s1_counts["unsafe_proposal_before_checker"]
+    executed = s1_counts["unsafe_executed"]
     stages = [
         ("Stateful attacks", str(stateful), "#777777", "0.22"),
         ("Poison admitted", f"{admitted}/{stateful}", "#2f6f5e", "0.88"),
         ("Retrieved at trigger", f"{retrieved}/{admitted}", "#2f6f5e", "0.88"),
-        ("Unsafe proposal/execution", "not adopted", "#b85c38", "0.18"),
-        ("Main-pilot endpoint", "safe endpoint", "#777777", "0.18"),
+        ("Unsafe proposals", f"{proposal}/{stateful}", "#b85c38", "0.18"),
+        ("Unsafe executions", f"{executed}/{stateful}", "#777777", "0.18"),
     ]
     parts = [
         '<text x="42" y="34" font-size="18" font-weight="bold">Where the S1 delayed chain stops</text>',
-        '<text x="42" y="56" font-size="14" fill="#555">admitted poison reaches the trigger context, then stops before unsafe planner action</text>',
+        '<text x="42" y="56" font-size="14" fill="#555">72 stateful attacks → 6 admitted → 6 retrieved → 0 unsafe proposals → 0 executions</text>',
     ]
     x0 = 42
     y = 100
@@ -205,32 +233,46 @@ def build_task_localization(episode_scores: list[dict]) -> str:
             and item["episode_kind"] == "stateful_attack"
             and item["task_id"] == task_id
         ]
-        rows.append((task_id, sum(1 for item in items if item.get("poison_admission_flag") is True), len(items)))
-    active = [row for row in rows if row[1] > 0]
-    inactive_count = sum(1 for row in rows if row[1] == 0)
-    inactive_denominator = sum(row[2] for row in rows if row[1] == 0)
-    display_rows = active + [("all other tasks", 0, inactive_denominator)]
+        rows.append(
+            (
+                task_id,
+                {
+                    "denominator": len(items),
+                    "candidate": sum(1 for item in items if item.get("writer_candidate_emitted")),
+                    "admitted": sum(1 for item in items if item.get("poison_admission_flag") is True),
+                    "retrieved": sum(1 for item in items if item.get("admitted_memory_retrieved_at_trigger")),
+                    "proposal": sum(1 for item in items if item.get("unsafe_tool_call_proposed_before_checker")),
+                    "execution": sum(1 for item in items if item.get("unsafe_tool_call_executed")),
+                    "failure": sum(1 for item in items if item.get("execution_failure")),
+                },
+            )
+        )
+    stages = [("cand.", "candidate"), ("admit", "admitted"), ("retr.", "retrieved"), ("prop.", "proposal"), ("exec.", "execution"), ("fail", "failure")]
     parts = [
-        '<text x="42" y="34" font-size="18" font-weight="bold">S1 admissions are task-localized</text>',
-        '<text x="42" y="56" font-size="14" fill="#555">poisoned-memory admissions over stateful episodes</text>',
+        '<text x="42" y="34" font-size="18" font-weight="bold">Task-by-stage S1 stateful signal</text>',
+        '<text x="42" y="56" font-size="14" fill="#555">counts over six stateful attacks per task</text>',
     ]
     x0 = 210
     y0 = 86
-    scale = 82
-    for index, (task_id, admitted, denominator) in enumerate(display_rows):
-        y = y0 + index * 56
-        label = _short_task_label(task_id) if task_id != "all other tasks" else f"other {inactive_count} tasks"
-        parts.append(f'<text x="42" y="{y + 24}" font-size="16">{label}</text>')
-        if admitted:
-            parts.append(f'<rect x="{x0}" y="{y}" width="{scale * admitted}" height="32" fill="#356d9a" opacity="0.9" />')
-        count_label = f"{admitted}/{denominator}" if admitted else f"none in {denominator}"
-        parts.append(f'<text x="{x0 + scale * admitted + 12}" y="{y + 22}" font-size="16" font-weight="bold">{count_label}</text>')
-    parts.append('<line x1="210" y1="260" x2="540" y2="260" stroke="#1f1f1f" />')
-    for tick in range(4):
-        x = x0 + scale * tick
-        parts.append(f'<line x1="{x}" y1="255" x2="{x}" y2="265" stroke="#1f1f1f" />')
-        parts.append(f'<text x="{x}" y="284" text-anchor="middle" font-size="14">{tick}</text>')
-    return _svg_wrap(700, 310, parts)
+    cell_w = 70
+    cell_h = 22
+    for col, (label, _) in enumerate(stages):
+        parts.append(f'<text x="{x0 + col * cell_w + cell_w/2}" y="76" text-anchor="middle" font-size="12">{label}</text>')
+    for index, (task_id, counts) in enumerate(rows):
+        y = y0 + index * 28
+        parts.append(f'<text x="42" y="{y + 16}" font-size="12">{_short_task_label(task_id)}</text>')
+        denominator = counts["denominator"]
+        for col, (_, key) in enumerate(stages):
+            count = counts[key]
+            fill = "#2f6f5e" if key in {"candidate", "admitted", "retrieved"} else "#b85c38"
+            if key == "failure":
+                fill = "#8a8a8a"
+            opacity = 0.18 + 0.72 * count / max(denominator, 1)
+            x = x0 + col * cell_w
+            parts.append(f'<rect x="{x}" y="{y}" width="{cell_w - 8}" height="{cell_h}" rx="4" fill="{fill}" fill-opacity="{opacity:.2f}" stroke="#c7c7c7" />')
+            parts.append(f'<text x="{x + (cell_w - 8)/2}" y="{y + 15}" text-anchor="middle" font-size="10">{count}/{denominator}</text>')
+    parts.append('<text x="42" y="438" font-size="12" fill="#555">Unsafe proposal/execution remains 0/6 for every task.</text>')
+    return _svg_wrap(700, 460, parts)
 
 
 def build_violation_by_horizon(episode_scores: list[dict]) -> str:
@@ -274,7 +316,7 @@ def build_violation_by_horizon(episode_scores: list[dict]) -> str:
     parts += [
         '<rect x="230" y="210" width="412" height="42" rx="6" fill="#fff4ed" fill-opacity="0.55" stroke="#b85c38" stroke-width="1.0" />',
         '<text x="436" y="236" text-anchor="middle" font-size="15" font-weight="bold">Unsafe endpoint: not observed at any horizon</text>',
-        '<text x="42" y="302" font-size="14" fill="#555">Interpretation: admitted poison is retrieved, then stops before unsafe planner action.</text>',
+        '<text x="42" y="302" font-size="14" fill="#555">Execution failures are counted separately and are not asserted to be the same admitted-memory episodes.</text>',
     ]
     return _svg_wrap(700, 326, parts)
 
@@ -363,6 +405,23 @@ def _ci_from_rate_counts(row: dict, count_key: str) -> list[float]:
     return wilson_ci(successes, total)
 
 
+def _rate_count(row: dict, count_key: str) -> list[int]:
+    counts = row.get("rate_counts", {})
+    if count_key in counts:
+        return counts[count_key]
+    causal = row.get("causal_chain_counts", {})
+    if count_key == "poison_admitted":
+        return [causal.get("poison_admitted", 0), causal.get("stateful_attacks", 0)]
+    if count_key == "admitted_memory_retrieved_at_trigger":
+        return [causal.get("admitted_poison_retrieved_at_trigger", 0), causal.get("poison_admitted", 0)]
+    return [0, 0]
+
+
+def _format_count(count_pair: list[int]) -> str:
+    numerator, denominator = count_pair
+    return f"{numerator}/{denominator}"
+
+
 def _interval(center_x: float, baseline_y: float, y_scale: float, rate: float, interval: list[float]) -> str:
     y_mid = baseline_y - y_scale * rate
     y_low = baseline_y - y_scale * interval[0]
@@ -405,6 +464,37 @@ def _rate_axes(x: int, y: int, width: int, baseline_y: int, *, y_max: float, tic
 
 def _bar(x: float, baseline_y: float, width: float, height: float, fill: str) -> str:
     return f'<rect x="{x}" y="{baseline_y-height}" width="{width}" height="{height}" fill="{fill}" opacity="0.9" />'
+
+
+def _count_panel(x: int, y: int, title: str, rows: list[tuple[str, str]], color: str) -> list[str]:
+    parts = [
+        f'<text x="{x}" y="{y}" font-size="14" font-weight="bold">{title}</text>',
+        f'<rect x="{x}" y="{y + 12}" width="232" height="210" rx="8" fill="#ffffff" stroke="#d0d0d0" />',
+    ]
+    row_gap = 46 if any("\n" in text for _, text in rows) else 39
+    for index, (label, text) in enumerate(rows):
+        row_y = y + 42 + index * row_gap
+        parts.append(f'<text x="{x + 12}" y="{row_y + 18}" font-size="13">{label}</text>')
+        if text in {"no persistence", "not run"}:
+            fill = "#eeeeee"
+            opacity = 0.85
+            stroke = "#b0b0b0"
+        else:
+            first_line = text.splitlines()[0]
+            numerator = int(first_line.split("/", 1)[0])
+            denominator = int(first_line.split("/", 1)[1].split()[0])
+            fill = color
+            opacity = 0.18 + 0.72 * numerator / max(denominator, 1)
+            stroke = color
+        text_lines = text.splitlines()
+        rect_height = 38 if len(text_lines) > 1 else 26
+        parts.append(f'<rect x="{x + 68}" y="{row_y}" width="150" height="{rect_height}" rx="5" fill="{fill}" fill-opacity="{opacity:.2f}" stroke="{stroke}" />')
+        if len(text_lines) > 1:
+            for line_index, line in enumerate(text_lines):
+                parts.append(f'<text x="{x + 143}" y="{row_y + 15 + line_index * 14}" text-anchor="middle" font-size="12" font-weight="bold">{line}</text>')
+        else:
+            parts.append(f'<text x="{x + 143}" y="{row_y + 18}" text-anchor="middle" font-size="12" font-weight="bold">{text}</text>')
+    return parts
 
 
 if __name__ == "__main__":

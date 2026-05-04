@@ -16,7 +16,6 @@ from memtrace.config import (
     AUDIT_REVIEW_MD_PATH,
     AUDIT_SAMPLE_PATH,
     AUDIT_TEMPLATE_PATH,
-    CLAIM_EVIDENCE_CHECK_PATH,
     EPISODES_PATH,
     PASSAGES_PATH,
     PROMPTS_DIR,
@@ -26,8 +25,6 @@ from memtrace.config import (
     FIGURES_DIR,
     GOLD_DIR,
     METRICS_PATH,
-    NEURIPS_READINESS_PATH,
-    PAPER_BRIEF_PATH,
     RELEASE_DIR,
     RELEASE_MANIFEST_PATH,
     RESULTS_DIR,
@@ -40,13 +37,8 @@ from memtrace.config import (
 APPLEDOUBLE_PREFIX = "._"
 ANONYMOUS_COPYRIGHT = "Copyright (c) 2026 Anonymous Authors"
 RELEASE_EXCLUDED_FILE_NAMES = {
-    "make_paper_brief.py",
     "promote_results.py",
-    "test_claim_evidence.py",
-    "test_paper_brief.py",
-    "test_paper_tables.py",
     "test_promote_results.py",
-    "write_submission_validation_artifacts.py",
 }
 CALIBRATION_OUTPUT_DIR = Path("data/calibration/oracle_memory")
 MAIN_TRACE_DIR_NAME = "v1_main_324"
@@ -96,6 +88,7 @@ def export_release_bundle() -> None:
     _copy_optional_file(DOCS_DIR / "croissant_metadata.json", RELEASE_DIR / "croissant_metadata.json")
     _copy_optional_file(DOCS_DIR / "croissant_metadata.json", RELEASE_DIR / "croissant.json")
     _copy_optional_file(Path("requirements.txt"), RELEASE_DIR / "requirements.txt")
+    _copy_optional_file(Path("requirements-inference.txt"), RELEASE_DIR / "requirements-inference.txt")
     _copy_optional_file(Path("environment.yml"), RELEASE_DIR / "environment.yml")
     _copy_optional_file(Path("pyproject.toml"), RELEASE_DIR / "pyproject.toml")
     _copy_json_with_release_trace_paths(run_summary_path, RELEASE_DIR / "results" / "run_summary.json")
@@ -119,20 +112,6 @@ def export_release_bundle() -> None:
     _copy_optional_file(AUDIT_REPORT_JSON_PATH, RELEASE_DIR / "audit" / "audit_report.json")
     _copy_optional_file(AUDIT_REPORT_MD_PATH, RELEASE_DIR / "audit" / "audit_report.md")
     _copy_optional_text_with_release_trace_paths(AUDIT_REVIEW_MD_PATH, RELEASE_DIR / "audit" / "audit_review.md")
-    _copy_optional_file(PAPER_BRIEF_PATH, RELEASE_DIR / "docs" / "neurips_paper_brief.md")
-    _copy_optional_file(CLAIM_EVIDENCE_CHECK_PATH, RELEASE_DIR / "docs" / "claim_evidence_check.md")
-    _copy_optional_file(NEURIPS_READINESS_PATH, RELEASE_DIR / "docs" / "neurips_readiness.md")
-    _copy_optional_file(
-        Path("paper/reports/strict_refusal_planner_prompt.txt"),
-        RELEASE_DIR / "paper" / "reports" / "strict_refusal_planner_prompt.txt",
-    )
-    _copy_optional_file(
-        Path("paper/reports/strict_refusal_probe_plan.md"),
-        RELEASE_DIR / "paper" / "reports" / "strict_refusal_probe_plan.md",
-    )
-    manuscript_dir = Path("paper") / "manuscript"
-    if manuscript_dir.exists():
-        _copy_paper_dir(manuscript_dir, RELEASE_DIR / "paper" / "manuscript")
     _copy_tree_recursive(Path("memtrace"), RELEASE_DIR / "github_harness" / "memtrace")
     _copy_tree_recursive(Path("scripts"), RELEASE_DIR / "github_harness" / "scripts")
     _copy_tree_recursive(Path("tests"), RELEASE_DIR / "github_harness" / "tests")
@@ -229,9 +208,9 @@ def _write_release_readme(destination: Path) -> None:
 
 ## 1. What MEMTRACE Is
 
-MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
+MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
 This anonymous artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
-It contains the v1.0 audited pilot traces, a separate forced-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+It contains the v1.0 audited pilot traces, a separate oracle-retrieved-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
 
 ## 2. What Claims This Artifact Supports
 
@@ -248,13 +227,12 @@ Calibration traces are excluded from the main S0/S1/S2 rates.
 ## 4. File Layout
 
 - `traces/v1_main_324/`: 324 main traces, with 108 traces each for `S0`, `S1`, and `S2`.
-- `traces/calibration_oracle_memory_72/`: 72 forced-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
+- `traces/calibration_oracle_memory_72/`: 72 oracle-retrieved-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
 - `results/`: packaged run summaries, episode scores, main metrics, calibration metrics, and attribution reports.
-- `tables/`: regenerated JSON metric tables used by the paper.
+- `tables/`: regenerated JSON metric tables used by the benchmark report.
 - `data/`: synthetic corpus, allowlist, episode specifications, and gold labels.
 - `github_harness/`: source harness for rebuilding assets and rerunning experiments.
 - `scripts/`: artifact-local validation and metric regeneration commands.
-- `paper/`: anonymous manuscript source and PDF.
 - `VALIDATION.md`, `RELEASE_MANIFEST.md`, and `TRACE_SCHEMA.md`: validation record, release counts, and trace-row contract.
 
 ## 5. Reproduce Metrics Without Model Execution
@@ -274,7 +252,7 @@ python scripts/validate_artifact.py
 python scripts/build_croissant.py --validate
 ```
 
-`scripts/validate_release.py` checks the 324 main traces, 72 calibration traces, 396 total traces, run-summary counts, schema contract, locked paper counts, calibration values, pilot gates, audit reconciliation, and packaged tables.
+`scripts/validate_release.py` checks the 324 main traces, 72 calibration traces, 396 total traces, run-summary counts, schema contract, locked result counts, calibration values, pilot gates, audit reconciliation, and packaged tables.
 
 ## 7. Reproduce Calibration Metrics
 
@@ -309,7 +287,7 @@ Model weights are referenced, not redistributed.
 ```bash
 python scripts/validate_release.py
 python scripts/recompute_metrics.py --main data/results --calibration data/calibration --out artifacts/recomputed
-python scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures
+python scripts/make_figures.py --metrics artifacts/recomputed --out figures
 python scripts/validate_artifact.py
 python scripts/aggregate_metrics.py --traces traces/v1_main_324 --out tables/main_metrics.json
 python scripts/aggregate_metrics.py --traces traces/calibration_oracle_memory_72 --out tables/calibration_metrics.json
@@ -366,8 +344,8 @@ This command regenerates main and calibration metrics from the packaged run summ
 - `scripts/validate_release.py` validates all 396 traces against the committed schema contract.
 - `scripts/validate_artifact.py` checks required files, trace uniqueness, stateful causal diagnostics, metric-table equality, and anonymity markers.
 - `scripts/build_croissant.py --validate` validates the Croissant metadata, including Responsible AI fields.
-- `scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures` regenerates the result figures from committed metrics.
-- `THIRD_PARTY_ASSETS.md` documents the same model, backend, dependency, and MEMTRACE asset rows as the paper asset tables.
+- `scripts/make_figures.py --metrics artifacts/recomputed --out figures` regenerates the result figures from committed metrics.
+- `THIRD_PARTY_ASSETS.md` documents the referenced model, backend, dependency, and MEMTRACE asset rows.
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
@@ -385,7 +363,7 @@ The NeurIPS E&D submission reports one v1.0 audited pilot packet:
 - 12 synthetic enterprise-assistant tasks.
 - 3 memory-system variants: `S0`, `S1`, and `S2`.
 - 324 main traces under `traces/v1_main_324/`.
-- 72 forced-memory calibration traces under `traces/calibration_oracle_memory_72/`.
+- 72 oracle-retrieved-memory calibration traces under `traces/calibration_oracle_memory_72/`.
 - One actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
 
 The main S0/S1/S2 metrics exclude calibration traces.
@@ -740,6 +718,7 @@ def _write_release_manifest_doc(destination: Path) -> None:
 - EVALUATION_CARD.md
 - croissant.json
 - requirements.txt
+- requirements-inference.txt
 - environment.yml
 - pyproject.toml
 - LICENSE
@@ -822,15 +801,6 @@ def _copy_tree_recursive(source_dir: Path, destination_dir: Path) -> None:
             continue
         _copy_file(source, destination_dir / source.relative_to(source_dir))
 
-
-def _copy_paper_dir(source_dir: Path, destination_dir: Path) -> None:
-    allowed_suffixes = {".tex", ".bib", ".pdf", ".sty"}
-    for source in source_dir.rglob("*"):
-        if not source.is_file():
-            continue
-        if source.name.startswith(APPLEDOUBLE_PREFIX) or source.suffix not in allowed_suffixes:
-            continue
-        _copy_file(source, destination_dir / source.relative_to(source_dir))
 
 if __name__ == "__main__":
     main()

@@ -1,35 +1,86 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
-.vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-file
-*.flf
-#Test results file
-TestResults.xml
-
-/data
-/figures
-/docs
-/release
-/.*/
-._*
-.DS_Store
+# Python caches and test output
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments
+.venv/
+.venv-*/
+venv/
+.env
+.env.*
+
+# Local tool and editor state
+.cache/
+.claude/
+.agents/
+.vscode/
+.idea/
+
+# Local planning/review notes that are not part of the public artifact
+/AGENTS.md
+/CLAUDE.md
+/FUTURE_WORK.md
+/Project.md
+/README_REVIEWER.md
+/command.md
+/improve*.md
+/audit/repo_fact_audit.md
+
+# macOS/resource-fork sidecars
+.DS_Store
+._*
+
+# Benchmark data and generated experiment outputs
+/data/
+/artifacts/
+/figures/
+/archived_runs/
+
+# Paper working tree and generated release bundles
+/paper/
+/release/*
+!/release/DATASET_CARD.md
+!/release/EVALUATION_CARD.md
+!/release/EVAL_CARD.md
+!/release/LICENSE
+!/release/README.md
+!/release/RELEASE_MANIFEST.md
+!/release/REPRODUCE.md
+!/release/THIRD_PARTY_ASSETS.md
+!/release/TRACE_SCHEMA.md
+!/release/VALIDATION.md
+!/release/croissant.json
+!/release/croissant_metadata.json
+!/release/environment.yml
+!/release/pyproject.toml
+!/release/requirements.txt
+!/release/requirements-inference.txt
+
+# NeurIPS submission package outputs.
+/submission/*
+!/submission/abstract.txt
+!/submission/anonymous_artifact_url.txt
+!/submission/checksums.txt
+!/submission/croissant.json
+!/submission/final_record_template.md
+!/submission/main.pdf
+!/submission/openreview_positioning.txt
+!/submission/preflight_report.md
+!/submission/supplement.zip
+!/submission/title.txt
+
+# Generated validation logs/manifests
+/artifact_manifest.json
+/anonymity_check.log
+/croissant_validation.log
+/submission_validation.log
+
+# LaTeX build products
 *.aux
 *.bbl
 *.blg
@@ -38,22 +89,3 @@ __pycache__/
 *.log
 *.out
 *.synctex.gz
-
-*.md
-!README.md
-
-/archived_runs
-/paper/
-
-# Paper / NeurIPS preparation artifacts and helper scripts.
-/scripts/*paper*.py
-/scripts/*neurips*.py
-/scripts/*claim_evidence*.py
-/scripts/*strict_refusal*.py
-/scripts/*corrected_qwen_slice*.py
-/tests/test_*paper*.py
-/tests/test_*neurips*.py
-/tests/test_*claim_evidence*.py
-/tests/test_*strict_refusal*.py
-/tests/test_*corrected_qwen_slice*.py
-/submission

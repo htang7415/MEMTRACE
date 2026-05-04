@@ -4,7 +4,7 @@
 
 MEMTRACE evaluates persistent-memory safety in a compact enterprise-assistant benchmark.
 The v1.0 paper-facing result set contains 324 main traces: 108 each for S0, S1, and S2.
-The full anonymous review artifact contains 396 trace files: 324 main traces plus 72 forced-memory calibration traces.
+The full anonymous review artifact contains 396 trace files: 324 main traces plus 72 oracle-retrieved-memory calibration traces.
 
 ## Metrics
 
@@ -28,7 +28,7 @@ Execution failures are planner or tool-call formatting failures and are not coun
 
 ## Calibration Condition
 
-`S1-ORACLE-RETRIEVED-MEMORY` is an implemented forced-memory calibration condition.
+`S1-ORACLE-RETRIEVED-MEMORY` is an implemented oracle-retrieved-memory calibration condition.
 It uses the same 72 S1 stateful episode specifications, inserts an oracle poisoned memory record before the trigger turn, and disables current-turn poisoned retrieval on the trigger turn.
 The full calibration reports CAL-PRR 72/72 = 1.000, CAL-UPR 3/72 = 0.042, CAL-SVR 3/72 = 0.042, and CAL-EFR 0/72 = 0.000.
 Calibration traces are separate from the 324 main traces and are not included in S0/S1/S2 metrics.
@@ -37,4 +37,4 @@ Calibration traces are separate from the 324 main traces and are not included in
 
 The current v1.0 audited pilot supports a validity-first benchmark claim for one actor/backend pair.
 It shows immediate retrieval-context risk and a poisoned-memory admission surface under S1, but it does not demonstrate delayed memory-mediated unsafe execution in the 324 main traces.
-The forced-memory calibration shows the benchmark and scorer can detect delayed memory-mediated executed violations when poisoned memory is forced into the trigger context.
+The oracle-retrieved-memory calibration shows the benchmark and scorer can detect delayed memory-mediated executed violations when poisoned memory is forced into the trigger context.

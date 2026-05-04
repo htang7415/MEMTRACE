@@ -112,13 +112,6 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_x.py").write_text("def test_x(): pass\n", encoding="utf-8")
-    (tests_dir / "test_paper_brief.py").write_text("def test_internal(): pass\n", encoding="utf-8")
-    paper_dir = tmp_path / "paper" / "manuscript"
-    paper_dir.mkdir(parents=True)
-    (paper_dir / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
-    (paper_dir / "neurips_2026.sty").write_text("% style\n", encoding="utf-8")
-    (paper_dir / "._main.tex").write_text("skip\n", encoding="utf-8")
-    (paper_dir / "main.aux").write_text("skip\n", encoding="utf-8")
 
     monkeypatch.setattr(release_module, "RELEASE_DIR", release_dir)
     monkeypatch.setattr(release_module, "RELEASE_MANIFEST_PATH", release_dir / "manifest.json")
@@ -144,9 +137,6 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     monkeypatch.setattr(release_module, "AUDIT_REVIEW_MD_PATH", audit_review_path)
     monkeypatch.setattr(release_module, "AUDIT_REPORT_JSON_PATH", tmp_path / "missing_audit_report.json")
     monkeypatch.setattr(release_module, "AUDIT_REPORT_MD_PATH", tmp_path / "missing_audit_report.md")
-    monkeypatch.setattr(release_module, "PAPER_BRIEF_PATH", tmp_path / "missing_paper_brief.md")
-    monkeypatch.setattr(release_module, "CLAIM_EVIDENCE_CHECK_PATH", tmp_path / "missing_claim_evidence_check.md")
-    monkeypatch.setattr(release_module, "NEURIPS_READINESS_PATH", tmp_path / "missing_neurips_readiness.md")
     monkeypatch.chdir(tmp_path)
 
     export_release_bundle()
@@ -155,7 +145,6 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     assert (release_dir / "github_harness" / "scripts" / "run.py").exists()
     assert not (release_dir / "github_harness" / "scripts" / "promote_results.py").exists()
     assert (release_dir / "github_harness" / "tests" / "test_x.py").exists()
-    assert not (release_dir / "github_harness" / "tests" / "test_paper_brief.py").exists()
     assert (release_dir / "github_harness" / "pyproject.toml").exists()
     assert "Anonymous Authors" in (release_dir / "LICENSE").read_text(encoding="utf-8")
     assert "Named Author" not in (release_dir / "LICENSE").read_text(encoding="utf-8")
@@ -172,10 +161,6 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     assert (release_dir / "tables" / "confidence_intervals.json").exists()
     assert (release_dir / "tools" / "README.md").exists()
     assert (release_dir / "scripts" / "validate_artifact.py").exists()
-    assert (release_dir / "paper" / "manuscript" / "main.tex").exists()
-    assert (release_dir / "paper" / "manuscript" / "neurips_2026.sty").exists()
-    assert not (release_dir / "paper" / "manuscript" / "._main.tex").exists()
-    assert not (release_dir / "paper" / "manuscript" / "main.aux").exists()
     assert (release_dir / "traces" / "v1_main_324" / "trace.jsonl").exists()
     release_trace = json.loads((release_dir / "traces" / "v1_main_324" / "trace.jsonl").read_text(encoding="utf-8"))
     assert release_trace["schema_version"] == "project-md-v3"

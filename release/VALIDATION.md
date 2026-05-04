@@ -42,5 +42,5 @@ This command regenerates main and calibration metrics from the packaged run summ
 - `scripts/validate_release.py` validates all 396 traces against the committed schema contract.
 - `scripts/validate_artifact.py` checks required files, trace uniqueness, stateful causal diagnostics, metric-table equality, and anonymity markers.
 - `scripts/build_croissant.py --validate` validates the Croissant metadata, including Responsible AI fields.
-- `scripts/make_figures.py --metrics artifacts/recomputed --out paper/figures` regenerates the result figures from committed metrics.
-- `THIRD_PARTY_ASSETS.md` documents the same model, backend, dependency, and MEMTRACE asset rows as the paper asset tables.
+- `scripts/make_figures.py --metrics artifacts/recomputed --out figures` regenerates the result figures from committed metrics.
+- `THIRD_PARTY_ASSETS.md` documents the referenced model, backend, dependency, and MEMTRACE asset rows.

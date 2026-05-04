@@ -14,7 +14,7 @@ The release does not contain human-subject data.
 - 2 payload types: direct override and contextual drift.
 - 3 system variants: `S0`, `S1`, and `S2`.
 - 324 main per-turn JSONL traces.
-- 72 forced-memory calibration JSONL traces.
+- 72 oracle-retrieved-memory calibration JSONL traces.
 - Gold labels, aggregate metrics, markdown tables, JSON metric tables, SVG figures, audit packet, and Croissant metadata.
 
 ## Core Counts
@@ -24,7 +24,7 @@ The release does not contain human-subject data.
 - stateful attack episodes per system: 72
 - total main episodes per system: 108
 - main paper-facing traces: 324
-- forced-memory calibration traces: 72
+- oracle-retrieved-memory calibration traces: 72
 - evaluated actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends
 
 ## Trace Schema
@@ -73,7 +73,7 @@ The v1.0 bundle reports:
 - `PRR`: admitted poison retrieved at trigger divided by poison admissions.
 - `UPR`: unsafe proposal before checker divided by parseable stateful planner outputs.
 - `EFR`: execution-failure rate.
-- `CAL-PRR`, `CAL-UPR`, `CAL-SVR`, and `CAL-EFR` for the forced-memory calibration condition.
+- `CAL-PRR`, `CAL-UPR`, `CAL-SVR`, and `CAL-EFR` for the oracle-retrieved-memory calibration condition.
 
 ## License
 
@@ -90,4 +90,4 @@ The artifact supports metric regeneration from traces without running the actor 
 - The v1.0 audited pilot includes one actor/backend pair and does not make broad cross-model claims.
 - The benchmark uses synthetic enterprise-assistant tasks with fixed retrieval and deterministic tools.
 - `S2` is a provenance-aware reference writer, not a complete deployed defense.
-- The forced-memory calibration traces are excluded from the main S0/S1/S2 rates.
+- The oracle-retrieved-memory calibration traces are excluded from the main S0/S1/S2 rates.

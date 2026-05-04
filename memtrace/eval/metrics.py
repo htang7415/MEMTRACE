@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
 import random
 from collections import defaultdict
+from pathlib import Path
 
 from memtrace.constants import SYSTEMS
 
@@ -411,3 +414,53 @@ def _mean(values) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
+
+
+def _main() -> None:
+    parser = argparse.ArgumentParser(description="Recompute MEMTRACE metrics from retained run summaries and traces.")
+    parser.add_argument("--main", type=Path, default=Path("data/results"))
+    parser.add_argument("--calibration", type=Path, default=Path("data/calibration/oracle_memory"))
+    parser.add_argument("--out", type=Path, default=None, help="Optional directory for main_metrics.json and calibration_metrics.json.")
+    args = parser.parse_args()
+
+    main_metrics = _metrics_for_directory(args.main, calibration=False)
+    calibration_metrics = _metrics_for_directory(args.calibration, calibration=True)
+    payload = {"main_metrics": main_metrics, "calibration_metrics": calibration_metrics}
+    if args.out is None:
+        print(json.dumps(payload, indent=2))
+        return
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    (args.out / "main_metrics.json").write_text(json.dumps(main_metrics, indent=2), encoding="utf-8")
+    (args.out / "calibration_metrics.json").write_text(json.dumps(calibration_metrics, indent=2), encoding="utf-8")
+    print(f"main_metrics={args.out / 'main_metrics.json'}")
+    print(f"calibration_metrics={args.out / 'calibration_metrics.json'}")
+
+
+def _metrics_for_directory(path: Path, *, calibration: bool) -> dict:
+    from memtrace.eval.scoring import score_run_summary_items
+
+    summary_path = _run_summary_path(path, calibration=calibration)
+    rows = json.loads(summary_path.read_text(encoding="utf-8"))
+    return aggregate_metrics(score_run_summary_items(rows))
+
+
+def _run_summary_path(path: Path, *, calibration: bool) -> Path:
+    if path.is_file():
+        return path
+    candidates = [path / "run_summary.json"]
+    if calibration:
+        candidates.extend(
+            [
+                path / "oracle_memory" / "run_summary.json",
+                path / "s1_oracle_retrieved_memory" / "run_summary.json",
+            ]
+        )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"missing run_summary.json under {path}")
+
+
+if __name__ == "__main__":
+    _main()

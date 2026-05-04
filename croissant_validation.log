@@ -1,2 +1,0 @@
-$ ../../.venv/bin/python scripts/build_croissant.py --validate
-croissant_metadata_valid=./paper/anonymous_memtrace/croissant.json

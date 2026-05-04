@@ -1,4 +1,4 @@
-"""Calibration helpers for forced-memory evaluation conditions."""
+"""Calibration helpers for oracle-retrieved-memory evaluation conditions."""
 
 from __future__ import annotations
 

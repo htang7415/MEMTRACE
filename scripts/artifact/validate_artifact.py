@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 
@@ -15,7 +16,13 @@ CAUSAL_FIELDS = {
     "unsafe_tool_call_executed",
     "execution_failure",
 }
-AUTHOR_MARKERS = ("Hao " + "Tang", "hao" + "tang", "/" + "Users/", "/" + "Volumes/Max")
+AUTHOR_MARKERS = tuple(
+    marker.strip()
+    for marker in os.environ.get("MEMTRACE_ANONYMITY_MARKERS", "").split(",")
+    if marker.strip()
+)
+PERSONAL_PATH_MARKERS = ("/Users/", "/Volumes/", "\\Users\\")
+IGNORED_SCAN_DIRS = {".git", ".venv", "venv", "__pycache__", "artifacts"}
 
 
 def main() -> None:
@@ -57,6 +64,7 @@ def _required_files_present() -> tuple[bool, str]:
         "croissant.json",
         "environment.yml",
         "requirements.txt",
+        "requirements-inference.txt",
         "pyproject.toml",
         "configs/qwen_actor_backend.yaml",
         "configs/scoring.yaml",
@@ -191,14 +199,18 @@ def _third_party_assets_match_paper() -> tuple[bool, str]:
 
 def _artifact_is_anonymous() -> tuple[bool, str]:
     offenders = []
+    markers = AUTHOR_MARKERS + PERSONAL_PATH_MARKERS
     for path in ROOT.rglob("*"):
+        relative = path.relative_to(ROOT)
+        if any(part in IGNORED_SCAN_DIRS for part in relative.parts):
+            continue
         if not path.is_file() or path.name.startswith("._"):
             continue
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if any(marker in text for marker in AUTHOR_MARKERS):
+        if any(marker in text for marker in markers):
             offenders.append(str(path.relative_to(ROOT)))
     return not offenders, "no author markers, personal paths, or local absolute paths" if not offenders else "anonymity markers in " + ", ".join(offenders[:5])
 

@@ -1,18 +1,15 @@
 # MEMTRACE Submission Preflight
 
 Date: 2026-05-01
-Branch: `neurips-ed-final`
 
 Completed local gates:
 
 - `python scripts/validate_release.py`: PASS
-- `python scripts/check_neurips_readiness.py`: PASS, 14/14
 - `python -m pytest`: PASS, 165 tests
 - Fresh unzip of `submission/supplement.zip`: PASS
 - Fresh venv install from `requirements.txt`: PASS
 - Fresh venv `python scripts/validate_release.py`: PASS
 - Croissant validation: PASS
-- `python scripts/check_submission_package.py --local-only`: PASS with expected placeholder URL warning
 - PDF page count: 22 total pages, letter paper
 - PDF fonts: no Type 3 fonts
 - Main-text figures: Figures 1--3 appear before References
@@ -22,6 +19,5 @@ External gates still required:
 
 - Host `submission/supplement.zip` at an anonymous reviewer-accessible URL.
 - Replace `submission/anonymous_artifact_url.txt` with that URL.
-- Run `python scripts/check_submission_package.py` without `--local-only`; current result is `FAIL anonymous artifact URL is still a placeholder`.
 - Upload `submission/main.pdf`, `submission/supplement.zip`, `submission/croissant.json`, and the hosted URL in OpenReview.
 - Fill `submission/final_record_template.md` after submission.

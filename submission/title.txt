@@ -1,1 +1,1 @@
-MEMTRACE: Validity-First Evaluation of Persistent-Memory Risk in Agents
+MEMTRACE: Causal-Path Evaluation of Persistent-Memory Risk in Tool-Using Agents

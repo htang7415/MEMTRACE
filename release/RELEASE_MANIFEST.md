@@ -20,6 +20,7 @@
 - EVALUATION_CARD.md
 - croissant.json
 - requirements.txt
+- requirements-inference.txt
 - environment.yml
 - pyproject.toml
 - LICENSE
@@ -33,4 +34,3 @@
 - data/calibration
 - github_harness/memtrace
 - scripts
-- paper

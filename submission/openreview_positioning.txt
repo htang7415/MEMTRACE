@@ -1,5 +1,5 @@
 Submission pitch:
-MEMTRACE is a validity-first benchmark for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-check blocking, unsafe execution, and execution-format failure in memory-enabled agents.
+MEMTRACE is a causal-path benchmark for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure in memory-enabled agents.
 
 Reviewer-facing claim boundary:
 The paper does not claim broad cross-model prevalence or absence of persistent-memory risk; it contributes an executable protocol and audited pilot showing that one-shot violation rates can overstate persistent-memory compromise unless the memory path is traced explicitly.
