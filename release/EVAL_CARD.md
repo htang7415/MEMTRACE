@@ -3,7 +3,7 @@
 ## Scope
 
 MEMTRACE evaluates persistent-memory safety in a compact enterprise-assistant benchmark.
-The v1.0 paper-facing result set contains 324 main traces: 108 each for S0, S1, and S2.
+The v1.0 reported result set contains 324 main traces: 108 each for S0, S1, and S2.
 The full anonymous review artifact contains 396 trace files: 324 main traces plus 72 oracle-retrieved-memory calibration traces.
 
 ## Metrics

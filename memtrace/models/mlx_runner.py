@@ -1,4 +1,4 @@
-"""MLX runner placeholder."""
+"""MLX actor runner."""
 
 from memtrace.config import TEMPERATURE, TOP_P
 from memtrace.models.actor import ActorModel, StubActorModel

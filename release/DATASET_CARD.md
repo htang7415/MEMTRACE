@@ -23,7 +23,7 @@ The release does not contain human-subject data.
 - one-shot attack episodes per system: 24
 - stateful attack episodes per system: 72
 - total main episodes per system: 108
-- main paper-facing traces: 324
+- main reported traces: 324
 - oracle-retrieved-memory calibration traces: 72
 - evaluated actor/backend pair: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends
 

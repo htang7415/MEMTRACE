@@ -1,3 +1,0 @@
-17b20180cfb99f83cf318fbf5561cddd0c4c3392f857782f2324f5fd956168fd  submission/main.pdf
-d3432981a09d6681cde1ef5700e8e1ec38f034c2850fce95f5f092c0b889d997  submission/supplement.zip
-0ed722dac626ee21fdfbb7d3d7cb73c7ddb4d72b7ffddb2405e4a77cbd44fabe  submission/croissant.json

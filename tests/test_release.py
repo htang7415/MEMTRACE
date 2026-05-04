@@ -132,9 +132,6 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     monkeypatch.setattr(release_module, "ATTRIBUTION_REPORT_PATH", tmp_path / "missing_attribution_report.md")
     monkeypatch.setattr(release_module, "AUDIT_SAMPLE_PATH", audit_sample_path)
     monkeypatch.setattr(release_module, "AUDIT_TEMPLATE_PATH", audit_template_path)
-    audit_review_path = tmp_path / "audit_review.md"
-    audit_review_path.write_text("trace: data/traces/trace.jsonl\n", encoding="utf-8")
-    monkeypatch.setattr(release_module, "AUDIT_REVIEW_MD_PATH", audit_review_path)
     monkeypatch.setattr(release_module, "AUDIT_REPORT_JSON_PATH", tmp_path / "missing_audit_report.json")
     monkeypatch.setattr(release_module, "AUDIT_REPORT_MD_PATH", tmp_path / "missing_audit_report.md")
     monkeypatch.chdir(tmp_path)
@@ -168,4 +165,4 @@ def test_export_release_bundle_includes_github_harness(tmp_path: Path, monkeypat
     assert release_summary[0]["trace_path"] == "traces/v1_main_324/trace.jsonl"
     release_audit_sample = json.loads((release_dir / "audit" / "audit_sample.json").read_text(encoding="utf-8"))
     assert release_audit_sample[0]["trace_path"] == "traces/v1_main_324/trace.jsonl"
-    assert (release_dir / "audit" / "audit_review.md").read_text(encoding="utf-8") == "trace: traces/v1_main_324/trace.jsonl\n"
+    assert not (release_dir / "audit" / "audit_review.md").exists()

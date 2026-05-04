@@ -6,7 +6,7 @@
 python scripts/validate_release.py
 ```
 
-This command validates the paper-facing release without model execution.
+This command validates the anonymous release without model execution.
 
 ## One-Command Metric Regeneration
 
@@ -32,7 +32,7 @@ This command regenerates main and calibration metrics from the packaged run summ
 | Croissant metadata | validates with RAI fields | pass |
 | Dataset card | present | pass |
 | Evaluation card | present | pass |
-| Third-party assets | matches paper table | pass |
+| Third-party assets | documented | pass |
 | Anonymity scan | no identifying strings | pass |
 | PDF render inspection | no unreadable main tables | pass |
 | Page/style compliance | official NeurIPS style | pass |

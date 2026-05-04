@@ -13,7 +13,6 @@ from memtrace.config import (
     ATTRIBUTION_REPORT_PATH,
     AUDIT_REPORT_JSON_PATH,
     AUDIT_REPORT_MD_PATH,
-    AUDIT_REVIEW_MD_PATH,
     AUDIT_SAMPLE_PATH,
     AUDIT_TEMPLATE_PATH,
     EPISODES_PATH,
@@ -37,6 +36,8 @@ from memtrace.config import (
 APPLEDOUBLE_PREFIX = "._"
 ANONYMOUS_COPYRIGHT = "Copyright (c) 2026 Anonymous Authors"
 RELEASE_EXCLUDED_FILE_NAMES = {
+    "make_audit_review.py",
+    "test_audit_review.py",
     "promote_results.py",
     "test_promote_results.py",
 }
@@ -111,7 +112,6 @@ def export_release_bundle() -> None:
     _copy_optional_jsonl_with_release_trace_paths(AUDIT_TEMPLATE_PATH, RELEASE_DIR / "audit" / "audit_template.jsonl")
     _copy_optional_file(AUDIT_REPORT_JSON_PATH, RELEASE_DIR / "audit" / "audit_report.json")
     _copy_optional_file(AUDIT_REPORT_MD_PATH, RELEASE_DIR / "audit" / "audit_report.md")
-    _copy_optional_text_with_release_trace_paths(AUDIT_REVIEW_MD_PATH, RELEASE_DIR / "audit" / "audit_review.md")
     _copy_tree_recursive(Path("memtrace"), RELEASE_DIR / "github_harness" / "memtrace")
     _copy_tree_recursive(Path("scripts"), RELEASE_DIR / "github_harness" / "scripts")
     _copy_tree_recursive(Path("tests"), RELEASE_DIR / "github_harness" / "tests")
@@ -308,7 +308,7 @@ def _write_validation_doc(destination: Path) -> None:
 python scripts/validate_release.py
 ```
 
-This command validates the paper-facing release without model execution.
+This command validates the anonymous release without model execution.
 
 ## One-Command Metric Regeneration
 
@@ -334,7 +334,7 @@ This command regenerates main and calibration metrics from the packaged run summ
 | Croissant metadata | validates with RAI fields | pass |
 | Dataset card | present | pass |
 | Evaluation card | present | pass |
-| Third-party assets | matches paper table | pass |
+| Third-party assets | documented | pass |
 | Anonymity scan | no identifying strings | pass |
 | PDF render inspection | no unreadable main tables | pass |
 | Page/style compliance | official NeurIPS style | pass |
@@ -379,23 +379,13 @@ The artifact includes:
 - Croissant metadata and documentation cards for dataset, evaluation, third-party assets, and release scope.
 
 Full model reruns require Apple Silicon, `mlx-lm`, `sentence-transformers`, the referenced MLX actor model, and the dense retrieval model.
-The `profile` backend is a smoke-test fixture and is not a paper-facing result backend.
+The `profile` backend is a smoke-test fixture and is not a reported result backend.
 
 ## Claim Discipline
 
 The artifact supports a validity-first benchmark claim for one actor/backend pair.
 It does not make broad cross-model claims, does not claim that persistent memory is safe, and treats `S2` as a provenance-aware reference writer rather than a complete deployed defense.
 """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(text, encoding="utf-8")
-
-
-def _copy_optional_text_with_release_trace_paths(source: Path, destination: Path) -> None:
-    if not source.exists():
-        return
-    text = source.read_text(encoding="utf-8")
-    text = text.replace(str(TRACES_DIR) + "/", f"traces/{MAIN_TRACE_DIR_NAME}/")
-    text = text.replace("data/traces/", f"traces/{MAIN_TRACE_DIR_NAME}/")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
 
@@ -732,7 +722,6 @@ def _write_release_manifest_doc(destination: Path) -> None:
 - data/calibration
 - github_harness/memtrace
 - scripts
-- paper
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")

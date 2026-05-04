@@ -62,17 +62,7 @@ venv/
 !/release/requirements-inference.txt
 
 # NeurIPS submission package outputs.
-/submission/*
-!/submission/abstract.txt
-!/submission/anonymous_artifact_url.txt
-!/submission/checksums.txt
-!/submission/croissant.json
-!/submission/final_record_template.md
-!/submission/main.pdf
-!/submission/openreview_positioning.txt
-!/submission/preflight_report.md
-!/submission/supplement.zip
-!/submission/title.txt
+/submission/
 
 # Generated validation logs/manifests
 /artifact_manifest.json
