@@ -43,25 +43,9 @@ venv/
 
 # Paper working tree and generated release bundles
 /paper/
-/release/*
-!/release/DATASET_CARD.md
-!/release/EVALUATION_CARD.md
-!/release/EVAL_CARD.md
-!/release/LICENSE
-!/release/README.md
-!/release/RELEASE_MANIFEST.md
-!/release/REPRODUCE.md
-!/release/THIRD_PARTY_ASSETS.md
-!/release/TRACE_SCHEMA.md
-!/release/VALIDATION.md
-!/release/croissant.json
-!/release/croissant_metadata.json
-!/release/environment.yml
-!/release/pyproject.toml
-!/release/requirements.txt
-!/release/requirements-inference.txt
+/release/
+/docs/
 
-# NeurIPS submission package outputs.
 /submission/
 
 # Generated validation logs/manifests
