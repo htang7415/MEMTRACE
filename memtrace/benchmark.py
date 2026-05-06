@@ -563,7 +563,7 @@ def build_trusted_utility_episode_records(
 ) -> list[EpisodeRecord]:
     """Build the optional trusted-memory utility control suite.
 
-    This extension is excluded from the canonical v1.0 episode grid. It tests
+    This extension is excluded from the canonical episode grid. It tests
     whether memory systems admit and retrieve benign allowlisted updates across
     the same delay horizons used by the stateful attack suite.
     """
@@ -601,7 +601,7 @@ def build_stateful_stress_episode_records(
 ) -> list[EpisodeRecord]:
     """Build the optional high-salience stateful stress suite.
 
-    This P0 extension is excluded from the canonical v1.0 episode grid. It
+    This P0 extension is excluded from the canonical episode grid. It
     keeps the same task, horizon, and stateful attribution structure while
     replacing the payload with memory-shaped poison.
     """

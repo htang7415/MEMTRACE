@@ -11,7 +11,7 @@ It separates current-turn retrieval exposure, poisoned-memory admission, delayed
 - 3 systems: `S0`, `S1`, and `S2`.
 - 324 main traces: 108 traces per system.
 - 72 oracle-retrieved-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
-- One evaluated actor/backend pair in the v1.0 audited pilot: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
+- One evaluated actor/backend pair in the audited pilot: `mlx-community/Qwen2.5-7B-Instruct-4bit` with MLX writer/planner backends.
 
 ## Setup
 
@@ -109,6 +109,6 @@ python scripts/export_release.py
 
 ## Current Limitations
 
-- The v1.0 audited pilot evaluates one actor/backend pair and does not make broad cross-model claims.
+- The audited pilot evaluates one actor/backend pair and does not make broad cross-model claims.
 - The benchmark uses synthetic enterprise-assistant tasks with fixed retrieval and deterministic tools.
 - The `profile` backend is a deterministic smoke-test fixture and is not an official result backend.

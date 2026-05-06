@@ -14,7 +14,7 @@ def main() -> None:
     if not path.exists():
         path = ROOT / "croissant_metadata.json"
     metadata = json.loads(path.read_text(encoding="utf-8"))
-    required = {"@context", "@type", "name", "description", "license", "version", "distribution"}
+    required = {"@context", "@type", "name", "description", "license", "distribution"}
     missing = sorted(required - set(metadata))
     if missing:
         raise SystemExit("missing Croissant fields: " + ", ".join(missing))

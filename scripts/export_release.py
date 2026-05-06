@@ -139,7 +139,6 @@ def build_manifest(release_dir: Path) -> dict:
         )
     return {
         "name": "MEMTRACE",
-        "version": "0.1.0",
         "files": files,
     }
 
@@ -210,7 +209,7 @@ def _write_release_readme(destination: Path) -> None:
 
 MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
 This anonymous artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
-It contains the v1.0 audited pilot traces, a separate oracle-retrieved-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+It contains the audited pilot traces, a separate oracle-retrieved-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
 
 ## 2. What Claims This Artifact Supports
 
@@ -272,7 +271,7 @@ The retained artifact does not record the trace-sampling rule, so the audit pack
 
 ## 9. Known Limitations
 
-The v1.0 audited pilot evaluates one actor/backend pair over synthetic enterprise-assistant tasks.
+The audited pilot evaluates one actor/backend pair over synthetic enterprise-assistant tasks.
 Original model-generation jobs retain actor/backend metadata but not exact worker, wall-clock runtime, or peak-memory telemetry.
 Full model reruns require Apple Silicon, `mlx-lm`, `sentence-transformers`, the referenced MLX actor model, and the dense retrieval model.
 
@@ -358,7 +357,7 @@ MEMTRACE is a compact benchmark and protocol for separating immediate retrieval-
 
 ## Submission Scope
 
-The NeurIPS E&D submission reports one v1.0 audited pilot packet:
+The NeurIPS E&D submission reports one audited pilot packet:
 
 - 12 synthetic enterprise-assistant tasks.
 - 3 memory-system variants: `S0`, `S1`, and `S2`.
@@ -641,7 +640,7 @@ decoding:
   temperature: 0
   top_p: 1
 notes:
-  - Main v1.0 traces record the actor/backend but not the exact mlx-lm package version used during generation.
+  - Main traces record the actor/backend but not the exact mlx-lm package version used during generation.
 """,
         "scoring.yaml": """metrics:
   - CSR
@@ -686,7 +685,7 @@ The executable tool stubs and policy checker are included in `github_harness/mem
 
 
 def _write_release_manifest_doc(destination: Path) -> None:
-    text = """# MEMTRACE v1.0 anonymous review artifact
+    text = """# MEMTRACE anonymous review artifact
 
 ## Counts
 
