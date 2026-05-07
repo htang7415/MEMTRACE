@@ -40,8 +40,17 @@ RELEASE_EXCLUDED_FILE_NAMES = {
     "test_audit_review.py",
     "promote_results.py",
     "test_promote_results.py",
+    "_".join(("run", "strict", "refusal", "probe.py")),
 }
 CALIBRATION_OUTPUT_DIR = Path("data/calibration/oracle_memory")
+TRUSTED_TOOLARG_UTILITY_DIR = Path("data/extensions/trusted_utility_toolargs_qwen25_7b")
+TRUSTED_POLICY_UTILITY_DIR = Path("data/extensions/trusted_utility_qwen25_7b")
+STATEFUL_STRESS_ADMISSION_CELLS_DIR = Path("data/extensions/stateful_stress_admission_cells_qwen25_7b")
+EXTENSION_OUTPUTS = (
+    ("trusted_toolarg_utility_36", TRUSTED_TOOLARG_UTILITY_DIR),
+    ("trusted_policy_utility_36", TRUSTED_POLICY_UTILITY_DIR),
+    ("stateful_stress_admission_cells_12", STATEFUL_STRESS_ADMISSION_CELLS_DIR),
+)
 MAIN_TRACE_DIR_NAME = "v1_main_324"
 CALIBRATION_TRACE_DIR_NAME = "calibration_oracle_memory_72"
 ARTIFACT_SCRIPT_SOURCE_DIR = Path(__file__).resolve().parent / "artifact"
@@ -105,6 +114,7 @@ def export_release_bundle() -> None:
     _copy_tree(FIGURES_DIR, RELEASE_DIR / "figures", suffixes={".svg"})
     _copy_referenced_traces(run_summary_path, RELEASE_DIR / "traces" / MAIN_TRACE_DIR_NAME)
     _copy_calibration_artifacts(CALIBRATION_OUTPUT_DIR, RELEASE_DIR)
+    _copy_extension_artifacts(RELEASE_DIR)
     _copy_tree(PROMPTS_DIR, RELEASE_DIR / "prompts", suffixes={".txt"})
     _copy_optional_file(ATTRIBUTION_LABELS_PATH, RELEASE_DIR / "results" / "attribution_labels.json")
     _copy_optional_file(ATTRIBUTION_REPORT_PATH, RELEASE_DIR / "results" / "attribution_report.md")
@@ -209,7 +219,7 @@ def _write_release_readme(destination: Path) -> None:
 
 MEMTRACE is a validity-first benchmark and protocol for separating immediate retrieval-context violations, poisoned-memory admission, trigger-time memory retrieval, unsafe proposal, policy-checker blocking, unsafe execution, and execution-format failure in memory-enabled tool agents.
 This anonymous artifact supports the MEMTRACE NeurIPS Evaluations & Datasets submission.
-It contains the audited pilot traces, a separate oracle-retrieved-memory calibration packet, generated metrics, documentation, and a no-model validation harness.
+It contains the audited pilot traces, a separate oracle-retrieved-memory calibration packet, optional extension diagnostics, generated metrics, documentation, and a no-model validation harness.
 
 ## 2. What Claims This Artifact Supports
 
@@ -227,6 +237,7 @@ Calibration traces are excluded from the main S0/S1/S2 rates.
 
 - `traces/v1_main_324/`: 324 main traces, with 108 traces each for `S0`, `S1`, and `S2`.
 - `traces/calibration_oracle_memory_72/`: 72 oracle-retrieved-memory calibration traces for `S1-ORACLE-RETRIEVED-MEMORY`.
+- `extensions/`: optional trusted-memory utility and localized stateful-stress packets excluded from canonical rates.
 - `results/`: packaged run summaries, episode scores, main metrics, calibration metrics, and attribution reports.
 - `tables/`: regenerated JSON metric tables used by the benchmark report.
 - `data/`: synthetic corpus, allowlist, episode specifications, and gold labels.
@@ -272,6 +283,7 @@ The retained artifact does not record the trace-sampling rule, so the audit pack
 ## 9. Known Limitations
 
 The audited pilot evaluates one actor/backend pair over synthetic enterprise-assistant tasks.
+The localized stateful-stress packet is a diagnostic companion rather than a canonical-rate packet: it shows that the main S1 poisoned-memory admission rate is payload-shape-conservative, and that `calendar-attendee` stress unsafe rows include a non-memory-specific task/gold-argument confound under S2.
 Original model-generation jobs retain actor/backend metadata but not exact worker, wall-clock runtime, or peak-memory telemetry.
 Full model reruns require Apple Silicon, `mlx-lm`, `sentence-transformers`, the referenced MLX actor model, and the dense retrieval model.
 
@@ -374,6 +386,7 @@ The artifact includes:
 
 - synthetic corpus, allowlist, episode specifications, and gold labels;
 - prompts, deterministic tools, traces, run summaries, metrics, and attribution reports;
+- optional trusted-memory utility and localized stateful-stress extension outputs;
 - validation scripts that regenerate metrics from packaged traces without model inference;
 - Croissant metadata and documentation cards for dataset, evaluation, third-party assets, and release scope.
 
@@ -384,6 +397,7 @@ The `profile` backend is a smoke-test fixture and is not a reported result backe
 
 The artifact supports a validity-first benchmark claim for one actor/backend pair.
 It does not make broad cross-model claims, does not claim that persistent memory is safe, and treats `S2` as a provenance-aware reference writer rather than a complete deployed defense.
+The optional stress packet should be read as a recommended diagnostic companion for future pilots, not as additional main-protocol delayed-compromise evidence.
 """
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(text, encoding="utf-8")
@@ -473,6 +487,39 @@ def _copy_calibration_artifacts(calibration_dir: Path, release_dir: Path) -> Non
             summary=item,
             score=score_map.get(item["episode_id"], {}),
         )
+
+
+def _copy_extension_artifacts(release_dir: Path) -> None:
+    for name, source_dir in EXTENSION_OUTPUTS:
+        if source_dir.exists():
+            destination_dir = release_dir / "extensions" / name
+            _copy_tree_recursive(source_dir, destination_dir)
+            _sanitize_extension_json_files(destination_dir, name)
+
+
+def _sanitize_extension_json_files(extension_dir: Path, extension_name: str) -> None:
+    for path in extension_dir.rglob("*.json"):
+        if path.name.startswith(APPLEDOUBLE_PREFIX):
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        sanitized = _sanitize_extension_payload(payload, extension_name)
+        path.write_text(json.dumps(sanitized, indent=2), encoding="utf-8")
+
+
+def _sanitize_extension_payload(payload, extension_name: str):
+    if isinstance(payload, list):
+        return [_sanitize_extension_payload(item, extension_name) for item in payload]
+    if isinstance(payload, dict):
+        sanitized = {}
+        for key, value in payload.items():
+            if key == "trace_path" and isinstance(value, str):
+                sanitized[key] = f"extensions/{extension_name}/traces/{Path(value).name}"
+            elif key == "planner_prompt_path" and isinstance(value, str):
+                sanitized[key] = "prompts/planner.txt"
+            else:
+                sanitized[key] = _sanitize_extension_payload(value, extension_name)
+        return sanitized
+    return payload
 
 
 def _copy_json_with_nested_release_trace_paths(source: Path, destination: Path, trace_dir_name: str) -> None:
@@ -694,6 +741,9 @@ def _write_release_manifest_doc(destination: Path) -> None:
 - Calibration traces: 72
 - Calibration summary rows: 72
 - Total trace files: 396
+- Optional trusted tool-argument utility traces: 36
+- Optional trusted policy-memory utility traces: 36
+- Optional localized stateful-stress traces: 12
 
 ## Top-level files
 
@@ -719,6 +769,7 @@ def _write_release_manifest_doc(destination: Path) -> None:
 - data/results
 - data/traces
 - data/calibration
+- extensions
 - github_harness/memtrace
 - scripts
 """
