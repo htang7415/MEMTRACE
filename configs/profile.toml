@@ -1,0 +1,4 @@
+[memtrace]
+memory_writer_backend = "profile"
+planner_backend = "profile"
+retrieval_backend = "lexical"

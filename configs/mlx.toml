@@ -1,0 +1,4 @@
+[memtrace]
+memory_writer_backend = "mlx"
+planner_backend = "mlx"
+retrieval_backend = "dense"

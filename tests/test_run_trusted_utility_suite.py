@@ -1,11 +1,8 @@
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from memtrace.constants import TRUSTED_UTILITY_PAYLOAD_TYPE
-from scripts import run_trusted_utility_suite
+from memtrace.core.constants import TRUSTED_UTILITY_PAYLOAD_TYPE
+from memtrace.commands import run_trusted_utility_suite
 
 
 def test_trusted_utility_suite_dry_run_lists_default_episode_set(capsys) -> None:

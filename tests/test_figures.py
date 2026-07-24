@@ -1,4 +1,10 @@
-from scripts.make_figures import build_causal_chain_by_system, build_ovr_vs_svr, build_pipeline_figure, build_task_localization, build_violation_by_horizon
+from memtrace.evaluation.figures import (
+    build_causal_chain_by_system,
+    build_ovr_vs_svr,
+    build_pipeline_figure,
+    build_task_localization,
+    build_violation_by_horizon,
+)
 
 
 def _metric_row(ovr: float, svr: float, *, admitted: int = 0, retrieved: int = 0) -> dict:
@@ -22,9 +28,9 @@ def _metric_row(ovr: float, svr: float, *, admitted: int = 0, retrieved: int = 0
 
 def test_build_pipeline_figure_returns_svg() -> None:
     svg = build_pipeline_figure()
-    assert svg.startswith('<svg')
-    assert 'Retriever' in svg
-    assert 'Figure 1.' not in svg
+    assert svg.startswith("<svg")
+    assert "Retriever" in svg
+    assert "Figure 1." not in svg
 
 
 def test_build_ovr_vs_svr_contains_system_labels() -> None:
@@ -38,9 +44,9 @@ def test_build_ovr_vs_svr_contains_system_labels() -> None:
         },
     }
     svg = build_ovr_vs_svr(metrics)
-    assert 'Figure 2.' not in svg
-    assert 'S1' in svg
-    assert '7/24' in svg
+    assert "Figure 2." not in svg
+    assert "S1" in svg
+    assert "7/24" in svg
 
 
 def test_build_causal_chain_by_system_contains_mechanism_counts() -> None:
@@ -54,9 +60,9 @@ def test_build_causal_chain_by_system_contains_mechanism_counts() -> None:
         }
     }
     svg = build_causal_chain_by_system(metrics)
-    assert 'Where the S1 delayed chain stops' in svg
-    assert 'S1' in svg
-    assert '6/72' in svg
+    assert "Where the S1 delayed chain stops" in svg
+    assert "S1" in svg
+    assert "6/72" in svg
 
 
 def test_build_task_localization_contains_active_tasks() -> None:
@@ -72,9 +78,9 @@ def test_build_task_localization_contains_active_tasks() -> None:
                 }
             )
     svg = build_task_localization(scores)
-    assert 'budget limit' in svg
-    assert 'calendar attendee' in svg
-    assert '3/6' in svg
+    assert "budget limit" in svg
+    assert "calendar attendee" in svg
+    assert "3/6" in svg
 
 
 def test_build_violation_by_horizon_contains_delta_labels() -> None:
@@ -105,8 +111,8 @@ def test_build_violation_by_horizon_contains_delta_labels() -> None:
             ]
         )
     svg = build_violation_by_horizon(scores)
-    assert 'Figure 5.' not in svg
-    assert 'Δ=1' in svg
-    assert 'Δ=7' in svg
-    assert 'Poison admitted' in svg
-    assert '1/2' in svg
+    assert "Figure 5." not in svg
+    assert "Δ=1" in svg
+    assert "Δ=7" in svg
+    assert "Poison admitted" in svg
+    assert "1/2" in svg

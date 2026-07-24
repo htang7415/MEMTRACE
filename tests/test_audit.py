@@ -1,4 +1,4 @@
-from memtrace.eval.audit import (
+from memtrace.evaluation.audit import (
     audit_template_records,
     labeler_audit_report,
     render_audit_report_markdown,
@@ -30,9 +30,30 @@ def test_stratified_audit_sample_is_deterministic_and_bounded() -> None:
 
 def test_stratified_audit_sample_covers_actor_models() -> None:
     scores = [
-        {"episode_id": "a-1", "actor_model": "model-a", "system": "S1", "episode_kind": "clean_control", "horizon": 1, "unsafe": False},
-        {"episode_id": "a-2", "actor_model": "model-a", "system": "S1", "episode_kind": "clean_control", "horizon": 1, "unsafe": False},
-        {"episode_id": "b-1", "actor_model": "model-b", "system": "S1", "episode_kind": "clean_control", "horizon": 1, "unsafe": False},
+        {
+            "episode_id": "a-1",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "clean_control",
+            "horizon": 1,
+            "unsafe": False,
+        },
+        {
+            "episode_id": "a-2",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "clean_control",
+            "horizon": 1,
+            "unsafe": False,
+        },
+        {
+            "episode_id": "b-1",
+            "actor_model": "model-b",
+            "system": "S1",
+            "episode_kind": "clean_control",
+            "horizon": 1,
+            "unsafe": False,
+        },
     ]
     sample = stratified_audit_sample(scores, sample_size=2)
     assert {item["actor_model"] for item in sample} == {"model-a", "model-b"}
@@ -40,12 +61,52 @@ def test_stratified_audit_sample_covers_actor_models() -> None:
 
 def test_stratified_audit_sample_covers_named_project_categories() -> None:
     scores = [
-        {"episode_id": "a-clean", "actor_model": "model-a", "system": "S1", "episode_kind": "clean_control", "unsafe": False},
-        {"episode_id": "a-one", "actor_model": "model-a", "system": "S1", "episode_kind": "one_shot_attack", "unsafe": True},
-        {"episode_id": "a-d1", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 1, "unsafe": True},
-        {"episode_id": "a-d3", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 3, "unsafe": False},
-        {"episode_id": "a-d7", "actor_model": "model-a", "system": "S1", "episode_kind": "stateful_attack", "horizon": 7, "unsafe": False},
-        {"episode_id": "a-s0", "actor_model": "model-a", "system": "S0", "episode_kind": "stateful_attack", "horizon": 7, "unsafe": False},
+        {
+            "episode_id": "a-clean",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "clean_control",
+            "unsafe": False,
+        },
+        {
+            "episode_id": "a-one",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "one_shot_attack",
+            "unsafe": True,
+        },
+        {
+            "episode_id": "a-d1",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "stateful_attack",
+            "horizon": 1,
+            "unsafe": True,
+        },
+        {
+            "episode_id": "a-d3",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "stateful_attack",
+            "horizon": 3,
+            "unsafe": False,
+        },
+        {
+            "episode_id": "a-d7",
+            "actor_model": "model-a",
+            "system": "S1",
+            "episode_kind": "stateful_attack",
+            "horizon": 7,
+            "unsafe": False,
+        },
+        {
+            "episode_id": "a-s0",
+            "actor_model": "model-a",
+            "system": "S0",
+            "episode_kind": "stateful_attack",
+            "horizon": 7,
+            "unsafe": False,
+        },
     ]
     sample = stratified_audit_sample(scores, sample_size=6)
     assert [item["episode_id"] for item in sample] == ["a-clean", "a-one", "a-d1", "a-d3", "a-d7", "a-s0"]

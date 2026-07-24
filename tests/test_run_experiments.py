@@ -1,13 +1,10 @@
 import json
-import sys
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import scripts.run_experiments as run_experiments_module
-from memtrace.episodes import save_episodes
-from memtrace.schema import EpisodeRecord
+import memtrace.commands.run_experiments as run_experiments_module
+from memtrace.core.episodes import save_episodes
+from memtrace.core.schema import EpisodeRecord
 
 
 def test_main_reruns_when_summary_protocol_is_stale(tmp_path, monkeypatch) -> None:
@@ -135,4 +132,4 @@ def test_main_help_exits_before_backend_check(monkeypatch, capsys) -> None:
         run_experiments_module.main(["--help"])
 
     assert excinfo.value.code == 0
-    assert "Run official MEMTRACE experiments." in capsys.readouterr().out
+    assert "Run the MEMTRACE benchmark." in capsys.readouterr().out

@@ -1,5 +1,5 @@
-from memtrace.agents.writer import build_memory_writer_input, extract_memory_candidates, parse_writer_json_output
-from memtrace.schema import RetrievedPassage
+from memtrace.core.agents.writer import build_memory_writer_input, extract_memory_candidates, parse_writer_json_output
+from memtrace.core.schema import RetrievedPassage
 
 
 def test_writer_input_includes_retrieval_metadata() -> None:
@@ -36,10 +36,10 @@ def test_parse_writer_json_rejects_invented_source_id() -> None:
 def test_parse_writer_json_keeps_valid_candidates_when_later_item_is_invalid() -> None:
     passage = RetrievedPassage(source_id="P001", text="Policy text.")
     candidates = parse_writer_json_output(
-        '['
+        "["
         '{"memory_type":"policy_rule","content":"Policy text.","source_id":"P001","source_kind":"retrieval"},'
         '{"memory_type":"policy_rule","content":"Missing source kind","source_id":"P001"}'
-        ']',
+        "]",
         [passage],
     )
     assert len(candidates) == 1

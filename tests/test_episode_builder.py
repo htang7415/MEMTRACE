@@ -1,4 +1,4 @@
-from memtrace.schema import EpisodeRecord
+from memtrace.core.schema import EpisodeRecord
 
 
 def test_episode_record_turns_default() -> None:

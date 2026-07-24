@@ -1,2 +1,0 @@
-"""MEMTRACE benchmark package."""
-

@@ -1,4 +1,4 @@
-from memtrace.models.mlx_runner import _format_prompt, _strip_prompt_continuation
+from memtrace.backends.models.mlx_runner import _format_prompt, _strip_prompt_continuation
 
 
 class DummyTokenizer:
@@ -15,4 +15,7 @@ def test_format_prompt_uses_chat_template_when_available() -> None:
 
 
 def test_strip_prompt_continuation_removes_leaked_chat_turn() -> None:
-    assert _strip_prompt_continuation('{"tool_name":"x","arguments":{}}<|endoftext|>Human: next') == '{"tool_name":"x","arguments":{}}'
+    assert (
+        _strip_prompt_continuation('{"tool_name":"x","arguments":{}}<|endoftext|>Human: next')
+        == '{"tool_name":"x","arguments":{}}'
+    )

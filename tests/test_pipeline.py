@@ -1,18 +1,18 @@
 import tempfile
 from pathlib import Path
 
-import memtrace.pipeline as pipeline_module
+import memtrace.core.pipeline as pipeline_module
 from memtrace.config import ACTOR_MODELS
-from memtrace.benchmark import POLICY_TASKS
-from memtrace.constants import STATEFUL_STRESS_PAYLOAD_TYPE
-from memtrace.corpus import build_corpus, save_jsonl
-from memtrace.pipeline import run_turn
-from memtrace.schema import RetrievedPassage
-from memtrace.store.db import connect, init_db
-from memtrace.store.memory import insert_memory_records
-from memtrace.store.systems import s1_filter
-from memtrace.schema import MemoryCandidate
-from memtrace.agents.runner import run_episode
+from memtrace.core.benchmark import POLICY_TASKS
+from memtrace.core.constants import STATEFUL_STRESS_PAYLOAD_TYPE
+from memtrace.core.corpus import build_corpus, save_jsonl
+from memtrace.core.pipeline import run_turn
+from memtrace.core.schema import RetrievedPassage
+from memtrace.backends.store.db import connect, init_db
+from memtrace.backends.store.memory import insert_memory_records
+from memtrace.backends.store.systems import s1_filter
+from memtrace.core.schema import MemoryCandidate
+from memtrace.core.agents.runner import run_episode
 
 
 def _use_temp_corpus(monkeypatch, temp_dir: str) -> None:
@@ -108,7 +108,9 @@ def test_run_turn_reads_only_prior_memory(monkeypatch) -> None:
             write_turn=1,
         )
         insert_memory_records(connection, episode_id="ep1", records=records)
-        trace_turn, _ = run_turn("ep1", 2, "hello again", "S1", ACTOR_MODELS[0], connection, False, "clean_control", "clean_control", 1)
+        trace_turn, _ = run_turn(
+            "ep1", 2, "hello again", "S1", ACTOR_MODELS[0], connection, False, "clean_control", "clean_control", 1
+        )
         assert len(trace_turn.prior_memory_state) == 1
         assert trace_turn.prior_memory_state[0].content == "persisted memory"
 
@@ -227,9 +229,23 @@ def test_trace_records_effective_retrieval_only(monkeypatch) -> None:
 def test_payload_filter_handles_stateful_stress_payload_type() -> None:
     task = POLICY_TASKS[0]
     passages = [
-        RetrievedPassage(source_id="P1", text="direct", task_id=task["task_id"], payload_type="direct_override", passage_kind="poison"),
-        RetrievedPassage(source_id="P2", text="stress", task_id=task["task_id"], payload_type=STATEFUL_STRESS_PAYLOAD_TYPE, passage_kind="poison"),
-        RetrievedPassage(source_id="P3", text="trusted", task_id=task["task_id"], allowlisted=True, passage_kind="authoritative"),
+        RetrievedPassage(
+            source_id="P1",
+            text="direct",
+            task_id=task["task_id"],
+            payload_type="direct_override",
+            passage_kind="poison",
+        ),
+        RetrievedPassage(
+            source_id="P2",
+            text="stress",
+            task_id=task["task_id"],
+            payload_type=STATEFUL_STRESS_PAYLOAD_TYPE,
+            passage_kind="poison",
+        ),
+        RetrievedPassage(
+            source_id="P3", text="trusted", task_id=task["task_id"], allowlisted=True, passage_kind="authoritative"
+        ),
     ]
 
     filtered = pipeline_module._filter_payload_retrieval(
@@ -271,7 +287,12 @@ def test_final_turn_reads_only_same_task_prior_memory(monkeypatch) -> None:
         _use_fixture_retrieval(monkeypatch, task)
         trace = run_episode(
             episode_id="ep:stateful:d3:direct_override",
-            turns=[task["poison_query"], POLICY_TASKS[1]["clean_query"], POLICY_TASKS[2]["clean_query"], task["trigger_query"]],
+            turns=[
+                task["poison_query"],
+                POLICY_TASKS[1]["clean_query"],
+                POLICY_TASKS[2]["clean_query"],
+                task["trigger_query"],
+            ],
             system="S1",
             actor_model=ACTOR_MODELS[0],
             db_path=Path(temp_dir) / "memtrace.sqlite3",

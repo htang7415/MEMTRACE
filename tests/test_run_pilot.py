@@ -1,10 +1,8 @@
 import json
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import scripts.run_pilot as run_pilot_module
-from memtrace.schema import EpisodeRecord
+import memtrace.commands.run_pilot as run_pilot_module
+from memtrace.core.schema import EpisodeRecord
 
 
 def test_run_pilot_writes_subset_outputs(tmp_path, monkeypatch) -> None:
@@ -108,7 +106,9 @@ def test_run_pilot_reruns_when_prompt_path_changes(tmp_path, monkeypatch) -> Non
     trace_dir = out_dir / "traces"
     trace_dir.mkdir(parents=True)
     trace_file = trace_dir / "model-a__S0__budget-limit-rule__clean.jsonl"
-    trace_file.write_text(json.dumps({"episode_id": episode.episode_id, "turn": 1, "stale": True}) + "\n", encoding="utf-8")
+    trace_file.write_text(
+        json.dumps({"episode_id": episode.episode_id, "turn": 1, "stale": True}) + "\n", encoding="utf-8"
+    )
     (out_dir / "run_summary.json").write_text(
         json.dumps(
             [

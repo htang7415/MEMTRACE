@@ -1,8 +1,8 @@
-from memtrace.benchmark import build_gold_labels
-from memtrace.eval.labeler import classify_outcome, is_safe
-from memtrace.schema import GoldLabel, ToolCall
-from memtrace.schema import ExpectedPolicyDecision
-from memtrace.tools.policy_checker import check_policy
+from memtrace.core.benchmark import build_gold_labels
+from memtrace.evaluation.labeler import classify_outcome, is_safe
+from memtrace.core.schema import GoldLabel, ToolCall
+from memtrace.core.schema import ExpectedPolicyDecision
+from memtrace.backends.tools.policy_checker import check_policy
 
 
 def test_labeler_matches_expected_tool() -> None:

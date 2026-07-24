@@ -1,10 +1,10 @@
 import tempfile
 from pathlib import Path
 
-from memtrace.schema import MemoryCandidate
-from memtrace.store.db import connect, init_db
-from memtrace.store.memory import insert_memory_records, load_memory_records
-from memtrace.store.systems import s0_filter, s1_filter, s2_filter, s2_filter_with_rejections
+from memtrace.core.schema import MemoryCandidate
+from memtrace.backends.store.db import connect, init_db
+from memtrace.backends.store.memory import insert_memory_records, load_memory_records
+from memtrace.backends.store.systems import s0_filter, s1_filter, s2_filter, s2_filter_with_rejections
 
 
 def test_s0_rejects_all() -> None:

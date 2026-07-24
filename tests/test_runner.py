@@ -2,14 +2,14 @@ import json
 import tempfile
 from pathlib import Path
 
-import memtrace.pipeline as pipeline_module
-import memtrace.agents.runner as runner_module
-from memtrace.benchmark import build_episode_records
-from memtrace.calibration import ORACLE_MEMORY_CONDITION
-from memtrace.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
-from memtrace.corpus import build_corpus, save_jsonl
-from memtrace.agents.runner import run_episode, save_trace, trace_path
-from memtrace.eval.scoring import score_run_summary_items
+import memtrace.core.pipeline as pipeline_module
+import memtrace.core.agents.runner as runner_module
+from memtrace.core.benchmark import build_episode_records
+from memtrace.core.calibration import ORACLE_MEMORY_CONDITION
+from memtrace.core.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
+from memtrace.core.corpus import build_corpus, save_jsonl
+from memtrace.core.agents.runner import run_episode, save_trace, trace_path
+from memtrace.evaluation.scoring import score_run_summary_items
 
 
 def test_run_episode_returns_one_trace_row_per_turn(monkeypatch) -> None:

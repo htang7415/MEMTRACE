@@ -1,113 +1,111 @@
 # MEMTRACE
 
-MEMTRACE is a compact benchmark harness for evaluating persistent-memory risk in tool-using agents. It separates retrieval exposure, poisoned-memory admission, delayed memory retrieval, unsafe proposals, policy-checker blocking, unsafe execution, and execution-format failure.
+MEMTRACE evaluates persistent-memory risk in tool-using agents. It separates retrieval exposure, poisoned-memory admission, delayed retrieval, unsafe proposals, policy-checker blocking, unsafe execution, and execution-format failure.
 
-## Benchmark design
+## Install
 
-The benchmark contains two task families:
-
-- Policy-memory tasks, such as approval limits and access-control rules.
-- Tool-argument-memory tasks, such as email recipients and file destinations.
-
-It evaluates three memory systems:
-
-- `S0`: no persistent memory.
-- `S1`: permissive memory writing.
-- `S2`: provenance-aware memory filtering.
-
-Each system runs clean controls, one-shot attacks, and stateful attacks with delayed triggers.
-
-## Installation
-
-Create a Python environment and install the harness:
+Create an environment and install the project:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -e .
+python -m pip install -e ".[dev]"
 ```
 
-For MLX-backed model generation on Apple Silicon:
+Optional backends:
 
 ```bash
-python -m pip install -r requirements-inference.txt
+python -m pip install -e ".[retrieval]"
+python -m pip install -e ".[inference]"  # MLX on Apple Silicon
 ```
 
-Run the test suite:
+## CLI
+
+MEMTRACE exposes one command:
 
 ```bash
+memtrace --help
+```
+
+Build and verify benchmark assets:
+
+```bash
+memtrace assets build
+```
+
+Run a portable profile-backend smoke test:
+
+```bash
+memtrace --config configs/profile.toml run pilot \
+  --limit 2 \
+  --out-dir data/pilot/profile-smoke \
+  --force
+```
+
+Run the MLX benchmark:
+
+```bash
+memtrace --config configs/mlx.toml run benchmark
+memtrace evaluate score
+memtrace evaluate validate
+```
+
+Other workflows:
+
+```bash
+memtrace run calibration
+memtrace run stateful-stress --dry-run
+memtrace run trusted-utility --dry-run
+memtrace evaluate recompute --out artifacts/recomputed
+memtrace evaluate audit
+memtrace report tables
+memtrace report figures
+```
+
+Arguments after a workflow name are forwarded to that workflow. Use, for example, `memtrace run pilot --help` for its detailed options.
+
+## Configuration
+
+Configuration files use a `[memtrace]` TOML table. Environment variables override file values:
+
+```toml
+[memtrace]
+data_dir = "data"
+memory_writer_backend = "profile"
+planner_backend = "profile"
+retrieval_backend = "lexical"
+top_k = 5
+```
+
+Common overrides include `MEMTRACE_DATA_DIR`, `MEMTRACE_ACTOR_MODELS`, `MEMTRACE_RETRIEVAL_BACKEND`, `MEMTRACE_MEMORY_WRITER_BACKEND`, `MEMTRACE_PLANNER_BACKEND`, and `MEMTRACE_PLANNER_PROMPT_PATH`.
+
+## Development
+
+```bash
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
 python -m pytest
+python -m build
 ```
 
-## Build benchmark assets
+CI runs these checks on Python 3.11 and 3.13 and smoke-tests the built wheel.
 
-```bash
-python scripts/build_corpus.py
-python scripts/build_episodes.py
-python scripts/build_index.py
-python scripts/verify_retrieval.py
-```
+## Structure
 
-Generated assets are written under `data/`.
+- `src/memtrace/core/`: benchmark domain, schemas, traces, and agent workflows.
+- `src/memtrace/backends/`: model, retrieval, storage, and tool adapters.
+- `src/memtrace/evaluation/`: scoring, metrics, audit, and reporting.
+- `src/memtrace/commands/`: internal implementations behind the CLI.
+- `configs/`: versioned non-secret runtime configurations.
+- `tests/`: deterministic tests; real model inference is not required.
+- `data/`, `artifacts/`, and `figures/`: ignored runtime outputs.
 
-## Run and score experiments
-
-Run the main benchmark with MLX writer and planner backends:
-
-```bash
-MEMTRACE_MEMORY_WRITER_BACKEND=mlx \
-MEMTRACE_PLANNER_BACKEND=mlx \
-python scripts/run_experiments.py
-
-python scripts/score_runs.py
-python scripts/validate_run.py
-```
-
-Run the oracle-memory calibration:
-
-```bash
-MEMTRACE_MEMORY_WRITER_BACKEND=mlx \
-MEMTRACE_PLANNER_BACKEND=mlx \
-python scripts/run_oracle_memory_calibration.py
-```
-
-Recompute metrics without model inference:
-
-```bash
-python scripts/recompute_metrics.py \
-  --main data/results \
-  --calibration data/calibration \
-  --out artifacts/recomputed
-```
-
-## Analyze results
-
-```bash
-python scripts/make_tables.py
-python scripts/make_figures.py
-python scripts/attribute_failures.py
-python scripts/make_audit.py
-```
-
-Optional diagnostic suites:
-
-```bash
-python scripts/run_stateful_stress_suite.py --dry-run
-python scripts/run_trusted_utility_suite.py --dry-run
-```
-
-## Repository layout
-
-- `memtrace/`: benchmark, agent pipeline, storage systems, retrieval, and evaluation code.
-- `scripts/`: asset generation, experiment execution, scoring, and analysis commands.
-- `tests/`: pytest suite.
-- `data/`: local inputs and generated experiment outputs; ignored by Git.
-- `figures/` and `artifacts/`: generated analysis outputs; ignored by Git.
+See [the architecture note](docs/architecture.md) for dependency boundaries and extension policy.
 
 ## Limitations
 
-- The tasks are synthetic enterprise-assistant scenarios.
-- The deterministic `profile` backend is a smoke-test fixture, not a result backend.
+- Tasks are synthetic enterprise-assistant scenarios.
+- The `profile` backend is a deterministic smoke-test fixture.
 - Findings from one model or backend configuration should not be generalized across models.

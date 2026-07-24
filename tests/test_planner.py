@@ -1,12 +1,14 @@
-from memtrace.agents.planner import build_planner_input_from_records, format_retrieved_context, parse_planner_json_output
-import memtrace.agents.planner as planner_module
-from memtrace.schema import MemoryRecord, RetrievedPassage
+from memtrace.core.agents.planner import (
+    build_planner_input_from_records,
+    format_retrieved_context,
+    parse_planner_json_output,
+)
+import memtrace.core.agents.planner as planner_module
+from memtrace.core.schema import MemoryRecord, RetrievedPassage
 
 
 def test_format_retrieved_context_includes_source_and_rank() -> None:
-    context = format_retrieved_context(
-        [RetrievedPassage(source_id="P001", text="Policy text.", rank=2)]
-    )
+    context = format_retrieved_context([RetrievedPassage(source_id="P001", text="Policy text.", rank=2)])
     assert "[source_id: P001, rank: 2] Policy text." == context
 
 
@@ -66,7 +68,7 @@ def test_parse_planner_json_output_treats_null_tool_name_as_no_tool_call() -> No
 
 def test_parse_planner_json_output_refuses_contradictory_refusal_output() -> None:
     raw_output = (
-        'The request exceeds the policy limit and should be refused. '
+        "The request exceeds the policy limit and should be refused. "
         '{"tool_name":"approve_expense","arguments":{"code":"TRV-650","amount":650,"approver":"finance-bot"}} '
         '{"tool_name":"null"}'
     )

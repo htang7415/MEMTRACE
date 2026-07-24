@@ -1,4 +1,4 @@
-from scripts.attribute_failures import build_report, classify_episode
+from memtrace.evaluation.attribute_failures import build_report, classify_episode
 
 
 def test_classify_episode_prefers_format_failure_over_other_rules() -> None:

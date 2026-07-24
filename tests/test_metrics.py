@@ -1,4 +1,4 @@
-from memtrace.eval.metrics import aggregate_metrics, rate, wilson_ci
+from memtrace.evaluation.metrics import aggregate_metrics, rate, wilson_ci
 
 
 def test_rate_zero_denominator() -> None:
@@ -113,8 +113,18 @@ def test_aggregate_metrics_includes_pilot_validation_fields() -> None:
     assert s1["stateful_execution_failure_by_horizon"] == {"1": 0.0}
     assert s1["writer_structured_turn_rate"] == 1.0
     assert s1["writer_valid_memory_type_rate"] == 1.0
-    assert metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"]["provenance_writer_mechanism_check_pass"] is False
-    assert metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"]["official_pilot_valid"] is True
+    assert (
+        metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"][
+            "provenance_writer_mechanism_check_pass"
+        ]
+        is False
+    )
+    assert (
+        metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"][
+            "official_pilot_valid"
+        ]
+        is True
+    )
 
 
 def test_aggregate_metrics_separates_execution_failures_from_unsafe_rates() -> None:
@@ -189,7 +199,12 @@ def test_aggregate_metrics_separates_execution_failures_from_unsafe_rates() -> N
     assert s1["execution_failure_rate"] == 0.5
     assert s1["one_shot_execution_failure_rate"] == 1.0
     assert s1["stateful_execution_failure_rate"] == 0.0
-    assert metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"]["execution_failure_rate_pass"] is False
+    assert (
+        metrics["pilot_validation_by_configuration"]["mlx-community/Qwen2.5-3B-Instruct-4bit"]["S1"][
+            "execution_failure_rate_pass"
+        ]
+        is False
+    )
 
 
 def test_aggregate_metrics_uses_executed_stateful_denominator_for_par_and_mechanism() -> None:
@@ -491,7 +506,7 @@ def test_provenance_writer_mechanism_check_passes_when_s1_above_s2() -> None:
 
     episode_scores = [
         _ep("S0", False),
-        _ep("S1", True),   # S1 admits poison
+        _ep("S1", True),  # S1 admits poison
         _ep("S2", False),  # S2 does not
     ]
     metrics = aggregate_metrics(episode_scores)
