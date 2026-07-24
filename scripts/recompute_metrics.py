@@ -5,13 +5,10 @@ except ModuleNotFoundError:
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-if (ROOT / "github_harness").exists():
-    sys.path.insert(0, str(ROOT / "github_harness"))
 
 from memtrace.eval.metrics import aggregate_metrics  # noqa: E402
 from memtrace.eval.scoring import score_run_summary_items  # noqa: E402
@@ -37,18 +34,10 @@ def main() -> None:
 def _metrics_for(kind: str, directory: Path) -> dict:
     if kind == "main":
         summary_path = directory / "run_summary.json"
-        trace_dir = _artifact_root() / "traces" / "v1_main_324"
     else:
         summary_path = _calibration_summary_path(directory)
-        trace_dir = _artifact_root() / "traces" / "calibration_oracle_memory_72"
     rows = json.loads(summary_path.read_text(encoding="utf-8"))
-    updated_rows = []
-    for row in rows:
-        updated = dict(row)
-        if trace_dir.exists():
-            updated["trace_path"] = str(trace_dir / Path(row["trace_path"]).name)
-        updated_rows.append(updated)
-    return aggregate_metrics(score_run_summary_items(updated_rows))
+    return aggregate_metrics(score_run_summary_items(rows))
 
 
 def _calibration_summary_path(directory: Path) -> Path:
@@ -61,15 +50,6 @@ def _calibration_summary_path(directory: Path) -> Path:
         if candidate.exists():
             return candidate
     raise FileNotFoundError("missing calibration run_summary.json under " + str(directory))
-
-
-def _artifact_root() -> Path:
-    if (ROOT / "traces" / "v1_main_324").exists():
-        return ROOT
-    candidate = ROOT / "paper" / "anonymous_memtrace"
-    if (candidate / "traces" / "v1_main_324").exists():
-        return candidate
-    return ROOT
 
 
 def _resolve(path: Path) -> Path:

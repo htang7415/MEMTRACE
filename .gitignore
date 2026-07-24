@@ -21,15 +21,11 @@ venv/
 .vscode/
 .idea/
 
-# Local planning/review notes that are not part of the public artifact
+# Local agent instructions and planning notes
 /AGENTS.md
 /CLAUDE.md
 /FUTURE_WORK.md
-/Project.md
-/README_REVIEWER.md
-/command.md
 /improve*.md
-/audit/repo_fact_audit.md
 
 # macOS/resource-fork sidecars
 .DS_Store
@@ -40,26 +36,3 @@ venv/
 /artifacts/
 /figures/
 /archived_runs/
-
-# Paper working tree and generated release bundles
-/paper/
-/release/
-/docs/
-
-/submission/
-
-# Generated validation logs/manifests
-/artifact_manifest.json
-/anonymity_check.log
-/croissant_validation.log
-/submission_validation.log
-
-# LaTeX build products
-*.aux
-*.bbl
-*.blg
-*.fdb_latexmk
-*.fls
-*.log
-*.out
-*.synctex.gz

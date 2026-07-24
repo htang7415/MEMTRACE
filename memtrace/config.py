@@ -13,11 +13,9 @@ RESULTS_DIR = DATA_DIR / "results"
 TRACES_DIR = DATA_DIR / "traces"
 AUDIT_DIR = DATA_DIR / "audit"
 FIGURES_DIR = ROOT / "figures"
-DOCS_DIR = ROOT / "docs"
 PROMPTS_DIR = ROOT / "memtrace" / "prompts"
 DEFAULT_PLANNER_PROMPT_PATH = PROMPTS_DIR / "planner.txt"
 PLANNER_PROMPT_PATH = Path(os.environ.get("MEMTRACE_PLANNER_PROMPT_PATH", DEFAULT_PLANNER_PROMPT_PATH))
-RELEASE_DIR = ROOT / "release"
 
 SQLITE_PATH = DATA_DIR / "memtrace.sqlite3"
 PASSAGES_PATH = Path(os.environ.get("MEMTRACE_PASSAGES_PATH", CORPUS_DIR / "passages.jsonl"))
@@ -39,12 +37,6 @@ AUDIT_TEMPLATE_PATH = AUDIT_DIR / "audit_template.jsonl"
 AUDIT_REVIEW_MD_PATH = AUDIT_DIR / "audit_review.md"
 AUDIT_REPORT_JSON_PATH = AUDIT_DIR / "audit_report.json"
 AUDIT_REPORT_MD_PATH = AUDIT_DIR / "audit_report.md"
-FIGURE1_PATH = FIGURES_DIR / "figure1_pipeline.svg"
-FIGURE2_PATH = FIGURES_DIR / "figure2_ovr_vs_svr.svg"
-FIGURE3_PATH = FIGURES_DIR / "figure3_par_by_task_family.svg"
-FIGURE4_PATH = FIGURES_DIR / "figure4_one_shot_vs_stateful.svg"
-FIGURE5_PATH = FIGURES_DIR / "figure5_violation_rate_by_horizon.svg"
-RELEASE_MANIFEST_PATH = RELEASE_DIR / "manifest.json"
 
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 ACTOR_MODELS = (
