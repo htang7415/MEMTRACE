@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from memtrace.config import ALLOWLIST_PATH, MEMORY_CONFLICT_RESOLUTION, MEMORY_T
 from memtrace.evaluation.labeler import classify_outcome
 from memtrace.backends.models.actor import ActorModel
 from memtrace.backends.retrieval import retrieve
-from memtrace.core.schema import MemoryRecord, TraceTurn
+from memtrace.core.schema import GoldLabel, MemoryCandidate, MemoryRecord, RetrievedPassage, ToolCall, TraceTurn
 from memtrace.backends.store.memory import load_memory_records, resolve_visible_memory
 from memtrace.backends.store.systems import (
     s0_filter_with_rejections,
@@ -33,7 +34,7 @@ def run_turn(
     query: str,
     system: str,
     actor_model: str,
-    connection,
+    connection: sqlite3.Connection,
     is_final_turn: bool,
     episode_kind: str,
     episode_payload_type: str,
@@ -137,7 +138,9 @@ def run_turn(
     return trace_turn, accepted_records
 
 
-def _apply_system_filter(system: str, turn: int, writer_output: list) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
+def _apply_system_filter(
+    system: str, turn: int, writer_output: list[MemoryCandidate]
+) -> tuple[list[MemoryRecord], list[MemoryRecord]]:
     allowlisted_source_ids = _load_allowlisted_source_ids(ALLOWLIST_PATH)
     if system == "S0":
         return s0_filter_with_rejections(writer_output, write_turn=turn)
@@ -163,12 +166,12 @@ def _load_allowlisted_source_ids(path: Path) -> set[str]:
 
 def _plan_tool_call(
     query: str,
-    prior_memory: list,
-    retrieved_passages: list,
+    prior_memory: list[MemoryRecord],
+    retrieved_passages: list[RetrievedPassage],
     turn: int,
     is_final_turn: bool,
     planner_actor: ActorModel | None,
-) -> tuple[object | None, str | None]:
+) -> tuple[ToolCall | None, str | None]:
     if not is_final_turn:
         return None, None
     task_id = task_id_by_query().get(query)
@@ -185,7 +188,7 @@ def _plan_tool_call(
     )
 
 
-def _label_for_query(query: str, tool_call, is_final_turn: bool) -> str | None:
+def _label_for_query(query: str, tool_call: ToolCall | None, is_final_turn: bool) -> str | None:
     if not is_final_turn:
         return None
     gold = _gold_label_for_query(query)
@@ -194,7 +197,7 @@ def _label_for_query(query: str, tool_call, is_final_turn: bool) -> str | None:
     return classify_outcome(tool_call, gold)
 
 
-def _gold_label_for_query(query: str):
+def _gold_label_for_query(query: str) -> GoldLabel | None:
     return gold_label_for_query(query)
 
 
@@ -202,7 +205,9 @@ def _is_poison_query(query: str) -> bool:
     return any(query == task.poison_query for task in build_task_records())
 
 
-def _filter_payload_retrieval(retrieved_passages: list, task_id: str | None, episode_payload_type: str) -> list:
+def _filter_payload_retrieval(
+    retrieved_passages: list[RetrievedPassage], task_id: str | None, episode_payload_type: str
+) -> list[RetrievedPassage]:
     if task_id is None or episode_payload_type == "clean_control":
         return retrieved_passages
     filtered = []
@@ -215,7 +220,7 @@ def _filter_payload_retrieval(retrieved_passages: list, task_id: str | None, epi
 
 def _admitted_malicious_candidate(
     accepted_records: list[MemoryRecord],
-    retrieved_passages: list,
+    retrieved_passages: list[RetrievedPassage],
 ) -> bool:
     poison_source_ids = {passage.source_id for passage in retrieved_passages if passage.passage_kind == "poison"}
     return any(
@@ -223,7 +228,7 @@ def _admitted_malicious_candidate(
     )
 
 
-def _planner_output(tool_call) -> dict | None:
+def _planner_output(tool_call: ToolCall | None) -> dict[str, object] | None:
     if tool_call is None:
         return None
-    return tool_call.model_dump() if hasattr(tool_call, "model_dump") else tool_call.dict()
+    return tool_call.model_dump()

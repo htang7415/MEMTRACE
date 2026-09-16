@@ -17,7 +17,7 @@ from memtrace.config import (
 )
 from memtrace.core.corpus import build_allowlist, build_corpus, save_json, save_jsonl
 from memtrace.core.episodes import save_episodes
-from memtrace.evaluation.scoring import score_run_summary_items
+from memtrace.evaluation.scoring import load_jsonl, score_run_summary_items
 
 
 DEFAULT_OUT_DIR = Path("data/extensions/trusted_utility")
@@ -166,7 +166,7 @@ def _utility_scores(summaries: list[dict], episode_scores: list[dict]) -> list[d
     score_by_episode_id = {score["episode_id"]: score for score in episode_scores}
     rows = []
     for item in summaries:
-        trace = _load_jsonl(Path(item["trace_path"]))
+        trace = load_jsonl(Path(item["trace_path"]))
         final_turn = trace[-1] if trace else {}
         trusted_source_ids = {
             hit["source_id"]
@@ -307,11 +307,6 @@ def _load_existing_summary(path: Path) -> list[dict]:
         return []
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
-def _load_jsonl(path: Path) -> list[dict]:
-    with path.open("r", encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
 
 
 def _write_json(path: Path, payload) -> None:

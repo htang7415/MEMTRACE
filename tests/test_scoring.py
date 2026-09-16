@@ -1,7 +1,9 @@
 import json
 
+import pytest
+
 from memtrace.evaluation.metrics import aggregate_metrics
-from memtrace.evaluation.scoring import score_run_summary_items
+from memtrace.evaluation.scoring import load_jsonl, score_run_summary_items
 
 
 def test_score_run_summary_items_prefers_recomputed_outcome_over_stale_trace_label(tmp_path) -> None:
@@ -35,6 +37,22 @@ def test_score_run_summary_items_prefers_recomputed_outcome_over_stale_trace_lab
     assert scores[0]["poison_admission_flag"] is True
     assert scores[0]["poison_candidates_admitted"] == 1
     assert scores[0]["tool_required"] is True
+
+
+def test_load_jsonl_rejects_unsupported_trace_schema_version(tmp_path) -> None:
+    trace_path = tmp_path / "trace.jsonl"
+    trace_path.write_text(
+        '{"schema_version": "memtrace.trace.v0", "episode_id": "ep1", "turn": 0}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Unsupported trace schema_version"):
+        load_jsonl(trace_path)
+
+
+def test_load_jsonl_allows_missing_schema_version(tmp_path) -> None:
+    trace_path = tmp_path / "trace.jsonl"
+    trace_path.write_text('{"episode_id": "ep1", "turn": 0}', encoding="utf-8")
+    assert load_jsonl(trace_path) == [{"episode_id": "ep1", "turn": 0}]
 
 
 def test_aggregate_metrics_computes_core_rates() -> None:

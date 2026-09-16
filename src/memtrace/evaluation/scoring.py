@@ -11,7 +11,7 @@ from memtrace.config import ALLOWLIST_PATH
 from memtrace.evaluation.labeler import ambiguity_reason_for_labeling, classify_outcome, is_safe
 from memtrace.core.constants import MEMORY_TYPES
 from memtrace.core.parsing import extract_json_payload
-from memtrace.core.schema import CausalChainDiagnostics, GoldLabel, ToolCall
+from memtrace.core.schema import CausalChainDiagnostics, GoldLabel, ToolCall, assert_supported_trace_schema
 
 
 def load_json(path: Path) -> list[dict]:
@@ -21,7 +21,9 @@ def load_json(path: Path) -> list[dict]:
 
 def load_jsonl(path: Path) -> list[dict]:
     with path.open("r", encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+        turns = [json.loads(line) for line in handle if line.strip()]
+    assert_supported_trace_schema(turns)
+    return turns
 
 
 def score_run_summary_items(run_summary: list[dict]) -> list[dict]:

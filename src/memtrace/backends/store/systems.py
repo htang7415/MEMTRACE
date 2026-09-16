@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from memtrace.config import MAX_MEMORY_CONTENT_CHARS
 from memtrace.core.constants import MEMORY_TYPES
 from memtrace.core.schema import MemoryCandidate, MemoryRecord
@@ -91,7 +93,7 @@ def s2_filter_with_rejections(
     return accepted, rejected
 
 
-def _trust_level(source_kind: str, allowlisted: bool) -> str:
+def _trust_level(source_kind: str, allowlisted: bool) -> Literal["high", "low"]:
     if source_kind in {"system_doc", "admin_doc"}:
         return "high"
     if source_kind == "retrieval" and allowlisted:

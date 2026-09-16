@@ -21,6 +21,16 @@ python -m pip install -e ".[inference]"  # MLX on Apple Silicon
 python -m pip install -e ".[gemini]"     # Gemini API backend; requires GEMINI_API_KEY
 ```
 
+CI installs from locked requirements (`requirements/ci-lock.txt`, `requirements/canary-lock.txt`)
+instead of floating version resolution, so the frozen regression baseline can't drift from an
+unrelated dependency bump. Regenerate a lockfile after changing `pyproject.toml`'s dependencies:
+
+```bash
+python -m pip install pip-tools
+python -m piptools compile --extra dev --output-file requirements/ci-lock.txt --strip-extras pyproject.toml
+python -m piptools compile --extra retrieval --extra gemini --output-file requirements/canary-lock.txt --strip-extras pyproject.toml
+```
+
 ## CLI
 
 MEMTRACE exposes one command:
@@ -93,7 +103,9 @@ python -m pytest
 python -m build
 ```
 
-CI runs these checks on Python 3.11 and 3.13 and smoke-tests the built wheel.
+CI runs these checks on Python 3.11 and 3.13, smoke-tests the built wheel, and runs a
+required regression-gate job that rebuilds a deterministic benchmark slice and diffs its
+metrics against a frozen baseline (`tests/fixtures/regression/`).
 
 ## Structure
 
@@ -105,7 +117,7 @@ CI runs these checks on Python 3.11 and 3.13 and smoke-tests the built wheel.
 - `tests/`: deterministic tests; real model inference is not required.
 - `data/`, `artifacts/`, and `figures/`: ignored runtime outputs.
 
-See [the system design note](docs/memtrace_system_design.md) for dependency boundaries, pipeline, evaluation design, and extension policy.
+Extension policy: add a backend behind an existing interface when a second implementation is needed; do not add a service, queue, database server, or deployment layer until a concrete use case requires it.
 
 ## Limitations
 

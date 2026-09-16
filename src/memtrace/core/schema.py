@@ -64,6 +64,30 @@ class ToolCall(BaseModel):
     turn: int
 
 
+SUPPORTED_TRACE_SCHEMA_VERSIONS = {"memtrace.trace.v1"}
+
+
+def assert_supported_trace_schema(turns: list[dict[str, Any]]) -> None:
+    """Raise if any raw trace-turn dict carries an unsupported `schema_version`.
+
+    Guards the no-inference reproduction path: a retained trace produced under a
+    schema this codebase no longer understands must fail loudly at load time
+    instead of being silently reinterpreted under the current field semantics.
+    A turn with no `schema_version` key at all is allowed through -- real traces
+    always carry one (`TraceTurn.model_dump()` stamps the default), so a missing
+    key only occurs in hand-built test fixtures, not retained production traces.
+    """
+
+    for turn in turns:
+        version = turn.get("schema_version")
+        if version is not None and version not in SUPPORTED_TRACE_SCHEMA_VERSIONS:
+            raise ValueError(
+                f"Unsupported trace schema_version {version!r} in episode "
+                f"{turn.get('episode_id')!r} turn {turn.get('turn')!r}; "
+                f"supported versions: {sorted(SUPPORTED_TRACE_SCHEMA_VERSIONS)}"
+            )
+
+
 class TraceTurn(BaseModel):
     schema_version: str = "memtrace.trace.v1"
     episode_id: str

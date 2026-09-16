@@ -55,6 +55,13 @@ target-version = "py311"
 select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
-files = ["src/memtrace/cli.py", "src/memtrace/config.py"]
+files = [
+  "src/memtrace/cli.py",
+  "src/memtrace/config.py",
+  "src/memtrace/core/schema.py",
+  "src/memtrace/core/pipeline.py",
+  "src/memtrace/backends/store/memory.py",
+  "src/memtrace/backends/store/systems.py",
+]
 python_version = "3.11"
 strict = true

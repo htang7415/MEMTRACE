@@ -3,6 +3,9 @@ name: ci
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -50,7 +53,8 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -r requirements/ci-lock.txt
+          python -m pip install -e . --no-deps
       - name: Build deterministic assets (profile backend, lexical retrieval)
         run: |
           memtrace --config configs/profile.toml assets corpus
@@ -65,3 +69,41 @@ jobs:
           memtrace evaluate gate \
             --baseline tests/fixtures/regression/metrics.json \
             --candidate "$MEMTRACE_ROOT/pilot/metrics.json"
+
+  canary:
+    # Exercises the dense-retrieval + hosted-model path (configs/gemini.toml) that
+    # regression-gate deliberately never touches (profile/lexical, no external
+    # dependency, always-blocking). This job is a signal, not a merge gate: hosted
+    # APIs are flaky by nature, so it never blocks PRs -- it only surfaces drift in
+    # the dense/hosted path between scheduled runs.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    env:
+      MEMTRACE_ROOT: /tmp/memtrace-canary-ci
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/canary-lock.txt
+          python -m pip install -e . --no-deps
+      - name: Skip if no GEMINI_API_KEY configured
+        if: env.GEMINI_API_KEY == ''
+        run: echo "GEMINI_API_KEY not set (e.g. on a fork); skipping canary." && exit 0
+      - name: Build assets (dense retrieval)
+        if: env.GEMINI_API_KEY != ''
+        run: |
+          memtrace --config configs/gemini.toml assets corpus
+          memtrace --config configs/gemini.toml assets episodes
+          memtrace --config configs/gemini.toml assets index
+          memtrace --config configs/gemini.toml assets verify
+      - name: Run small pilot slice against the gemini backend
+        if: env.GEMINI_API_KEY != ''
+        run: |
+          memtrace --config configs/gemini.toml run pilot \
+            --limit 5 --out-dir "$MEMTRACE_ROOT/pilot" --force
