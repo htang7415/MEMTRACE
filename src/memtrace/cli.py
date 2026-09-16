@@ -21,13 +21,16 @@ _COMMANDS = {
     ("run", "calibration"): "memtrace.commands.run_oracle_memory_calibration",
     ("run", "stateful-stress"): "memtrace.commands.run_stateful_stress_suite",
     ("run", "trusted-utility"): "memtrace.commands.run_trusted_utility_suite",
+    ("run", "adversarial-mutation"): "memtrace.commands.run_adversarial_mutation_suite",
     ("evaluate", "score"): "memtrace.evaluation.score",
     ("evaluate", "recompute"): "memtrace.evaluation.recompute",
     ("evaluate", "validate"): "memtrace.evaluation.validate",
+    ("evaluate", "gate"): "memtrace.evaluation.gate",
     ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
     ("evaluate", "audit"): "memtrace.evaluation.audit_report",
     ("report", "tables"): "memtrace.evaluation.tables",
     ("report", "figures"): "memtrace.evaluation.figures",
+    ("report", "explore"): "memtrace.evaluation.trace_explorer",
 }
 
 _ASSET_BUILD_ORDER = (
@@ -53,16 +56,16 @@ def build_parser() -> argparse.ArgumentParser:
     run = groups.add_parser("run", help="Run benchmark and diagnostic workloads.")
     run.add_argument(
         "action",
-        choices=("benchmark", "pilot", "calibration", "stateful-stress", "trusted-utility"),
+        choices=("benchmark", "pilot", "calibration", "stateful-stress", "trusted-utility", "adversarial-mutation"),
     )
     run.add_argument("arguments", nargs=argparse.REMAINDER)
 
     evaluate = groups.add_parser("evaluate", help="Score, validate, and audit results.")
-    evaluate.add_argument("action", choices=("score", "recompute", "validate", "attribute", "audit"))
+    evaluate.add_argument("action", choices=("score", "recompute", "validate", "gate", "attribute", "audit"))
     evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
 
     report = groups.add_parser("report", help="Generate tables and figures.")
-    report.add_argument("action", choices=("tables", "figures"))
+    report.add_argument("action", choices=("tables", "figures", "explore"))
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 

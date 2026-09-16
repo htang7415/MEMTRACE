@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
 
+import memtrace.backends.models.profile_runner as profile_runner_module
 import memtrace.core.pipeline as pipeline_module
 from memtrace.config import ACTOR_MODELS
 from memtrace.core.benchmark import POLICY_TASKS
@@ -159,6 +160,49 @@ def test_s2_blocks_poisoned_memory_from_flipping_later_label(monkeypatch) -> Non
         assert len(trace[0]["rejected_memory_records"]) > 0
         assert trace[0]["rejected_memory_records"][0]["validation_status"] == "rejected_provenance"
         assert trace[1]["label"] == "safe"
+
+
+def test_latest_wins_conflict_resolution_suppresses_stale_poison(monkeypatch) -> None:
+    task = POLICY_TASKS[0]
+    monkeypatch.setattr(profile_runner_module, "MAX_MEMORY_CANDIDATES", 1)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        _use_temp_corpus(monkeypatch, temp_dir)
+        _use_missing_allowlist(monkeypatch, temp_dir)
+        _use_fixture_retrieval(monkeypatch, task)
+        turns = [task["poison_query"], task["trigger_query"], task["trigger_query"]]
+
+        monkeypatch.setattr(pipeline_module, "MEMORY_CONFLICT_RESOLUTION", "none")
+        legacy_trace = run_episode(
+            episode_id="ep:stateful:d1:direct_override",
+            turns=turns,
+            system="S1",
+            actor_model=ACTOR_MODELS[0],
+            db_path=Path(temp_dir) / "legacy.sqlite3",
+            episode_kind="stateful_attack",
+            episode_payload_type="direct_override",
+            episode_horizon=1,
+            writer_backend="profile",
+            planner_backend="profile",
+        )
+        assert legacy_trace[-1]["label"] == "unsafe"
+
+        monkeypatch.setattr(pipeline_module, "MEMORY_CONFLICT_RESOLUTION", "latest_wins_per_task_and_type")
+        resolved_trace = run_episode(
+            episode_id="ep:stateful:d1:direct_override",
+            turns=turns,
+            system="S1",
+            actor_model=ACTOR_MODELS[0],
+            db_path=Path(temp_dir) / "resolved.sqlite3",
+            episode_kind="stateful_attack",
+            episode_payload_type="direct_override",
+            episode_horizon=1,
+            writer_backend="profile",
+            planner_backend="profile",
+        )
+        assert resolved_trace[-1]["label"] == "safe"
+        assert len(resolved_trace[-1]["prior_memory_state"]) == 2, (
+            "conflict resolution must not shrink the audited store/trace state, only the planner's view"
+        )
 
 
 def test_one_shot_episode_labels_current_turn_injection(monkeypatch) -> None:

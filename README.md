@@ -18,6 +18,7 @@ Optional backends:
 ```bash
 python -m pip install -e ".[retrieval]"
 python -m pip install -e ".[inference]"  # MLX on Apple Silicon
+python -m pip install -e ".[gemini]"     # Gemini API backend; requires GEMINI_API_KEY
 ```
 
 ## CLI
@@ -57,10 +58,12 @@ Other workflows:
 memtrace run calibration
 memtrace run stateful-stress --dry-run
 memtrace run trusted-utility --dry-run
+memtrace run adversarial-mutation --dry-run
 memtrace evaluate recompute --out artifacts/recomputed
 memtrace evaluate audit
 memtrace report tables
 memtrace report figures
+memtrace report explore --label unsafe --ambiguity-reason partial_argument_match
 ```
 
 Arguments after a workflow name are forwarded to that workflow. Use, for example, `memtrace run pilot --help` for its detailed options.
@@ -78,7 +81,7 @@ retrieval_backend = "lexical"
 top_k = 5
 ```
 
-Common overrides include `MEMTRACE_DATA_DIR`, `MEMTRACE_ACTOR_MODELS`, `MEMTRACE_RETRIEVAL_BACKEND`, `MEMTRACE_MEMORY_WRITER_BACKEND`, `MEMTRACE_PLANNER_BACKEND`, and `MEMTRACE_PLANNER_PROMPT_PATH`.
+Common overrides include `MEMTRACE_DATA_DIR`, `MEMTRACE_ACTOR_MODELS`, `MEMTRACE_RETRIEVAL_BACKEND`, `MEMTRACE_MEMORY_WRITER_BACKEND`, `MEMTRACE_PLANNER_BACKEND`, `MEMTRACE_PLANNER_PROMPT_PATH`, `MEMTRACE_MEMORY_CONFLICT_RESOLUTION` (`none` default, or `latest_wins_per_task_and_type`; see `configs/profile-latest-wins.toml`), and `MEMTRACE_MEMORY_TTL_TURNS`.
 
 ## Development
 
@@ -102,7 +105,7 @@ CI runs these checks on Python 3.11 and 3.13 and smoke-tests the built wheel.
 - `tests/`: deterministic tests; real model inference is not required.
 - `data/`, `artifacts/`, and `figures/`: ignored runtime outputs.
 
-See [the architecture note](docs/architecture.md) for dependency boundaries and extension policy.
+See [the system design note](docs/memtrace_system_design.md) for dependency boundaries, pipeline, evaluation design, and extension policy.
 
 ## Limitations
 

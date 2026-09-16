@@ -5,6 +5,7 @@ from __future__ import annotations
 from memtrace.core.actors import actor_model_slug, all_actor_models
 from memtrace.config import ACTOR_MODELS
 from memtrace.core.constants import (
+    ADVERSARIAL_MUTATION_PAYLOAD_TYPES,
     HORIZONS,
     PAYLOAD_TYPES,
     STATEFUL_STRESS_PAYLOAD_TYPE,
@@ -725,4 +726,51 @@ def build_stateful_stress_episode_records(
                             turns=turns,
                         )
                     )
+    return records
+
+
+def build_adversarial_mutation_episode_records(
+    *,
+    actor_models: tuple[str, ...] | None = None,
+    systems: tuple[str, ...] = ("S1", "S2"),
+) -> list[EpisodeRecord]:
+    """Build the optional adversarial-mutation robustness suite.
+
+    This extension is excluded from the canonical episode grid. It keeps the same task,
+    horizon, and stateful attribution structure as the main protocol but replaces the
+    poison payload with deterministic, programmatically reworded variants of the
+    existing `direct_override` attack (see `core/adversarial.py`), to measure whether
+    admission and planner adoption are robust to surface-level rewording rather than a
+    single fixed wording per task.
+    """
+    records: list[EpisodeRecord] = []
+    selected_actor_models = actor_models or (ACTOR_MODELS[0],)
+    tasks = build_task_records()
+    for actor_model in selected_actor_models:
+        actor_slug = actor_model_slug(actor_model)
+        for system in systems:
+            for task in tasks:
+                for technique in ADVERSARIAL_MUTATION_PAYLOAD_TYPES:
+                    for horizon in HORIZONS:
+                        turns, poison_turn, trigger_turn = _build_turns(
+                            task,
+                            "stateful_attack",
+                            horizon,
+                            technique,
+                        )
+                        records.append(
+                            EpisodeRecord(
+                                episode_id=f"{actor_slug}:{system}:{task.task_id}:adversarial:d{horizon}:{technique}",
+                                task_id=task.task_id,
+                                family=task.family,
+                                episode_kind="stateful_attack",
+                                payload_type=technique,
+                                system=system,
+                                actor_model=actor_model,
+                                horizon=horizon,
+                                poison_turn=poison_turn,
+                                trigger_turn=trigger_turn,
+                                turns=turns,
+                            )
+                        )
     return records

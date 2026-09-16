@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 
 def stratified_sample_size() -> int:
@@ -28,6 +28,29 @@ def stratified_audit_sample(episode_scores: list[dict], sample_size: int = 40) -
     return sample
 
 
+def ambiguity_targeted_audit_sample(episode_scores: list[dict], sample_size: int = 40) -> list[dict]:
+    """Sample the audit packet so it actually exercises the rule labeler's judgment calls.
+
+    Category-stratified sampling alone can reach `sample_size` on trivially obvious
+    episodes and report high agreement without ever reviewing a genuinely contestable
+    case. This samples every episode the labeler itself flagged as a judgment call
+    (`ambiguity_reason_for_labeling`, e.g. a partial argument match or a policy value
+    sitting on its own threshold) first, deterministically ordered by episode_id, then
+    fills any remaining slots via the existing category-stratified sample over the
+    remaining (unambiguous) episodes for category coverage.
+    """
+    ambiguous = sorted(
+        (item for item in episode_scores if item.get("ambiguity_reason")),
+        key=lambda item: item["episode_id"],
+    )[:sample_size]
+    if len(ambiguous) >= sample_size:
+        return ambiguous
+    ambiguous_ids = {item["episode_id"] for item in ambiguous}
+    remaining_pool = [item for item in episode_scores if item["episode_id"] not in ambiguous_ids]
+    fill = stratified_audit_sample(remaining_pool, sample_size=sample_size - len(ambiguous))
+    return ambiguous + fill
+
+
 def labeler_audit_report(episode_scores: list[dict], audit_records: list[dict]) -> dict:
     """Compare human audit labels with rule-based labels for sampled episodes."""
     score_by_id = {item["episode_id"]: item for item in episode_scores}
@@ -43,6 +66,7 @@ def labeler_audit_report(episode_scores: list[dict], audit_records: list[dict]) 
                 "rule_label": rule_label,
                 "human_label": human_label,
                 "agreement": rule_label == human_label,
+                "ambiguity_reason": score.get("ambiguity_reason"),
             }
         )
 
@@ -51,8 +75,30 @@ def labeler_audit_report(episode_scores: list[dict], audit_records: list[dict]) 
         "n": len(comparisons),
         "agreements": agreements,
         "agreement_rate": agreements / len(comparisons) if comparisons else 0.0,
+        "cohens_kappa": cohens_kappa(comparisons),
         "comparisons": comparisons,
     }
+
+
+def cohens_kappa(comparisons: list[dict]) -> float | None:
+    """Chance-corrected agreement between rule and human labels.
+
+    Plain agreement rate can look strong purely from class imbalance (most episodes are
+    "safe"), so it is not evidence of real label reliability on its own. Returns `None`
+    when there are no comparisons or when expected agreement is already 1.0 (a single
+    label category on both sides).
+    """
+    n = len(comparisons)
+    if n == 0:
+        return None
+    rule_counts = Counter(item["rule_label"] for item in comparisons)
+    human_counts = Counter(item["human_label"] for item in comparisons)
+    categories = set(rule_counts) | set(human_counts)
+    observed_agreement = sum(1 for item in comparisons if item["agreement"]) / n
+    expected_agreement = sum((rule_counts.get(c, 0) / n) * (human_counts.get(c, 0) / n) for c in categories)
+    if expected_agreement >= 1.0:
+        return None
+    return (observed_agreement - expected_agreement) / (1 - expected_agreement)
 
 
 def audit_template_records(sample: list[dict]) -> list[dict]:
@@ -67,6 +113,7 @@ def audit_template_records(sample: list[dict]) -> list[dict]:
             "payload_type": item.get("payload_type"),
             "horizon": item.get("horizon"),
             "trace_path": item.get("trace_path"),
+            "ambiguity_reason": item.get("ambiguity_reason"),
             "human_label": None,
             "notes": "",
         }
@@ -81,24 +128,29 @@ def reviewed_audit_records(records: list[dict]) -> list[dict]:
 
 
 def render_audit_report_markdown(report: dict, pending_count: int = 0) -> str:
+    kappa = report.get("cohens_kappa")
+    ambiguous_reviewed = sum(1 for item in report["comparisons"] if item.get("ambiguity_reason"))
     lines = [
         "# Label Audit Report",
         "",
         f"- reviewed episodes: {report['n']}",
         f"- pending episodes: {pending_count}",
+        f"- flagged-ambiguous episodes reviewed: {ambiguous_reviewed}",
         f"- agreements: {report['agreements']}",
         f"- agreement rate: {report['agreement_rate']:.3f}",
+        f"- Cohen's kappa: {kappa:.3f}" if kappa is not None else "- Cohen's kappa: undefined (single label category)",
         "",
-        "| Episode ID | Rule Label | Human Label | Agreement |",
-        "| --- | --- | --- | --- |",
+        "| Episode ID | Rule Label | Human Label | Agreement | Ambiguity Reason |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for item in report["comparisons"]:
         lines.append(
-            "| {episode_id} | {rule_label} | {human_label} | {agreement} |".format(
+            "| {episode_id} | {rule_label} | {human_label} | {agreement} | {ambiguity_reason} |".format(
                 episode_id=item["episode_id"],
                 rule_label=item["rule_label"],
                 human_label=item["human_label"],
                 agreement=item["agreement"],
+                ambiguity_reason=item.get("ambiguity_reason") or "",
             )
         )
     return "\n".join(lines) + "\n"

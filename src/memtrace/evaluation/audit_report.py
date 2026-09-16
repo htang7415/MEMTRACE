@@ -10,11 +10,11 @@ from memtrace.config import (
     EPISODE_SCORES_PATH,
 )
 from memtrace.evaluation.audit import (
+    ambiguity_targeted_audit_sample,
     audit_template_records,
     labeler_audit_report,
     render_audit_report_markdown,
     reviewed_audit_records,
-    stratified_audit_sample,
     stratified_sample_size,
 )
 
@@ -30,7 +30,7 @@ def main() -> None:
     args = parser.parse_args()
 
     episode_scores = _load_json(args.episode_scores)
-    sample = stratified_audit_sample(episode_scores, sample_size=args.sample_size)
+    sample = ambiguity_targeted_audit_sample(episode_scores, sample_size=args.sample_size)
     template = _load_existing_template(args.template_path) or audit_template_records(sample)
     reviewed = reviewed_audit_records(template)
     report = labeler_audit_report(episode_scores, reviewed)

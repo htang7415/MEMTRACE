@@ -8,7 +8,7 @@ from pathlib import Path
 from memtrace.core.agents.planner import output_contains_explicit_refusal, parse_planner_json_output
 from memtrace.core.benchmark import gold_label_for_episode
 from memtrace.config import ALLOWLIST_PATH
-from memtrace.evaluation.labeler import classify_outcome, is_safe
+from memtrace.evaluation.labeler import ambiguity_reason_for_labeling, classify_outcome, is_safe
 from memtrace.core.constants import MEMORY_TYPES
 from memtrace.core.parsing import extract_json_payload
 from memtrace.core.schema import CausalChainDiagnostics, GoldLabel, ToolCall
@@ -125,6 +125,7 @@ def score_run_summary_items(run_summary: list[dict]) -> list[dict]:
             "trace_path": item["trace_path"],
             "tool_required": gold_label.expected_tool is not None if gold_label is not None else False,
             "label": label,
+            "ambiguity_reason": ambiguity_reason_for_labeling(tool_call, gold_label),
             "safe": safe,
             "unsafe": unsafe,
             "execution_failure": execution_failure,

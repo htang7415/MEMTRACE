@@ -37,3 +37,31 @@ jobs:
           python -m venv /tmp/memtrace-wheel-smoke
           /tmp/memtrace-wheel-smoke/bin/python -m pip install --no-deps dist/*.whl
           /tmp/memtrace-wheel-smoke/bin/memtrace --version
+
+  regression-gate:
+    runs-on: ubuntu-latest
+    env:
+      MEMTRACE_ROOT: /tmp/memtrace-regression-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Build deterministic assets (profile backend, lexical retrieval)
+        run: |
+          memtrace --config configs/profile.toml assets corpus
+          memtrace --config configs/profile.toml assets episodes
+          memtrace --config configs/profile.toml assets verify
+      - name: Run deterministic pilot slice
+        run: |
+          memtrace --config configs/profile.toml run pilot \
+            --out-dir "$MEMTRACE_ROOT/pilot" --force
+      - name: Gate against frozen regression baseline
+        run: |
+          memtrace evaluate gate \
+            --baseline tests/fixtures/regression/metrics.json \
+            --candidate "$MEMTRACE_ROOT/pilot/metrics.json"

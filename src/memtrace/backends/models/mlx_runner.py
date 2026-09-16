@@ -2,6 +2,7 @@
 
 from memtrace.config import TEMPERATURE, TOP_P
 from memtrace.backends.models.actor import ActorModel, StubActorModel
+from memtrace.backends.models.gemini_runner import GeminiActorModel
 from memtrace.backends.models.profile_runner import ProfileActorModel
 
 
@@ -38,6 +39,8 @@ def load_actor(model_name: str, backend: str = "mlx") -> ActorModel:
         return ProfileActorModel(model_name=model_name)
     if backend == "mlx":
         return MLXActorModel(model_name=model_name)
+    if backend == "gemini":
+        return GeminiActorModel(model_name=model_name)
     raise ValueError(f"Unknown actor backend: {backend}")
 
 

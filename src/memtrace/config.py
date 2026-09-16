@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from memtrace.core.constants import MEMORY_CONFLICT_RESOLUTION_MODES, MEMORY_CONFLICT_RESOLUTION_NONE
+
 
 DEFAULT_ACTOR_MODELS = (
     "mlx-community/Qwen2.5-7B-Instruct-4bit",
@@ -27,6 +29,8 @@ _ENVIRONMENT_KEYS = {
     "protocol_version": "MEMTRACE_PROTOCOL_VERSION",
     "memory_writer_backend": "MEMTRACE_MEMORY_WRITER_BACKEND",
     "planner_backend": "MEMTRACE_PLANNER_BACKEND",
+    "memory_conflict_resolution": "MEMTRACE_MEMORY_CONFLICT_RESOLUTION",
+    "memory_ttl_turns": "MEMTRACE_MEMORY_TTL_TURNS",
     "temperature": "MEMTRACE_TEMPERATURE",
     "top_p": "MEMTRACE_TOP_P",
     "top_k": "MEMTRACE_TOP_K",
@@ -53,6 +57,8 @@ class Settings:
     protocol_version: str
     memory_writer_backend: str
     planner_backend: str
+    memory_conflict_resolution: str
+    memory_ttl_turns: int | None
     temperature: float
     top_p: float
     top_k: int
@@ -120,6 +126,10 @@ class Settings:
         retrieval_backend = str(value("retrieval_backend", "dense"))
         if retrieval_backend not in {"dense", "lexical"}:
             raise ValueError("retrieval_backend must be 'dense' or 'lexical'")
+        memory_conflict_resolution = str(value("memory_conflict_resolution", MEMORY_CONFLICT_RESOLUTION_NONE))
+        if memory_conflict_resolution not in MEMORY_CONFLICT_RESOLUTION_MODES:
+            raise ValueError(f"memory_conflict_resolution must be one of {MEMORY_CONFLICT_RESOLUTION_MODES}")
+        memory_ttl_turns = _optional_int(value("memory_ttl_turns", None))
 
         return cls(
             root=root,
@@ -134,6 +144,8 @@ class Settings:
             protocol_version=str(value("protocol_version", "project-md-v3")),
             memory_writer_backend=str(value("memory_writer_backend", "mlx")),
             planner_backend=str(value("planner_backend", "mlx")),
+            memory_conflict_resolution=memory_conflict_resolution,
+            memory_ttl_turns=memory_ttl_turns,
             temperature=float(value("temperature", 0)),
             top_p=float(value("top_p", 1)),
             top_k=int(value("top_k", 5)),
@@ -162,6 +174,12 @@ def _load_toml(config_path: Path | None) -> dict[str, Any]:
 def _resolve_path(value: str | Path, base: Path) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (base / path).resolve()
+
+
+def _optional_int(value: str | int | None) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
 
 
 def _actor_models(value: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
@@ -210,6 +228,8 @@ ACTOR_MODELS: tuple[str, ...]
 PROTOCOL_VERSION: str
 MEMORY_WRITER_BACKEND: str
 PLANNER_BACKEND: str
+MEMORY_CONFLICT_RESOLUTION: str
+MEMORY_TTL_TURNS: int | None
 TEMPERATURE: float
 TOP_P: float
 TOP_K: int
@@ -231,6 +251,7 @@ def activate(settings: Settings) -> None:
     global AUDIT_SAMPLE_PATH, AUDIT_TEMPLATE_PATH, AUDIT_REVIEW_MD_PATH, AUDIT_REPORT_JSON_PATH, AUDIT_REPORT_MD_PATH
     global EMBEDDING_MODEL, RETRIEVAL_BACKEND, ACTOR_MODELS, PROTOCOL_VERSION
     global MEMORY_WRITER_BACKEND, PLANNER_BACKEND
+    global MEMORY_CONFLICT_RESOLUTION, MEMORY_TTL_TURNS
     global TEMPERATURE, TOP_P, TOP_K, MAX_MEMORY_CANDIDATES, MAX_MEMORY_CONTENT_CHARS
     global MEMORY_WRITER_MAX_TOKENS, PLANNER_MAX_TOKENS
 
@@ -276,6 +297,8 @@ def activate(settings: Settings) -> None:
     PROTOCOL_VERSION = settings.protocol_version
     MEMORY_WRITER_BACKEND = settings.memory_writer_backend
     PLANNER_BACKEND = settings.planner_backend
+    MEMORY_CONFLICT_RESOLUTION = settings.memory_conflict_resolution
+    MEMORY_TTL_TURNS = settings.memory_ttl_turns
     TEMPERATURE = settings.temperature
     TOP_P = settings.top_p
     TOP_K = settings.top_k

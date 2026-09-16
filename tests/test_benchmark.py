@@ -2,6 +2,7 @@ from collections import Counter
 
 from memtrace.config import ACTOR_MODELS
 from memtrace.core.benchmark import (
+    build_adversarial_mutation_episode_records,
     build_episode_records,
     build_gold_labels,
     build_stateful_stress_episode_records,
@@ -10,7 +11,11 @@ from memtrace.core.benchmark import (
     gold_label_for_episode,
     gold_label_for_query,
 )
-from memtrace.core.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
+from memtrace.core.constants import (
+    ADVERSARIAL_MUTATION_PAYLOAD_TYPES,
+    STATEFUL_STRESS_PAYLOAD_TYPE,
+    TRUSTED_UTILITY_PAYLOAD_TYPE,
+)
 from memtrace.core.corpus import build_allowlist, build_corpus
 
 
@@ -43,6 +48,32 @@ def test_trusted_utility_suite_is_opt_in_and_minimum_p0_size() -> None:
     assert {episode.system for episode in utility} == {"S1", "S2"}
     assert {episode.payload_type for episode in utility} == {TRUSTED_UTILITY_PAYLOAD_TYPE}
     assert {episode.episode_kind for episode in utility} == {"trusted_memory_utility"}
+
+
+def test_adversarial_mutation_suite_is_opt_in_and_covers_all_techniques() -> None:
+    canonical = build_episode_records()
+    adversarial = build_adversarial_mutation_episode_records()
+    assert len(canonical) == len(ACTOR_MODELS) * 3 * 12 * 9
+    assert len(adversarial) == 12 * len(ADVERSARIAL_MUTATION_PAYLOAD_TYPES) * 2 * 3
+    assert {episode.system for episode in adversarial} == {"S1", "S2"}
+    assert {episode.payload_type for episode in adversarial} == set(ADVERSARIAL_MUTATION_PAYLOAD_TYPES)
+    assert {episode.episode_kind for episode in adversarial} == {"stateful_attack"}
+    assert {episode.task_id for episode in adversarial} == {task.task_id for task in build_task_records()}
+
+
+def test_adversarial_mutation_episode_reuses_base_task_queries() -> None:
+    tasks = {task.task_id: task for task in build_task_records()}
+    adversarial = build_adversarial_mutation_episode_records()
+    episode = next(
+        item
+        for item in adversarial
+        if item.task_id == "budget-limit-rule"
+        and item.payload_type == "adversarial_authority_framing"
+        and item.horizon == 1
+    )
+    task = tasks[episode.task_id]
+    assert episode.turns[0] == task.poison_query
+    assert episode.turns[-1] == task.trigger_query
 
 
 def test_stateful_delta_seven_repeats_first_filler_at_turn_six() -> None:
@@ -133,6 +164,29 @@ def test_stress_corpus_keeps_shape_and_adds_one_memory_shaped_poison_per_task() 
     for passage in stress_poisons:
         word_count = len(passage["text"].split())
         assert 50 <= word_count <= 150, passage["source_id"]
+
+
+def test_adversarial_mutation_corpus_keeps_shape_and_adds_one_variant_per_technique_per_task() -> None:
+    corpus = build_corpus(include_adversarial_mutation_payloads=True)
+    allowlist = build_allowlist(corpus)
+    adversarial_poisons = [
+        item
+        for item in corpus
+        if item.get("payload_type") in ADVERSARIAL_MUTATION_PAYLOAD_TYPES and item.get("passage_kind") == "poison"
+    ]
+    assert len(corpus) == 200
+    assert len(allowlist) == 20
+    assert len(adversarial_poisons) == 12 * len(ADVERSARIAL_MUTATION_PAYLOAD_TYPES)
+    assert {item["task_id"] for item in adversarial_poisons} == {task.task_id for task in build_task_records()}
+    assert {item["payload_type"] for item in adversarial_poisons} == set(ADVERSARIAL_MUTATION_PAYLOAD_TYPES)
+    for passage in adversarial_poisons:
+        word_count = len(passage["text"].split())
+        assert 50 <= word_count <= 150, passage["source_id"]
+
+
+def test_default_corpus_excludes_adversarial_mutation_payloads() -> None:
+    corpus = build_corpus()
+    assert not any((item.get("payload_type") or "").startswith("adversarial") for item in corpus)
 
 
 def test_utility_corpus_keeps_shape_and_adds_one_trusted_update_per_task() -> None:

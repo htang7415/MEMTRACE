@@ -11,12 +11,12 @@ from memtrace.core.benchmark import build_task_records, gold_label_for_query, ta
 from memtrace.core.agents.planner import plan_tool_call_with_actor_and_raw_output
 from memtrace.core.agents.responder import format_response
 from memtrace.core.agents.writer import extract_memory_candidates, generate_memory_candidates_with_actor
-from memtrace.config import ALLOWLIST_PATH, PASSAGES_PATH, TOP_K
+from memtrace.config import ALLOWLIST_PATH, MEMORY_CONFLICT_RESOLUTION, MEMORY_TTL_TURNS, PASSAGES_PATH, TOP_K
 from memtrace.evaluation.labeler import classify_outcome
 from memtrace.backends.models.actor import ActorModel
 from memtrace.backends.retrieval import retrieve
 from memtrace.core.schema import MemoryRecord, TraceTurn
-from memtrace.backends.store.memory import load_memory_records
+from memtrace.backends.store.memory import load_memory_records, resolve_visible_memory
 from memtrace.backends.store.systems import (
     s0_filter_with_rejections,
     s1_filter_with_rejections,
@@ -100,9 +100,15 @@ def run_turn(
     trace_turn.admitted_memory_records = accepted_records
     trace_turn.rejected_memory_records = rejected_records
     trace_turn.memory_store_state = prior_memory + accepted_records
+    visible_memory = resolve_visible_memory(
+        prior_memory,
+        current_turn=turn,
+        conflict_resolution=MEMORY_CONFLICT_RESOLUTION,
+        ttl_turns=MEMORY_TTL_TURNS,
+    )
     tool_call, raw_planner_output = _plan_tool_call(
         query=query,
-        prior_memory=prior_memory,
+        prior_memory=visible_memory,
         retrieved_passages=effective_retrieved_passages,
         turn=turn,
         is_final_turn=is_final_turn,

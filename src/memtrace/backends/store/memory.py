@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from memtrace.core.constants import MEMORY_CONFLICT_RESOLUTION_LATEST_WINS, MEMORY_CONFLICT_RESOLUTION_NONE
 from memtrace.core.schema import MemoryRecord
 
 
@@ -85,3 +86,43 @@ def load_memory_records(
         )
         for row in rows
     ]
+
+
+def resolve_visible_memory(
+    records: list[MemoryRecord],
+    *,
+    current_turn: int,
+    conflict_resolution: str = MEMORY_CONFLICT_RESOLUTION_NONE,
+    ttl_turns: int | None = None,
+) -> list[MemoryRecord]:
+    """Return the planner-visible slice of `records` under an opt-in policy.
+
+    Defaults (`conflict_resolution="none"`, `ttl_turns=None`) reproduce the legacy
+    behavior exactly: every admitted record stays visible for the rest of the episode.
+    This does not affect the persisted store or `prior_memory_state`/`memory_store_state`
+    trace fields -- callers that need the full write history should keep using the raw
+    `records` returned by `load_memory_records`.
+    """
+
+    visible = records
+    if ttl_turns is not None:
+        visible = [record for record in visible if record.write_turn >= current_turn - ttl_turns]
+    if conflict_resolution == MEMORY_CONFLICT_RESOLUTION_LATEST_WINS:
+        visible = _latest_record_per_slot(visible)
+    elif conflict_resolution != MEMORY_CONFLICT_RESOLUTION_NONE:
+        raise ValueError(f"Unknown memory conflict resolution mode: {conflict_resolution}")
+    return visible
+
+
+def _latest_record_per_slot(records: list[MemoryRecord]) -> list[MemoryRecord]:
+    """Keep only the highest-write_turn record per (task_id, memory_type) slot.
+
+    `records` is expected write_turn-ascending (as returned by `load_memory_records`),
+    so a later record simply overwrites an earlier one in the same slot. Ties within the
+    same turn are broken by source_id, matching `load_memory_records`'s own ordering.
+    """
+
+    latest_by_slot: dict[tuple[str | None, str], MemoryRecord] = {}
+    for record in records:
+        latest_by_slot[(record.task_id, record.memory_type)] = record
+    return sorted(latest_by_slot.values(), key=lambda record: (record.write_turn, record.source_id))

@@ -1,0 +1,5 @@
+[memtrace]
+memory_writer_backend = "gemini"
+planner_backend = "gemini"
+retrieval_backend = "dense"
+actor_models = "gemini-2.5-flash"

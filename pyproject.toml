@@ -28,6 +28,9 @@ inference = [
 retrieval = [
   "sentence-transformers>=3.0",
 ]
+gemini = [
+  "google-genai>=1.0",
+]
 
 [dependency-groups]
 dev = [
