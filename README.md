@@ -21,6 +21,16 @@ python -m pip install -e ".[inference]"  # MLX on Apple Silicon
 python -m pip install -e ".[gemini]"     # Gemini API backend; requires GEMINI_API_KEY
 ```
 
+Gemini calls share a process-wide spend cap (`MEMTRACE_GEMINI_BUDGET_USD`, default `1.0`); a call is refused once
+the cap is reached, and models without an entry in `GEMINI_PRICES_USD_PER_MTOK` are refused outright.
+
+Public workload and evaluation datasets (Mooncake, Azure LLM inference, ShareGPT, BFCL) are pinned to fixed
+revisions and downloaded into the ignored `data/public/` directory with a SHA-256 manifest:
+
+```bash
+python scripts/fetch_public_datasets.py            # or name a subset: mooncake azure_llm sharegpt bfcl
+```
+
 CI installs from locked requirements (`requirements/ci-lock.txt`, `requirements/canary-lock.txt`)
 instead of floating version resolution, so the frozen regression baseline can't drift from an
 unrelated dependency bump. Regenerate a lockfile after changing `pyproject.toml`'s dependencies:

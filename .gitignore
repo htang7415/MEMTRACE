@@ -40,3 +40,8 @@ venv/
 /figures/
 /archived_runs/
 /docs
+# Secrets (never commit; also enforced by a local pre-commit/pre-push hook)
+gemini_api.txt
+*_api.txt
+*.key
+/secrets/
