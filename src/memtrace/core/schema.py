@@ -109,6 +109,7 @@ class TraceTurn(BaseModel):
     oracle_memory_inserted: bool | None = None
     oracle_memory_retrieved: bool | None = None
     current_turn_poison_retrieved_at_trigger: bool | None = None
+    inference_calls: list[dict[str, Any]] | None = None
 
 
 class CausalChainDiagnostics(BaseModel):

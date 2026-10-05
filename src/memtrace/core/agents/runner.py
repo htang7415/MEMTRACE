@@ -7,6 +7,7 @@ from pathlib import Path
 from memtrace.core.calibration import ORACLE_MEMORY_CONDITION, oracle_memory_record_for_episode
 from memtrace.config import ACTOR_MODELS, MEMORY_WRITER_BACKEND, PASSAGES_PATH, PLANNER_BACKEND
 from memtrace.core.constants import STATEFUL_STRESS_PAYLOAD_TYPE, TRUSTED_UTILITY_PAYLOAD_TYPE
+from memtrace.backends.models.actor import ActorModel
 from memtrace.backends.models.mlx_runner import load_actor
 from memtrace.core.pipeline import run_turn
 from memtrace.backends.store.db import connect, init_db
@@ -35,6 +36,9 @@ def run_episode(
     resolved_horizon = episode_horizon if episode_horizon is not None else _horizon_from_episode_id(episode_id)
     writer_actor = _load_actor_for_backend(resolved_actor_model, writer_backend or MEMORY_WRITER_BACKEND)
     planner_actor = _load_actor_for_backend(resolved_actor_model, planner_backend or PLANNER_BACKEND)
+    inference_calls: list[dict] = []
+    writer_actor = _TelemetryRecorder(writer_actor, "writer", inference_calls)
+    planner_actor = _TelemetryRecorder(planner_actor, "planner", inference_calls)
     trace = []
     oracle_memory = None
     oracle_inserted = False
@@ -72,12 +76,32 @@ def run_episode(
         )
         if accepted_records:
             insert_memory_records(connection, episode_id=episode_id, records=accepted_records)
+        if inference_calls:
+            trace_turn.inference_calls = list(inference_calls)
+            inference_calls.clear()
         if hasattr(trace_turn, "model_dump"):
             trace.append(trace_turn.model_dump())
         else:
             trace.append(trace_turn.dict())
     connection.close()
     return trace
+
+
+class _TelemetryRecorder(ActorModel):
+    """Tags per-call serving telemetry (`last_call`) from the wrapped actor with its pipeline role."""
+
+    def __init__(self, actor: ActorModel, role: str, calls: list[dict]) -> None:
+        super().__init__(actor.model_name)
+        self._actor = actor
+        self._role = role
+        self._calls = calls
+
+    def generate(self, prompt: str, max_tokens: int | None = None) -> str:
+        output = self._actor.generate(prompt, max_tokens=max_tokens)
+        telemetry = getattr(self._actor, "last_call", None)
+        if telemetry is not None:
+            self._calls.append({"role": self._role, **telemetry})
+        return output
 
 
 def save_trace(trace_dir: Path, episode_id: str, trace: list[dict]) -> Path:

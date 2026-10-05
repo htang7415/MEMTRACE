@@ -62,6 +62,19 @@ memtrace evaluate score
 memtrace evaluate validate
 ```
 
+Run against a local OpenAI-compatible server (`mlx_lm.server`, which provides continuous batching and a prompt cache).
+Calls are streamed, each trace turn records TTFT/TPOT/end-to-end latency, token usage, and
+prefix-cache hits in `inference_calls`, and the run writes latency percentiles and throughput to
+`serving.json`. `--concurrency` keeps several episodes in flight to exercise server-side batching:
+
+```bash
+python -m mlx_lm.server --model mlx-community/Qwen2.5-7B-Instruct-4bit --port 8000
+MEMTRACE_OPENAI_BASE_URL=http://localhost:8000/v1 \
+  memtrace --config configs/openai.toml run pilot --concurrency 4 --out-dir data/pilot/served --force
+```
+
+`MEMTRACE_OPENAI_API_KEY` is sent as a bearer token when set.
+
 Other workflows:
 
 ```bash

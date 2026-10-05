@@ -1,8 +1,11 @@
 import argparse
 import json
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from memtrace.backends.retrieval import retrieve
 from memtrace.core.agents.runner import run_episode, save_trace, trace_path
 from memtrace.core.actors import actor_model_slug
 from memtrace.core.benchmark import build_episode_records
@@ -11,12 +14,15 @@ from memtrace.config import (
     DEFAULT_PLANNER_PROMPT_PATH,
     MEMORY_WRITER_BACKEND,
     PLANNER_BACKEND,
+    PASSAGES_PATH,
     PLANNER_PROMPT_PATH,
     PROTOCOL_VERSION,
     SQLITE_PATH,
+    TOP_K,
 )
 from memtrace.evaluation.metrics import aggregate_metrics
 from memtrace.evaluation.scoring import score_run_summary_items
+from memtrace.evaluation.serving import summarize_serving
 from memtrace.core.schema import EpisodeRecord
 
 
@@ -36,7 +42,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--out-dir", default="data/pilot/latest")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Episodes in flight at once; values above 1 require the openai backend for writer and planner.",
+    )
     args = parser.parse_args(argv)
+    if args.concurrency < 1:
+        parser.error("--concurrency must be at least 1")
+    if args.concurrency > 1 and (MEMORY_WRITER_BACKEND, PLANNER_BACKEND) != ("openai", "openai"):
+        parser.error("--concurrency above 1 requires memory_writer_backend and planner_backend = 'openai'")
 
     episode_ids = set(args.episode_ids or ())
     task_ids = set(args.task_ids or DEFAULT_TASK_IDS)
@@ -71,6 +87,7 @@ def main(argv: list[str] | None = None) -> None:
     summaries = _load_existing_summary(run_summary_path)
     summary_by_episode_id = {item["episode_id"]: item for item in summaries}
 
+    pending = []
     for episode in episodes:
         existing_summary = summary_by_episode_id.get(episode.episode_id)
         output_trace_path = trace_path(traces_dir, episode.episode_id)
@@ -84,16 +101,15 @@ def main(argv: list[str] | None = None) -> None:
             summaries = [item for item in summaries if item["episode_id"] != episode.episode_id]
         if output_trace_path.exists():
             output_trace_path.unlink()
-        trace = run_episode(
-            episode_id=episode.episode_id,
-            turns=episode.turns,
-            system=episode.system,
-            actor_model=episode.actor_model or "",
-            db_path=SQLITE_PATH,
-            episode_kind=episode.episode_kind,
-            episode_payload_type=episode.payload_type,
-            episode_horizon=episode.horizon,
-        )
+        pending.append(episode)
+
+    if pending and "openai" in (MEMORY_WRITER_BACKEND, PLANNER_BACKEND):
+        # Load the retrieval model before timing so serving throughput excludes one-off startup cost.
+        retrieve(query=pending[0].turns[0], path=PASSAGES_PATH, top_k=TOP_K)
+    executed_traces = []
+    started = time.monotonic()
+    for episode, trace in _execute_episodes(pending, args.concurrency):
+        executed_traces.append(trace)
         trace_path_for_summary = save_trace(traces_dir, episode.episode_id, trace)
         summaries.append(
             {
@@ -114,6 +130,9 @@ def main(argv: list[str] | None = None) -> None:
             }
         )
         _write_json(run_summary_path, summaries)
+    serving = summarize_serving(
+        executed_traces, wall_seconds=time.monotonic() - started, concurrency=args.concurrency
+    )
 
     episode_scores = score_run_summary_items(summaries)
     metrics = aggregate_metrics(episode_scores)
@@ -122,6 +141,35 @@ def main(argv: list[str] | None = None) -> None:
     print(f"pilot_episodes={len(episodes)}")
     print(f"pilot_completed={len(summaries)}")
     print(f"metrics_path={metrics_path}")
+    if serving is not None:
+        serving_path = out_dir / "serving.json"
+        _write_json(serving_path, serving)
+        print(f"serving_path={serving_path}")
+
+
+def _run_pilot_episode(episode: EpisodeRecord) -> list[dict]:
+    return run_episode(
+        episode_id=episode.episode_id,
+        turns=episode.turns,
+        system=episode.system,
+        actor_model=episode.actor_model or "",
+        db_path=SQLITE_PATH,
+        episode_kind=episode.episode_kind,
+        episode_payload_type=episode.payload_type,
+        episode_horizon=episode.horizon,
+    )
+
+
+def _execute_episodes(episodes: list[EpisodeRecord], concurrency: int):
+    """Yield (episode, trace); sequential in-thread at concurrency 1 so in-process backends are unaffected."""
+    if concurrency == 1:
+        for episode in episodes:
+            yield episode, _run_pilot_episode(episode)
+        return
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {pool.submit(_run_pilot_episode, episode): episode for episode in episodes}
+        for future in as_completed(futures):
+            yield futures[future], future.result()
 
 
 def _episode_grid_for_actor(actor_model: str) -> list[EpisodeRecord]:
