@@ -22,6 +22,7 @@ _COMMANDS = {
     ("run", "stateful-stress"): "memtrace.commands.run_stateful_stress_suite",
     ("run", "trusted-utility"): "memtrace.commands.run_trusted_utility_suite",
     ("run", "adversarial-mutation"): "memtrace.commands.run_adversarial_mutation_suite",
+    ("run", "engine-bench"): "memtrace.commands.run_engine_bench",
     ("evaluate", "score"): "memtrace.evaluation.score",
     ("evaluate", "recompute"): "memtrace.evaluation.recompute",
     ("evaluate", "validate"): "memtrace.evaluation.validate",
@@ -31,6 +32,8 @@ _COMMANDS = {
     ("report", "tables"): "memtrace.evaluation.tables",
     ("report", "figures"): "memtrace.evaluation.figures",
     ("report", "explore"): "memtrace.evaluation.trace_explorer",
+    ("report", "engines"): "memtrace.evaluation.engine_report",
+    ("report", "engine-parity"): "memtrace.evaluation.engine_parity",
 }
 
 _ASSET_BUILD_ORDER = (
@@ -56,7 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
     run = groups.add_parser("run", help="Run benchmark and diagnostic workloads.")
     run.add_argument(
         "action",
-        choices=("benchmark", "pilot", "calibration", "stateful-stress", "trusted-utility", "adversarial-mutation"),
+        choices=(
+            "benchmark",
+            "pilot",
+            "calibration",
+            "stateful-stress",
+            "trusted-utility",
+            "adversarial-mutation",
+            "engine-bench",
+        ),
     )
     run.add_argument("arguments", nargs=argparse.REMAINDER)
 
@@ -65,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
 
     report = groups.add_parser("report", help="Generate tables and figures.")
-    report.add_argument("action", choices=("tables", "figures", "explore"))
+    report.add_argument("action", choices=("tables", "figures", "explore", "engines", "engine-parity"))
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 

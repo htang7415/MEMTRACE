@@ -1,0 +1,130 @@
+"""Closed-loop engine benchmark: replay a workload at fixed concurrency and record telemetry."""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import threading
+import time
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
+from memtrace.serving.workloads import Request
+
+_PREFIX_METRICS = ("vllm:prefix_cache_queries_total", "vllm:prefix_cache_hits_total")
+
+
+def run_requests(
+    model: OpenAICompatibleActorModel, requests: list[Request], concurrency: int
+) -> tuple[list[dict[str, Any]], float]:
+    """Send every request with at most `concurrency` in flight; return per-request telemetry and wall time."""
+
+    def one(index: int, request: Request) -> dict[str, Any]:
+        try:
+            text = model.generate(request.prompt, max_tokens=request.max_tokens)
+            return {
+                "index": index,
+                "ok": True,
+                **(model.last_call or {}),
+                "output_text": text,
+                "reasoning_text": model.last_reasoning,
+            }
+        except RuntimeError as exc:
+            return {"index": index, "ok": False, "error": str(exc.__cause__ or exc)}
+
+    started = time.monotonic()
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        records = list(pool.map(one, range(len(requests)), requests))
+    return records, time.monotonic() - started
+
+
+def scrape_prefix_cache(base_url: str) -> dict[str, float] | None:
+    """Sum vLLM prefix-cache counters from the engine's Prometheus endpoint, or None if it has none."""
+    metrics_url = re.sub(r"/v1/?$", "", base_url.rstrip("/")) + "/metrics"
+    try:
+        with urllib.request.urlopen(metrics_url, timeout=5) as response:
+            text = response.read().decode("utf-8")
+    except OSError:
+        return None
+    totals = {name: 0.0 for name in _PREFIX_METRICS}
+    for line in text.splitlines():
+        for name in _PREFIX_METRICS:
+            if line.startswith(name + "{") or line.startswith(name + " "):
+                totals[name] += float(line.rsplit(" ", 1)[1])
+    return totals
+
+
+class PowerSampler:
+    """Background `macmon pipe` reader: power (W) and RAM use, sampled every `interval_ms`.
+
+    `sys_w` is whole-system power and is the basis for energy figures. On macOS 27 / M4,
+    macmon's per-cluster `cpu_power` reads 0 even under full CPU load, so CPU-only engines
+    are visible only through `sys_w`; `cpu_w` is kept to show that gap, not to be used.
+    """
+
+    def __init__(self, interval_ms: int = 250, command: str = "macmon", max_plausible_w: float = 100.0) -> None:
+        # macmon's sys_power occasionally reports impossible values under load (run means of
+        # 200+ W on a Mac mini M4 whose rated maximum is about 65 W); samples above
+        # `max_plausible_w` are dropped and counted rather than averaged in.
+        self.max_plausible_w = max_plausible_w
+        self._command = [command, "pipe", "-i", str(interval_ms)]
+        self._interval = interval_ms / 1000
+        self.samples: list[dict[str, float]] = []
+        self._process: subprocess.Popen[str] | None = None
+        self._thread: threading.Thread | None = None
+
+    def __enter__(self) -> PowerSampler:
+        try:
+            self._process = subprocess.Popen(
+                self._command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+            )
+        except FileNotFoundError:
+            return self
+        self._thread = threading.Thread(target=self._read, daemon=True)
+        self._thread.start()
+        return self
+
+    def _read(self) -> None:
+        assert self._process is not None and self._process.stdout is not None
+        for line in self._process.stdout:
+            try:
+                sample = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            self.samples.append(
+                {
+                    "cpu_w": sample.get("cpu_power", 0.0),
+                    "gpu_w": sample.get("gpu_power", 0.0),
+                    "ane_w": sample.get("ane_power", 0.0),
+                    "sys_w": sample.get("sys_power", 0.0),
+                    "ram_bytes": (sample.get("memory") or {}).get("ram_usage", 0),
+                    "swap_bytes": (sample.get("memory") or {}).get("swap_usage", 0),
+                }
+            )
+
+    def __exit__(self, *exc: object) -> None:
+        if self._process is not None:
+            self._process.terminate()
+            self._process.wait(timeout=5)
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+
+    def summary(self) -> dict[str, float] | None:
+        valid = [s for s in self.samples if 0 < s["sys_w"] <= self.max_plausible_w]
+        if not valid:
+            return None
+        n = len(valid)
+        return {
+            "samples": n,
+            "dropped_implausible_samples": len(self.samples) - n,
+            "mean_cpu_w": sum(s["cpu_w"] for s in valid) / n,
+            "mean_gpu_w": sum(s["gpu_w"] for s in valid) / n,
+            "mean_ane_w": sum(s["ane_w"] for s in valid) / n,
+            "mean_sys_w": sum(s["sys_w"] for s in valid) / n,
+            "max_sys_w": max(s["sys_w"] for s in valid),
+            "peak_ram_gb": max(s["ram_bytes"] for s in self.samples) / 1e9,
+            "peak_swap_gb": max(s["swap_bytes"] for s in self.samples) / 1e9,
+        }

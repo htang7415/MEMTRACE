@@ -151,3 +151,19 @@ def test_last_call_is_thread_local() -> None:
 
     assert model.last_call is not None
     assert seen["worker"] is None
+
+
+@pytest.mark.parametrize("field", ["reasoning", "reasoning_content"])
+def test_separately_streamed_reasoning_counts_for_timing_but_not_answer(field) -> None:
+    lines = [
+        f"data: {json.dumps({'choices': [{'delta': {field: 'think'}}]})}\n".encode(),
+        f"data: {json.dumps({'choices': [{'delta': {field: 'ing'}}]})}\n".encode(),
+        b"data: [DONE]\n",
+    ]
+    model = _model(_FakeServer([lines]), clock=_Clock())
+
+    assert model.generate("prompt") == ""
+    assert model.last_reasoning == "thinking"
+    # clock readings: start=0, first reasoning token=1, end=2
+    assert model.last_call["ttft_seconds"] == 1.0
+    assert model.last_call["output_tokens"] == 2

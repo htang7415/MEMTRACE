@@ -62,6 +62,11 @@ class OpenAICompatibleActorModel(ActorModel):
     def last_call(self) -> dict[str, Any] | None:
         return getattr(self._local, "last_call", None)
 
+    @property
+    def last_reasoning(self) -> str:
+        """Thinking text streamed in a separate field by the last call on this thread."""
+        return getattr(self._local, "last_reasoning", "")
+
     def generate(self, prompt: str, max_tokens: int | None = None) -> str:
         payload: dict[str, Any] = {
             "model": self.model_name,
@@ -92,6 +97,7 @@ class OpenAICompatibleActorModel(ActorModel):
 
     def _consume(self, lines: Iterable[bytes], start: float, retries: int) -> str:
         pieces: list[str] = []
+        reasoning_pieces: list[str] = []
         first_token_at: float | None = None
         content_chunks = 0
         usage: dict[str, Any] | None = None
@@ -106,12 +112,20 @@ class OpenAICompatibleActorModel(ActorModel):
             if event.get("usage"):
                 usage = event["usage"]
             for choice in event.get("choices") or []:
-                text = (choice.get("delta") or {}).get("content")
-                if text:
+                delta = choice.get("delta") or {}
+                text = delta.get("content")
+                # Servers that split out model thinking stream it as `reasoning` (mlx_lm) or
+                # `reasoning_content` (vLLM reasoning parsers). It is generated output, so it
+                # counts toward TTFT/TPOT, but it is not part of the returned answer.
+                reasoning = delta.get("reasoning") or delta.get("reasoning_content")
+                if text or reasoning:
                     if first_token_at is None:
                         first_token_at = self._clock()
                     content_chunks += 1
+                if text:
                     pieces.append(text)
+                if reasoning:
+                    reasoning_pieces.append(reasoning)
         end = self._clock()
 
         output_tokens = int(usage["completion_tokens"]) if usage else content_chunks
@@ -128,6 +142,7 @@ class OpenAICompatibleActorModel(ActorModel):
             "output_tokens_source": "usage" if usage else "stream_chunks",
             "retries": retries,
         }
+        self._local.last_reasoning = "".join(reasoning_pieces)
         return "".join(pieces).strip()
 
 
