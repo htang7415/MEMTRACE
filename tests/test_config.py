@@ -41,6 +41,26 @@ def test_settings_load_toml_with_environment_override(tmp_path: Path) -> None:
     assert settings.top_k == 7
 
 
+def test_settings_memory_trust_visibility_defaults_false(tmp_path: Path) -> None:
+    settings = Settings.load(environ={}, cwd=tmp_path)
+
+    assert settings.memory_trust_visibility is False
+
+
+def test_settings_memory_trust_visibility_from_toml_and_env(tmp_path: Path) -> None:
+    config_path = tmp_path / "memtrace.toml"
+    config_path.write_text("[memtrace]\nmemory_trust_visibility = true\n", encoding="utf-8")
+
+    from_toml = Settings.load(config_path, environ={}, cwd=tmp_path)
+    assert from_toml.memory_trust_visibility is True
+
+    from_env = Settings.load(
+        environ={"MEMTRACE_MEMORY_TRUST_VISIBILITY": "true"},
+        cwd=tmp_path,
+    )
+    assert from_env.memory_trust_visibility is True
+
+
 def test_settings_reject_unknown_toml_keys(tmp_path: Path) -> None:
     config_path = tmp_path / "memtrace.toml"
     config_path.write_text("[memtrace]\nunknown = true\n", encoding="utf-8")

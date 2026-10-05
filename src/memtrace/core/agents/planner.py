@@ -31,11 +31,13 @@ def build_planner_input_from_records(
     query: str,
     retrieved_passages: list[RetrievedPassage],
     memory_records: list[MemoryRecord],
+    *,
+    include_trust_level: bool = False,
 ) -> str:
     return build_planner_input(
         query=query,
         retrieved_context=format_retrieved_context(retrieved_passages),
-        memory_block=serialize_memory_block(memory_records),
+        memory_block=serialize_memory_block(memory_records, include_trust_level=include_trust_level),
     )
 
 
@@ -125,11 +127,14 @@ def plan_tool_call_with_actor_and_raw_output(
     memory_records: list[MemoryRecord],
     turn: int,
     actor_model: ActorModel,
+    *,
+    include_trust_level: bool = False,
 ) -> tuple[ToolCall | None, str]:
     planner_input = build_planner_input_from_records(
         query=query,
         retrieved_passages=retrieved_passages,
         memory_records=memory_records,
+        include_trust_level=include_trust_level,
     )
     raw_output = actor_model.generate(planner_input, max_tokens=PLANNER_MAX_TOKENS)
     return parse_planner_json_output(raw_output=raw_output, turn=turn), raw_output
@@ -141,6 +146,8 @@ def plan_tool_call_with_actor(
     memory_records: list[MemoryRecord],
     turn: int,
     actor_model: ActorModel,
+    *,
+    include_trust_level: bool = False,
 ) -> ToolCall | None:
     tool_call, _ = plan_tool_call_with_actor_and_raw_output(
         query=query,
@@ -148,5 +155,6 @@ def plan_tool_call_with_actor(
         memory_records=memory_records,
         turn=turn,
         actor_model=actor_model,
+        include_trust_level=include_trust_level,
     )
     return tool_call

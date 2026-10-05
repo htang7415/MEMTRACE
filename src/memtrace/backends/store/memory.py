@@ -8,8 +8,22 @@ from memtrace.core.constants import MEMORY_CONFLICT_RESOLUTION_LATEST_WINS, MEMO
 from memtrace.core.schema import MemoryRecord
 
 
-def serialize_memory_block(records: list[MemoryRecord]) -> str:
-    return "\n".join(f"[{record.memory_type}] {record.content} (source: {record.source_id})" for record in records)
+def serialize_memory_block(records: list[MemoryRecord], *, include_trust_level: bool = False) -> str:
+    """Render admitted memory for the planner prompt.
+
+    `include_trust_level` is opt-in (default False reproduces the legacy exact
+    text). Provenance (`trust_level`) is captured at admission time to decide
+    *whether* a candidate is admitted, but is otherwise discarded before the
+    planner ever sees a record again -- this flag measures what happens if
+    that trust signal survives into the planner-visible view instead.
+    """
+
+    if not include_trust_level:
+        return "\n".join(f"[{record.memory_type}] {record.content} (source: {record.source_id})" for record in records)
+    return "\n".join(
+        f"[{record.memory_type}] {record.content} (source: {record.source_id}, trust: {record.trust_level})"
+        for record in records
+    )
 
 
 def insert_memory_records(

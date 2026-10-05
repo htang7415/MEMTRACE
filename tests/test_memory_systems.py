@@ -5,18 +5,25 @@ import pytest
 
 from memtrace.core.schema import MemoryCandidate, MemoryRecord
 from memtrace.backends.store.db import connect, init_db
-from memtrace.backends.store.memory import insert_memory_records, load_memory_records, resolve_visible_memory
+from memtrace.backends.store.memory import (
+    insert_memory_records,
+    load_memory_records,
+    resolve_visible_memory,
+    serialize_memory_block,
+)
 from memtrace.backends.store.systems import s0_filter, s1_filter, s2_filter, s2_filter_with_rejections
 
 
-def _record(task_id: str, memory_type: str, content: str, source_id: str, write_turn: int) -> MemoryRecord:
+def _record(
+    task_id: str, memory_type: str, content: str, source_id: str, write_turn: int, trust_level: str = "low"
+) -> MemoryRecord:
     return MemoryRecord(
         memory_type=memory_type,
         content=content,
         source_id=source_id,
         source_kind="retrieval",
         task_id=task_id,
-        trust_level="low",
+        trust_level=trust_level,
         write_turn=write_turn,
         validation_status="accepted",
     )
@@ -138,3 +145,21 @@ def test_resolve_visible_memory_ttl_drops_records_older_than_window() -> None:
 def test_resolve_visible_memory_rejects_unknown_mode() -> None:
     with pytest.raises(ValueError, match="Unknown memory conflict resolution mode"):
         resolve_visible_memory([], current_turn=1, conflict_resolution="bogus")
+
+
+def test_serialize_memory_block_default_omits_trust_level() -> None:
+    records = [_record("task-a", "policy_rule", "limit is 500", "P001", write_turn=1, trust_level="high")]
+    block = serialize_memory_block(records)
+    assert block == "[policy_rule] limit is 500 (source: P001)"
+
+
+def test_serialize_memory_block_include_trust_level_appends_it() -> None:
+    records = [
+        _record("task-a", "policy_rule", "limit is 500", "P001", write_turn=1, trust_level="high"),
+        _record("task-a", "policy_rule", "limit is 50000", "P002", write_turn=2, trust_level="low"),
+    ]
+    block = serialize_memory_block(records, include_trust_level=True)
+    assert block == (
+        "[policy_rule] limit is 500 (source: P001, trust: high)\n"
+        "[policy_rule] limit is 50000 (source: P002, trust: low)"
+    )

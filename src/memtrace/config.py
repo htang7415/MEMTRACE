@@ -31,6 +31,7 @@ _ENVIRONMENT_KEYS = {
     "planner_backend": "MEMTRACE_PLANNER_BACKEND",
     "memory_conflict_resolution": "MEMTRACE_MEMORY_CONFLICT_RESOLUTION",
     "memory_ttl_turns": "MEMTRACE_MEMORY_TTL_TURNS",
+    "memory_trust_visibility": "MEMTRACE_MEMORY_TRUST_VISIBILITY",
     "temperature": "MEMTRACE_TEMPERATURE",
     "top_p": "MEMTRACE_TOP_P",
     "top_k": "MEMTRACE_TOP_K",
@@ -59,6 +60,7 @@ class Settings:
     planner_backend: str
     memory_conflict_resolution: str
     memory_ttl_turns: int | None
+    memory_trust_visibility: bool
     temperature: float
     top_p: float
     top_k: int
@@ -130,6 +132,7 @@ class Settings:
         if memory_conflict_resolution not in MEMORY_CONFLICT_RESOLUTION_MODES:
             raise ValueError(f"memory_conflict_resolution must be one of {MEMORY_CONFLICT_RESOLUTION_MODES}")
         memory_ttl_turns = _optional_int(value("memory_ttl_turns", None))
+        memory_trust_visibility = _bool(value("memory_trust_visibility", False))
 
         return cls(
             root=root,
@@ -146,6 +149,7 @@ class Settings:
             planner_backend=str(value("planner_backend", "mlx")),
             memory_conflict_resolution=memory_conflict_resolution,
             memory_ttl_turns=memory_ttl_turns,
+            memory_trust_visibility=memory_trust_visibility,
             temperature=float(value("temperature", 0)),
             top_p=float(value("top_p", 1)),
             top_k=int(value("top_k", 5)),
@@ -180,6 +184,12 @@ def _optional_int(value: str | int | None) -> int | None:
     if value is None or value == "":
         return None
     return int(value)
+
+
+def _bool(value: bool | str) -> bool:
+    if isinstance(value, bool):
+        return value
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _actor_models(value: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
@@ -230,6 +240,7 @@ MEMORY_WRITER_BACKEND: str
 PLANNER_BACKEND: str
 MEMORY_CONFLICT_RESOLUTION: str
 MEMORY_TTL_TURNS: int | None
+MEMORY_TRUST_VISIBILITY: bool
 TEMPERATURE: float
 TOP_P: float
 TOP_K: int
@@ -251,7 +262,7 @@ def activate(settings: Settings) -> None:
     global AUDIT_SAMPLE_PATH, AUDIT_TEMPLATE_PATH, AUDIT_REVIEW_MD_PATH, AUDIT_REPORT_JSON_PATH, AUDIT_REPORT_MD_PATH
     global EMBEDDING_MODEL, RETRIEVAL_BACKEND, ACTOR_MODELS, PROTOCOL_VERSION
     global MEMORY_WRITER_BACKEND, PLANNER_BACKEND
-    global MEMORY_CONFLICT_RESOLUTION, MEMORY_TTL_TURNS
+    global MEMORY_CONFLICT_RESOLUTION, MEMORY_TTL_TURNS, MEMORY_TRUST_VISIBILITY
     global TEMPERATURE, TOP_P, TOP_K, MAX_MEMORY_CANDIDATES, MAX_MEMORY_CONTENT_CHARS
     global MEMORY_WRITER_MAX_TOKENS, PLANNER_MAX_TOKENS
 
@@ -299,6 +310,7 @@ def activate(settings: Settings) -> None:
     PLANNER_BACKEND = settings.planner_backend
     MEMORY_CONFLICT_RESOLUTION = settings.memory_conflict_resolution
     MEMORY_TTL_TURNS = settings.memory_ttl_turns
+    MEMORY_TRUST_VISIBILITY = settings.memory_trust_visibility
     TEMPERATURE = settings.temperature
     TOP_P = settings.top_p
     TOP_K = settings.top_k

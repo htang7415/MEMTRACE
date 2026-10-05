@@ -12,7 +12,14 @@ from memtrace.core.benchmark import build_task_records, gold_label_for_query, ta
 from memtrace.core.agents.planner import plan_tool_call_with_actor_and_raw_output
 from memtrace.core.agents.responder import format_response
 from memtrace.core.agents.writer import extract_memory_candidates, generate_memory_candidates_with_actor
-from memtrace.config import ALLOWLIST_PATH, MEMORY_CONFLICT_RESOLUTION, MEMORY_TTL_TURNS, PASSAGES_PATH, TOP_K
+from memtrace.config import (
+    ALLOWLIST_PATH,
+    MEMORY_CONFLICT_RESOLUTION,
+    MEMORY_TRUST_VISIBILITY,
+    MEMORY_TTL_TURNS,
+    PASSAGES_PATH,
+    TOP_K,
+)
 from memtrace.evaluation.labeler import classify_outcome
 from memtrace.backends.models.actor import ActorModel
 from memtrace.backends.retrieval import retrieve
@@ -185,6 +192,7 @@ def _plan_tool_call(
         memory_records=prior_memory,
         turn=turn,
         actor_model=planner_actor,
+        include_trust_level=MEMORY_TRUST_VISIBILITY,
     )
 
 
