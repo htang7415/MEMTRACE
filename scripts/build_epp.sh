@@ -18,13 +18,16 @@ python3 - "$ROUTER_DIR/cmd/epp/runner/runner.go" <<'PY'
 import sys
 path = sys.argv[1]
 src = open(path).read()
+anchor_reg = '\tfwkplugin.Register(queuedepth.QueueScorerType, fwkplugin.StabilityBeta, queuedepth.QueueScorerFactory)\n'
 imp = '\t"github.com/llm-d/llm-d-router/pkg/epp/framework/plugins/scheduling/scorer/capacityload"\n'
 reg = ('\tfwkplugin.Register(capacityload.CapacityLoadScorerType, fwkplugin.StabilityAlpha, capacityload.Factory)\n'
-       '\tfwkplugin.Register(capacityload.CacheCostScorerType, fwkplugin.StabilityAlpha, capacityload.CacheCostFactory)\n')
+       '\tfwkplugin.Register(capacityload.CacheCostScorerType, fwkplugin.StabilityAlpha, capacityload.CacheCostFactory)\n'
+       '\tfwkplugin.Register(capacityload.OverflowFilterType, fwkplugin.StabilityAlpha, capacityload.OverflowFactory)\n')
 anchor_imp = '\t"github.com/llm-d/llm-d-router/pkg/epp/framework/plugins/scheduling/scorer/queuedepth"\n'
 anchor_reg = '\tfwkplugin.Register(queuedepth.QueueScorerType, fwkplugin.StabilityBeta, queuedepth.QueueScorerFactory)\n'
-if imp in src and reg not in src:  # earlier build registered only the first scorer
-    src = src.replace(reg.splitlines(keepends=True)[0], reg)
+if imp in src and reg not in src:  # an earlier build registered fewer plugins: re-register all of them
+    src = "".join(line for line in src.splitlines(keepends=True) if "fwkplugin.Register(capacityload." not in line)
+    src = src.replace(anchor_reg, anchor_reg + reg)
     open(path, "w").write(src)
 if imp not in src:
     assert anchor_imp in src and anchor_reg in src, "runner.go anchors changed"
