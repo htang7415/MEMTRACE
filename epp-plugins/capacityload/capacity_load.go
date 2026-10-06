@@ -111,7 +111,7 @@ func (s *CapacityLoadScorer) Score(_ context.Context, _ *fwksched.InferenceReque
 	minLoad := 0.0
 	for i, endpoint := range endpoints {
 		m := endpoint.GetMetrics()
-		load := float64(m.RunningRequestsSize+m.WaitingQueueSize+1) / s.capacity(endpoint)
+		load := float64(m.RunningRequestsSize+m.WaitingQueueSize+1) / capacityOf(endpoint, s.capacityLabel)
 		loads[endpoint] = load
 		if i == 0 || load < minLoad {
 			minLoad = load
@@ -124,12 +124,13 @@ func (s *CapacityLoadScorer) Score(_ context.Context, _ *fwksched.InferenceReque
 	return scores
 }
 
-func (s *CapacityLoadScorer) capacity(endpoint fwksched.Endpoint) float64 {
+// capacityOf reads an endpoint's relative capacity from a numeric pod label; missing or invalid -> 1.
+func capacityOf(endpoint fwksched.Endpoint, label string) float64 {
 	metadata := endpoint.GetMetadata()
 	if metadata == nil {
 		return 1
 	}
-	value, err := strconv.ParseFloat(metadata.Labels[s.capacityLabel], 64)
+	value, err := strconv.ParseFloat(metadata.Labels[label], 64)
 	if err != nil || value <= 0 {
 		return 1
 	}

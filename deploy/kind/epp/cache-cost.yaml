@@ -1,0 +1,21 @@
+# MEMTRACE cache-aware-capacity-scorer: expected completion time per endpoint,
+#   T = (running + waiting + work) / capacity,   work = ((1 - hit) * P + r * O) / (P + r * O),
+# so a prefix hit counts for exactly the prefill it saves on that endpoint. decodeTokenCost r ~= per-token
+# decode / per-token prefill latency (vllm-metal 13 ms / 0.4 ms ~= 32; CPU tier 210 ms / 11.4 ms ~= 18).
+# Needs the custom EPP image from scripts/build_epp.sh and memtrace/capacity pod labels.
+apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+plugins:
+- type: approx-prefix-cache-producer
+- type: decode-filter
+- type: cache-aware-capacity-scorer
+  parameters:
+    decodeTokenCost: 30
+- type: max-score-picker
+- type: single-profile-handler
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: decode-filter
+  - pluginRef: max-score-picker
+  - pluginRef: cache-aware-capacity-scorer

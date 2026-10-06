@@ -76,7 +76,7 @@ func TestRunningRequestsCountBeforeAnyQueueForms(t *testing.T) {
 func TestMissingOrInvalidCapacityDefaultsToOne(t *testing.T) {
 	for _, label := range []string{"", "fast", "0", "-2"} {
 		ep := endpoint(label, 0, 0)
-		assert.Equal(t, 1.0, New("").capacity(ep), "label %q", label)
+		assert.Equal(t, 1.0, capacityOf(ep, DefaultCapacityLabel), "label %q", label)
 	}
 }
 
