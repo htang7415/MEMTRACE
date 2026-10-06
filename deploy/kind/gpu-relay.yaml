@@ -1,0 +1,39 @@
+# GPU-tier replica for the InferencePool: a TCP relay to `vllm-metal` serving on the macOS host.
+# Containers on macOS cannot use the Metal GPU, so the engine runs on the host (bound to 127.0.0.1;
+# Docker Desktop's host.docker.internal reaches it without exposing it on the LAN) and this pod
+# stands in for it in the pool. The EPP scrapes /metrics and routes requests through the relay
+# exactly as it would for an in-cluster vLLM pod. ${HOST_IP} is filled in by scripts/kind_platform.sh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-gpu-relay
+  labels: {app: qwen3-0-6b-inference-pool}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: qwen3-0-6b-inference-pool, memtrace/replica: gpu}
+  template:
+    metadata:
+      labels:
+        app: qwen3-0-6b-inference-pool
+        llm-d.ai/component: decode
+        llm-d.ai/role: decode
+        memtrace/replica: gpu
+        memtrace/hardware: gpu
+    spec:
+      hostAliases:
+      - ip: "${HOST_IP}"
+        hostnames: [host.docker.internal]
+      containers:
+      - name: relay
+        image: alpine/socat:1.8.0.3
+        imagePullPolicy: IfNotPresent
+        args: ["tcp-listen:8000,fork,reuseaddr", "tcp-connect:host.docker.internal:8210"]
+        ports:
+        - {name: http, containerPort: 8000}
+        resources:
+          requests: {cpu: 100m, memory: 32Mi}
+          limits: {memory: 64Mi}
+        readinessProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 5

@@ -9,6 +9,12 @@
 #   scripts/kind_platform.sh failover            # delete one replica mid-run under load; count failures, time recovery
 #   scripts/kind_platform.sh autoscaling         # Prometheus + KEDA; ScaledObject on in-flight requests
 #   scripts/kind_platform.sh burst               # low -> high -> low load with autoscaling; replica timeline
+#   scripts/kind_platform.sh wait_gpu_free       # block until no other vllm-metal / MaxionBench run uses the GPU
+#   scripts/kind_platform.sh hetero              # pool = host vllm-metal (GPU, via relay pod) + CPU-calibrated simulator
+#   scripts/kind_platform.sh calibrate           # measure each real replica alone; writes the GPU/CPU weight
+#   scripts/kind_platform.sh hetero_study        # policies x workloads x levels on the heterogeneous pool
+#   scripts/kind_platform.sh capacity_epp        # switch the EPP to the custom image with capacity-load-scorer
+#                                                #   (scripts/build_epp.sh) and label pods with their capacity
 #   scripts/kind_platform.sh down
 #
 # Uses llm-d-router's own kind dev environment (cloned to ~/.cache/memtrace, outside this
@@ -57,7 +63,10 @@ sims() {
 
 policy() {
   local name=$1
-  k create configmap epp-config --from-file=epp-config.yaml="deploy/kind/epp/$name.yaml" \
+  local weight_file="${OUT_DIR:-data/hetero}/gpu_weight.txt"
+  GPU_WEIGHT="${GPU_WEIGHT:-$( [ -f "$weight_file" ] && cat "$weight_file" || echo 6 )}" \
+    envsubst '${GPU_WEIGHT}' < "deploy/kind/epp/$name.yaml" > "/tmp/memtrace-epp-$name.yaml"
+  k create configmap epp-config --from-file=epp-config.yaml="/tmp/memtrace-epp-$name.yaml" \
     --dry-run=client -o yaml | k apply -f -
   # Restart the pool too, so every run starts with empty engine caches and an empty EPP prefix index.
   k rollout restart deploy/$EPP deploy/vllm-d
@@ -188,6 +197,105 @@ burst() {
   done
   sleep "${COOLDOWN_WATCH:-120}"  # keep watching while KEDA scales back down
   kill "$watcher"
+}
+
+GPU_PORT=8210
+# 0.31 = 2 GiB KV cache, as in Phase 1. (Next to a real ~5 GiB vLLM CPU pod the host paged heavily even at
+# 0.2; the CPU tier is therefore simulated, see deploy/kind/cpu-sim.yaml.)
+GPU_ENGINE_ARGS="Qwen/Qwen3-0.6B --host 127.0.0.1 --port $GPU_PORT --max-model-len 4096 --enable-prefix-caching \
+  --gpu-memory-utilization 0.31 --enable-auto-tool-choice --tool-call-parser hermes"
+
+wait_gpu_free() {
+  # Another project's GPU run invalidates both measurements. Wait until no MaxionBench harness runs
+  # and nothing has listened on vllm-metal's usual port 8200 for two minutes in a row.
+  local quiet=0
+  while [ "$quiet" -lt 120 ]; do
+    if pgrep -f "[m]axionbench" >/dev/null || lsof -nP -iTCP:8200 -sTCP:LISTEN >/dev/null 2>&1; then
+      quiet=0
+    else
+      quiet=$((quiet + 10))
+    fi
+    sleep 10
+  done
+  echo "GPU free at $(date)"
+}
+
+reset_caches() {
+  curl -sf -X POST "http://127.0.0.1:$GPU_PORT/reset_prefix_cache" >/dev/null
+  k rollout restart deploy/vllm-cpu-sim >/dev/null   # simulator: a restart empties its KV cache
+  k rollout status deploy/vllm-cpu-sim --timeout=120s >/dev/null
+}
+
+hetero() {
+  k scale deploy/vllm-d --replicas=0
+  # endpoint-attribute-weight-scorer is an experimental plugin.
+  if ! k get deploy/$EPP -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q allow-experimental-plugins; then
+    k patch deploy/$EPP --type=json \
+      -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--allow-experimental-plugins=true"}]'
+  fi
+  if ! curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; then
+    # shellcheck disable=SC2086
+    VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve $GPU_ENGINE_ARGS > data/engine_logs/vllm-metal-pool.log 2>&1 &
+    until curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; do sleep 3; done
+  fi
+  docker save alpine/socat:1.8.0.3 | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
+  k delete deploy vllm-cpu-a vllm-cpu-b --ignore-not-found --wait=true
+  k apply -f deploy/kind/cpu-sim.yaml
+  HOST_IP=$(docker exec "$CLUSTER-control-plane" getent hosts host.docker.internal | awk '{print $1}') \
+    envsubst '${HOST_IP}' < deploy/kind/gpu-relay.yaml | k apply -f -
+  k wait --for=condition=available deploy/vllm-gpu-relay deploy/vllm-cpu-sim --timeout=900s
+}
+
+calibrate() {
+  # Each real replica alone, same workload and concurrency; the throughput ratio becomes the GPU weight.
+  local out="${OUT_DIR:-data/hetero}"
+  mkdir -p "$out"
+  reset_caches  # restarts the CPU simulator, so it must come before the port-forward attaches to a pod
+  k port-forward deploy/vllm-cpu-sim 18000:8000 >/dev/null 2>&1 &
+  local forward=$!
+  sleep 3
+  for target in "gpu-alone http://127.0.0.1:$GPU_PORT/v1" "cpu-sim-alone http://127.0.0.1:18000/v1"; do
+    set -- $target
+    .venv/bin/memtrace run engine-bench --engine "$1" --base-url "$2" --model Qwen/Qwen3-0.6B \
+      --workload agent-sessions --sessions 8 --turns 4 --max-tokens 32 --concurrency 4 \
+      --ignore-eos --idle-seconds 0 --out-dir "$out/calibration"
+  done
+  kill "$forward" 2>/dev/null || true  # port-forward may already have exited
+  python3 -c '
+import json, sys
+tps = {e: json.load(open(f"{sys.argv[1]}/calibration/{e}/agent-sessions/c4/summary.json"))["output_tokens_per_second"]
+       for e in ("gpu-alone", "cpu-sim-alone")}
+weight = max(1, round(tps["gpu-alone"] / tps["cpu-sim-alone"]))
+gpu, cpu = tps["gpu-alone"], tps["cpu-sim-alone"]
+print(f"gpu {gpu:.1f} tok/s, cpu {cpu:.1f} tok/s -> GPU weight {weight}")
+open(f"{sys.argv[1]}/gpu_weight.txt", "w").write(str(weight))' "$out" | tee "$out/calibration.txt"
+}
+
+hetero_study() {
+  local out="${OUT_DIR:-data/hetero}"
+  for workload in ${WORKLOADS:-agent-sessions mooncake-toolagent}; do
+    for level in ${LEVELS:-4 8}; do
+      for name in ${POLICIES:-random queue combined hw-weighted-random hw-combined}; do
+        policy "$name"
+        reset_caches
+        .venv/bin/memtrace run engine-bench --engine "hetero-$name" --base-url "$GATEWAY" --model Qwen/Qwen3-0.6B \
+          --workload "$workload" --num-requests "${NUM_REQUESTS:-128}" --sessions "${SESSIONS:-16}" --turns "${TURNS:-8}" \
+          --max-tokens 32 --concurrency "$level" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 \
+          --k8s-context "$CTX" --k8s-pool "$POOL_SELECTOR" --out-dir "$out"
+      done
+    done
+  done
+}
+
+capacity_epp() {
+  local weight
+  weight=$(cat "${OUT_DIR:-data/hetero}/gpu_weight.txt")
+  k set image deploy/$EPP epp="${EPP_IMAGE:-memtrace/llm-d-epp:v0.11.0-capacity}"
+  k patch deploy/$EPP --type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+  # Capacity labels from the calibration (GPU/CPU throughput ratio), consumed by capacity-load-scorer.
+  k patch deploy/vllm-gpu-relay -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"memtrace/capacity\":\"$weight\"}}}}}"
+  k patch deploy/vllm-cpu-sim -p '{"spec":{"template":{"metadata":{"labels":{"memtrace/capacity":"1"}}}}}'
+  k rollout status deploy/$EPP deploy/vllm-gpu-relay deploy/vllm-cpu-sim --timeout=300s
 }
 
 down() { kind delete cluster --name "$CLUSTER"; }

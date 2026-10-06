@@ -14,7 +14,14 @@ from typing import Any
 from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
 from memtrace.evaluation.serving import summarize_requests
 from memtrace.serving import workloads
-from memtrace.serving.bench import PowerSampler, pool_delta, run_requests, scrape_pool, scrape_prefix_cache
+from memtrace.serving.bench import (
+    PowerSampler,
+    host_swap_pages,
+    pool_delta,
+    run_requests,
+    scrape_pool,
+    scrape_prefix_cache,
+)
 
 _WORKLOAD_FILES = {
     "sharegpt": "sharegpt/ShareGPT_V3_unfiltered_cleaned_split.json",
@@ -96,10 +103,12 @@ def main(argv: list[str] | None = None) -> None:
             time.sleep(args.idle_seconds)
         cache_before = scrape_prefix_cache(args.base_url)
         pool_before = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
+        swap_before = host_swap_pages()
         with PowerSampler() as power:
             records, wall = run_requests(model, requests, concurrency)
         cache_after = scrape_prefix_cache(args.base_url)
         pool_after = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
+        swap_after = host_swap_pages()
 
         summary = summarize_requests(
             records,
@@ -109,6 +118,9 @@ def main(argv: list[str] | None = None) -> None:
             slo_tpot_seconds=args.slo_tpot,
         )
         summary["prefix_cache"] = _prefix_cache_summary(records, cache_before, cache_after, cache_reset)
+        if swap_before and swap_after:
+            # Paging during the run, not swap size, is what distorts latency on a memory-tight host.
+            summary["host_swap_pages"] = {key: swap_after[key] - swap_before[key] for key in swap_after}
         if pool_before is not None and pool_after is not None:
             summary["pool"] = pool_delta(pool_before, pool_after)
         summary["power"] = power_summary = power.summary()

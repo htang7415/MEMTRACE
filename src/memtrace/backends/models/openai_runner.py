@@ -19,6 +19,11 @@ _DEFAULT_MAX_ATTEMPTS = 3
 _DEFAULT_RETRY_BASE_DELAY_SECONDS = 1.0
 _DEFAULT_TIMEOUT_SECONDS = 300.0
 
+
+class TruncatedStreamError(ConnectionError):
+    """The server closed the stream before sending `data: [DONE]`."""
+
+
 StreamOpener = Callable[[str, dict[str, Any], dict[str, str], float], Iterable[bytes]]
 
 
@@ -101,6 +106,7 @@ class OpenAICompatibleActorModel(ActorModel):
     def _consume(self, lines: Iterable[bytes], start: float, retries: int) -> str:
         pieces: list[str] = []
         reasoning_pieces: list[str] = []
+        done = False
         first_token_at: float | None = None
         content_chunks = 0
         usage: dict[str, Any] | None = None
@@ -110,6 +116,7 @@ class OpenAICompatibleActorModel(ActorModel):
                 continue
             data = line[len("data:") :].strip()
             if data == "[DONE]":
+                done = True
                 break
             event = json.loads(data)
             if event.get("usage"):
@@ -130,6 +137,9 @@ class OpenAICompatibleActorModel(ActorModel):
                 if reasoning:
                     reasoning_pieces.append(reasoning)
         end = self._clock()
+        if not done:
+            # A proxy timeout or dropped connection can end the stream early without an HTTP error.
+            raise TruncatedStreamError(f"stream ended without [DONE] after {end - start:.1f}s")
 
         output_tokens = int(usage["completion_tokens"]) if usage else content_chunks
         ttft = (first_token_at - start) if first_token_at is not None else None

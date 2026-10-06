@@ -135,6 +135,20 @@ def _sum_counters(text: str, names: tuple[str, ...]) -> dict[str, float]:
     return totals
 
 
+def host_swap_pages() -> dict[str, int] | None:
+    """macOS cumulative swap-in/swap-out page counters (vm_stat), or None elsewhere."""
+    try:
+        text = subprocess.run(["vm_stat"], capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    counters = {}
+    for key in ("Swapins", "Swapouts"):
+        match = re.search(rf"^{key}:\s+(\d+)", text, re.MULTILINE)
+        if match:
+            counters[key.lower()] = int(match.group(1))
+    return counters or None
+
+
 class PowerSampler:
     """Background `macmon pipe` reader: power (W) and RAM use, sampled every `interval_ms`.
 

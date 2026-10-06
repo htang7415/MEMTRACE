@@ -1,0 +1,22 @@
+# Capacity-aware load first, prefix affinity second. Weight 3 vs 1: an idle GPU (capacity score 1)
+# beats a CPU replica holding the session's cache (capacity score 1/11 + prefix 1), so sessions are not
+# pinned to the slow tier; once the GPU's load per unit of capacity approaches the CPU's, the capacity
+# scores converge and prefix affinity decides. Needs the custom EPP image (scripts/build_epp.sh).
+apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+plugins:
+- type: approx-prefix-cache-producer
+- type: decode-filter
+- type: prefix-cache-scorer
+- type: capacity-load-scorer
+- type: max-score-picker
+- type: single-profile-handler
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: decode-filter
+  - pluginRef: max-score-picker
+  - pluginRef: capacity-load-scorer
+    weight: 3
+  - pluginRef: prefix-cache-scorer
+    weight: 1

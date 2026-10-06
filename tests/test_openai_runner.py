@@ -177,3 +177,13 @@ def test_extra_body_is_merged_into_every_request() -> None:
 
     assert server.requests[0]["payload"]["ignore_eos"] is True
     assert server.requests[0]["payload"]["max_tokens"] == 8
+
+
+def test_stream_without_done_marker_is_an_error_not_a_short_answer() -> None:
+    cut_off = [f"data: {json.dumps({'choices': [{'delta': {'content': 'Okay'}}]})}\n".encode()]
+    model = _model(_FakeServer([cut_off]), max_attempts=1)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        model.generate("prompt")
+
+    assert "without [DONE]" in str(excinfo.value.__cause__)
