@@ -167,3 +167,13 @@ def test_separately_streamed_reasoning_counts_for_timing_but_not_answer(field) -
     # clock readings: start=0, first reasoning token=1, end=2
     assert model.last_call["ttft_seconds"] == 1.0
     assert model.last_call["output_tokens"] == 2
+
+
+def test_extra_body_is_merged_into_every_request() -> None:
+    server = _FakeServer([_sse("ok", usage={"prompt_tokens": 1, "completion_tokens": 1})])
+    model = _model(server, extra_body={"ignore_eos": True})
+
+    model.generate("prompt", max_tokens=8)
+
+    assert server.requests[0]["payload"]["ignore_eos"] is True
+    assert server.requests[0]["payload"]["max_tokens"] == 8

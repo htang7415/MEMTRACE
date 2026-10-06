@@ -1,0 +1,17 @@
+# Cache-aware only (llm-d's default epp-config.yaml): prefer the endpoint holding the longest
+# matching prompt prefix, estimated by the approximate prefix-cache producer.
+apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+plugins:
+- type: approx-prefix-cache-producer
+- type: decode-filter
+- type: prefix-cache-scorer
+- type: max-score-picker
+- type: single-profile-handler
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: decode-filter
+  - pluginRef: max-score-picker
+  - pluginRef: prefix-cache-scorer
+    weight: 2

@@ -19,6 +19,7 @@ _COLUMNS = (
     "Prefix hit",
     "J / out token",
     "Peak RAM / swap (GB)",
+    "Load imbalance",
     "Errors",
 )
 
@@ -30,6 +31,8 @@ def engine_rows(root: Path) -> list[list[str]]:
         s = json.loads(summary_path.read_text())
         latency = s["latency"]
         power = s.get("power") or {}
+        pool = s.get("pool") or {}
+        prefix_hit = pool["pool_prefix_hit_rate"] if pool else (s.get("prefix_cache") or {}).get("engine_hit_rate")
         rows.append(
             [
                 engine,
@@ -40,9 +43,10 @@ def engine_rows(root: Path) -> list[list[str]]:
                 f"{_stat(latency, 'tpot_seconds', 'p50', 1000, 1)} / {_stat(latency, 'tpot_seconds', 'p95', 1000, 1)}",
                 _pct(s["slo_attainment"]),
                 _num(s["goodput_requests_per_second"], 2),
-                _pct((s.get("prefix_cache") or {}).get("engine_hit_rate")),
+                _pct(prefix_hit),
                 _num(s.get("energy_joules_per_output_token"), 3),
                 f"{_num(power.get('peak_ram_gb'), 1)} / {_num(power.get('peak_swap_gb'), 1)}",
+                _num(pool.get("load_imbalance"), 2),
                 str(s["errors"]),
             ]
         )

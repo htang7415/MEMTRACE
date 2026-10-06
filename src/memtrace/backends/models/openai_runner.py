@@ -45,6 +45,7 @@ class OpenAICompatibleActorModel(ActorModel):
         opener: StreamOpener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        extra_body: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(model_name)
         resolved_base_url = base_url or os.environ.get("MEMTRACE_OPENAI_BASE_URL") or _DEFAULT_BASE_URL
@@ -57,6 +58,7 @@ class OpenAICompatibleActorModel(ActorModel):
         self._sleep = sleep
         self._clock = clock
         self._local = threading.local()
+        self._extra_body = dict(extra_body or {})
 
     @property
     def last_call(self) -> dict[str, Any] | None:
@@ -75,6 +77,7 @@ class OpenAICompatibleActorModel(ActorModel):
             "top_p": TOP_P,
             "stream": True,
             "stream_options": {"include_usage": True},
+            **self._extra_body,
         }
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens

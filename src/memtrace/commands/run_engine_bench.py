@@ -14,7 +14,7 @@ from typing import Any
 from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
 from memtrace.evaluation.serving import summarize_requests
 from memtrace.serving import workloads
-from memtrace.serving.bench import PowerSampler, run_requests, scrape_prefix_cache
+from memtrace.serving.bench import PowerSampler, pool_delta, run_requests, scrape_pool, scrape_prefix_cache
 
 _WORKLOAD_FILES = {
     "sharegpt": "sharegpt/ShareGPT_V3_unfiltered_cleaned_split.json",
@@ -28,12 +28,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--engine", required=True, help="Label for the engine under test, e.g. vllm-metal")
     parser.add_argument("--base-url", required=True, help="OpenAI-compatible base URL, e.g. http://localhost:8200/v1")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--workload", choices=sorted(_WORKLOAD_FILES), required=True)
+    parser.add_argument("--workload", choices=sorted([*_WORKLOAD_FILES, "agent-sessions"]), required=True)
     parser.add_argument("--num-requests", type=int, default=100)
     parser.add_argument("--max-tokens", type=int, default=128)
     parser.add_argument("--concurrency", default="1,2,4,8", help="Comma-separated concurrency levels")
     parser.add_argument("--block-tokens", type=int, default=32, help="Words per Mooncake hash block")
     parser.add_argument("--max-blocks", type=int, default=100, help="Keep only the first N Mooncake blocks")
+    parser.add_argument("--sessions", type=int, default=32, help="agent-sessions: concurrent sessions")
+    parser.add_argument("--turns", type=int, default=8, help="agent-sessions: turns per session")
     parser.add_argument("--slo-ttft", type=float, default=2.0, help="TTFT SLO in seconds")
     parser.add_argument("--slo-tpot", type=float, default=0.1, help="TPOT SLO in seconds")
     parser.add_argument("--seed", type=int, default=0)
@@ -41,10 +43,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--data-dir", type=Path, default=Path("data/public"))
     parser.add_argument("--out-dir", type=Path, default=Path("data/engine_bench"))
     parser.add_argument("--no-reset-prefix-cache", action="store_true", help="Keep the prefix cache between levels")
+    parser.add_argument("--ignore-eos", action="store_true", help="Ask the engine to generate exactly max_tokens")
+    parser.add_argument("--k8s-context", help="With --k8s-pool: kubectl context of the cluster")
+    parser.add_argument("--k8s-pool", help="Label selector of InferencePool pods to read per-pod metrics from")
     args = parser.parse_args(argv)
 
-    path = args.data_dir / _WORKLOAD_FILES[args.workload]
-    if args.workload == "sharegpt":
+    path = args.data_dir / _WORKLOAD_FILES.get(args.workload, "")
+    if args.workload == "agent-sessions":
+        requests = workloads.agent_sessions(
+            num_sessions=args.sessions, turns=args.turns, max_tokens=args.max_tokens, seed=args.seed
+        )
+    elif args.workload == "sharegpt":
         requests = workloads.sharegpt(path, num_requests=args.num_requests, max_tokens=args.max_tokens, seed=args.seed)
     else:
         requests = workloads.mooncake(
@@ -55,7 +64,9 @@ def main(argv: list[str] | None = None) -> None:
             max_blocks=args.max_blocks,
         )
 
-    model = OpenAICompatibleActorModel(args.model, base_url=args.base_url, max_attempts=1)
+    model = OpenAICompatibleActorModel(
+        args.model, base_url=args.base_url, max_attempts=1, extra_body={"ignore_eos": True} if args.ignore_eos else None
+    )
     run_dir = args.out_dir / args.engine / args.workload
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_json(
@@ -65,7 +76,11 @@ def main(argv: list[str] | None = None) -> None:
             "base_url": args.base_url,
             "model": args.model,
             "workload": args.workload,
-            "dataset": _dataset_entry(args.data_dir, _WORKLOAD_FILES[args.workload]),
+            "dataset": (
+                {"synthetic": "agent-sessions", "sessions": args.sessions, "turns": args.turns}
+                if args.workload == "agent-sessions"
+                else _dataset_entry(args.data_dir, _WORKLOAD_FILES[args.workload])
+            ),
             "num_requests": len(requests),
             "truncated_requests": sum(1 for request in requests if request.truncated_blocks),
             "settings": {k: str(v) for k, v in vars(args).items()},
@@ -80,9 +95,11 @@ def main(argv: list[str] | None = None) -> None:
         with PowerSampler() as idle:
             time.sleep(args.idle_seconds)
         cache_before = scrape_prefix_cache(args.base_url)
+        pool_before = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
         with PowerSampler() as power:
             records, wall = run_requests(model, requests, concurrency)
         cache_after = scrape_prefix_cache(args.base_url)
+        pool_after = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
 
         summary = summarize_requests(
             records,
@@ -92,6 +109,8 @@ def main(argv: list[str] | None = None) -> None:
             slo_tpot_seconds=args.slo_tpot,
         )
         summary["prefix_cache"] = _prefix_cache_summary(records, cache_before, cache_after, cache_reset)
+        if pool_before is not None and pool_after is not None:
+            summary["pool"] = pool_delta(pool_before, pool_after)
         summary["power"] = power_summary = power.summary()
         summary["idle_power"] = idle_summary = idle.summary()
         if power_summary and idle_summary and summary["output_tokens"]:

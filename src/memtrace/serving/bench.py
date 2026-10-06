@@ -49,11 +49,87 @@ def scrape_prefix_cache(base_url: str) -> dict[str, float] | None:
             text = response.read().decode("utf-8")
     except OSError:
         return None
-    totals = {name: 0.0 for name in _PREFIX_METRICS}
+    return _sum_counters(text, _PREFIX_METRICS)
+
+
+def scrape_pool(context: str, selector: str, namespace: str = "default") -> dict[str, dict[str, float]]:
+    """Per-pod vLLM counters for an InferencePool's pods, read through the Kubernetes API proxy."""
+    pods = subprocess.run(
+        [
+            "kubectl",
+            "--context",
+            context,
+            "-n",
+            namespace,
+            "get",
+            "pods",
+            "-l",
+            selector,
+            "-o",
+            "jsonpath={.items[*].metadata.name}",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    result = {}
+    for pod in pods:
+        raw = subprocess.run(
+            [
+                "kubectl",
+                "--context",
+                context,
+                "get",
+                "--raw",
+                f"/api/v1/namespaces/{namespace}/pods/{pod}:8000/proxy/metrics",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout
+        totals = _sum_counters(raw, (*_PREFIX_METRICS, "vllm:request_success_total"))
+        result[pod] = totals
+    return result
+
+
+def pool_delta(before: dict[str, dict[str, float]], after: dict[str, dict[str, float]]) -> dict[str, Any]:
+    """Requests served and prefix-cache hit rate per pod, plus load imbalance (max/mean requests)."""
+    pods = {}
+    for pod, end in after.items():
+        start = before.get(pod, {})
+        delta = {name: end[name] - start.get(name, 0.0) for name in end}
+        queries = delta["vllm:prefix_cache_queries_total"]
+        pods[pod] = {
+            "requests": delta["vllm:request_success_total"],
+            "prefix_hit_rate": delta["vllm:prefix_cache_hits_total"] / queries if queries else None,
+        }
+    requests = [p["requests"] for p in pods.values()]
+    queries = sum(
+        after[p]["vllm:prefix_cache_queries_total"] - before.get(p, {}).get("vllm:prefix_cache_queries_total", 0.0)
+        for p in after
+    )
+    hits = sum(
+        after[p]["vllm:prefix_cache_hits_total"] - before.get(p, {}).get("vllm:prefix_cache_hits_total", 0.0)
+        for p in after
+    )
+    mean = sum(requests) / len(requests) if requests else 0.0
+    return {
+        "pods": pods,
+        "pool_prefix_hit_rate": hits / queries if queries else None,
+        "load_imbalance": max(requests) / mean if mean else None,
+    }
+
+
+def _sum_counters(text: str, names: tuple[str, ...]) -> dict[str, float]:
+    """Sum Prometheus counters across label sets. Names without the `_total` suffix (older vLLM,
+    llm-d-inference-sim) count toward the `_total` name."""
+    totals = {name: 0.0 for name in names}
     for line in text.splitlines():
-        for name in _PREFIX_METRICS:
-            if line.startswith(name + "{") or line.startswith(name + " "):
-                totals[name] += float(line.rsplit(" ", 1)[1])
+        if line.startswith("#"):
+            continue
+        metric = re.split(r"[{ ]", line, maxsplit=1)[0]
+        name = metric if metric in totals else metric + "_total"
+        if name in totals:
+            totals[name] += float(line.rsplit(" ", 1)[1])
     return totals
 
 

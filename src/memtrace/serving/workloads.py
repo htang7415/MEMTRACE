@@ -71,3 +71,34 @@ def mooncake(
 def _block_text(hash_id: int, block_tokens: int) -> str:
     rng = random.Random(hash_id)
     return " ".join(rng.choice(_WORDS) for _ in range(block_tokens))
+
+
+def agent_sessions(
+    *,
+    num_sessions: int,
+    turns: int,
+    max_tokens: int,
+    prefix_words: int = 600,
+    turn_words: int = 150,
+    seed: int = 0,
+) -> list[Request]:
+    """Synthetic multi-turn agent traffic: each session has its own long prefix (system prompt
+    and tool definitions) and resends its whole growing history every turn, the append-only
+    prompt pattern of agent loops. Requests interleave sessions turn by turn, so a replica must
+    hold many sessions' prefixes at once for prefix caching to pay off."""
+    rng = random.Random(seed)
+    sessions = []
+    for session in range(num_sessions):
+        # Integer seeds, not hash(): hashing tuples with strings is randomized per process.
+        base = (seed * 1_000_003 + session) * 10_007
+        prefix = _block_text(base, prefix_words)
+        chunks = [_block_text(base + 1 + turn, turn_words) for turn in range(turns)]
+        sessions.append((prefix, chunks))
+    requests = []
+    for turn in range(turns):
+        order = list(range(num_sessions))
+        rng.shuffle(order)
+        for session in order:
+            prefix, chunks = sessions[session]
+            requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens))
+    return requests

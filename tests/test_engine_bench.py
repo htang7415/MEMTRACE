@@ -248,3 +248,54 @@ def test_power_summary_drops_implausible_samples() -> None:
 
     assert summary["samples"] == 3 and summary["dropped_implausible_samples"] == 1
     assert summary["mean_sys_w"] == 30.0 and summary["max_sys_w"] == 40.0
+
+
+def test_pool_delta_reports_per_pod_requests_hits_and_imbalance() -> None:
+    from memtrace.serving.bench import pool_delta
+
+    def counters(requests, queries, hits):
+        return {
+            "vllm:request_success_total": requests,
+            "vllm:prefix_cache_queries_total": queries,
+            "vllm:prefix_cache_hits_total": hits,
+        }
+
+    before = {"pod-a": counters(10, 100, 10), "pod-b": counters(0, 0, 0)}
+    after = {"pod-a": counters(40, 500, 210), "pod-b": counters(10, 100, 0), "pod-new": counters(10, 0, 0)}
+
+    delta = pool_delta(before, after)
+
+    assert delta["pods"]["pod-a"] == {"requests": 30, "prefix_hit_rate": 0.5}
+    assert delta["pods"]["pod-new"] == {"requests": 10, "prefix_hit_rate": None}
+    assert delta["pool_prefix_hit_rate"] == 200 / 500
+    assert delta["load_imbalance"] == 30 / (50 / 3)
+
+
+def test_counters_accept_names_with_and_without_total_suffix() -> None:
+    from memtrace.serving.bench import _sum_counters
+
+    text = (
+        "# HELP vllm:prefix_cache_hits_total hits\n"
+        'vllm:prefix_cache_hits_total{engine="0"} 5\n'
+        'vllm:prefix_cache_hits{model_name="m"} 7\n'
+        "vllm:prefix_cache_queries 20\n"
+        'vllm:prefix_cache_hits_created{engine="0"} 1.7e9\n'
+    )
+
+    totals = _sum_counters(text, ("vllm:prefix_cache_hits_total", "vllm:prefix_cache_queries_total"))
+
+    assert totals == {"vllm:prefix_cache_hits_total": 12.0, "vllm:prefix_cache_queries_total": 20.0}
+
+
+def test_agent_sessions_resend_growing_history_with_unique_prefixes() -> None:
+    requests = workloads.agent_sessions(num_sessions=3, turns=2, max_tokens=16, prefix_words=20, turn_words=5)
+
+    assert requests == workloads.agent_sessions(num_sessions=3, turns=2, max_tokens=16, prefix_words=20, turn_words=5)
+    assert len(requests) == 6 and all(r.max_tokens == 16 for r in requests)
+    first_turn, second_turn = requests[:3], requests[3:]
+    assert all(len(r.prompt.split(" ")) == 25 for r in first_turn)
+    assert all(len(r.prompt.split(" ")) == 30 for r in second_turn)
+    # every second-turn prompt extends exactly one first-turn prompt (same session prefix + history)
+    for r in second_turn:
+        assert sum(r.prompt.startswith(f.prompt) for f in first_turn) == 1
+    assert len({r.prompt.split(" ")[:20].__str__() for r in first_turn}) == 3

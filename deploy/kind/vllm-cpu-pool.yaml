@@ -1,0 +1,123 @@
+# Real vLLM CPU replicas for the llm-d InferencePool on the `memtrace` kind cluster.
+#
+# Memory: one replica needs ~5.2 GiB steady and ~5.75 GiB at startup (measured: model worker
+# 4.0 GiB, API server and engine-core processes ~0.75 GiB each), so the 7.75 GiB Docker VM
+# holds one replica next to the control plane. Apply `vllm-cpu-b` only with a larger VM.
+#
+# Replaces the simulator Deployment (`vllm-d`) from llm-d-router's kind dev environment:
+# same pool label, so the InferencePool selects these pods, and `llm-d.ai/role: decode`,
+# so the EPP `decode-filter` keeps them. Each replica pins its OpenMP threads to its own
+# four cores, so the two engines do not compete for the same cores. Weights are read from
+# /models on the kind node (copied in by scripts/kind_platform.sh); nothing is downloaded.
+# Settings match the Phase 1 CPU engine except the KV cache (1 GiB per pod).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-cpu-a
+  labels: {app: qwen3-0-6b-inference-pool}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: qwen3-0-6b-inference-pool, memtrace/replica: a}
+  template:
+    metadata:
+      labels:
+        app: qwen3-0-6b-inference-pool
+        llm-d.ai/component: decode
+        llm-d.ai/role: decode
+        memtrace/replica: a
+    spec:
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai-cpu:latest-arm64
+        imagePullPolicy: Never
+        args:
+        - --model=/models/Qwen3-0.6B
+        - --served-model-name=Qwen/Qwen3-0.6B
+        - --port=8000
+        - --max-model-len=4096
+        - --enable-prefix-caching
+        - --enable-auto-tool-choice
+        - --tool-call-parser=hermes
+        env:
+        - {name: VLLM_CPU_KVCACHE_SPACE, value: "1"}
+        - {name: VLLM_CPU_OMP_THREADS_BIND, value: "0-3"}
+        - {name: VLLM_SERVER_DEV_MODE, value: "1"}
+        - {name: HF_HUB_OFFLINE, value: "1"}
+        ports:
+        - {name: http, containerPort: 8000}
+        resources:
+          requests: {cpu: "4", memory: 5Gi}
+          limits: {memory: 6Gi}
+        startupProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 10
+          failureThreshold: 60
+        readinessProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - {name: models, mountPath: /models, readOnly: true}
+        - {name: shm, mountPath: /dev/shm}
+      volumes:
+      - name: models
+        hostPath: {path: /models, type: Directory}
+      - name: shm
+        emptyDir: {medium: Memory, sizeLimit: 1Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-cpu-b
+  labels: {app: qwen3-0-6b-inference-pool}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: qwen3-0-6b-inference-pool, memtrace/replica: b}
+  template:
+    metadata:
+      labels:
+        app: qwen3-0-6b-inference-pool
+        llm-d.ai/component: decode
+        llm-d.ai/role: decode
+        memtrace/replica: b
+    spec:
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai-cpu:latest-arm64
+        imagePullPolicy: Never
+        args:
+        - --model=/models/Qwen3-0.6B
+        - --served-model-name=Qwen/Qwen3-0.6B
+        - --port=8000
+        - --max-model-len=4096
+        - --enable-prefix-caching
+        - --enable-auto-tool-choice
+        - --tool-call-parser=hermes
+        env:
+        - {name: VLLM_CPU_KVCACHE_SPACE, value: "1"}
+        - {name: VLLM_CPU_OMP_THREADS_BIND, value: "4-7"}
+        - {name: VLLM_SERVER_DEV_MODE, value: "1"}
+        - {name: HF_HUB_OFFLINE, value: "1"}
+        ports:
+        - {name: http, containerPort: 8000}
+        resources:
+          requests: {cpu: "4", memory: 5Gi}
+          limits: {memory: 6Gi}
+        startupProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 10
+          failureThreshold: 60
+        readinessProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - {name: models, mountPath: /models, readOnly: true}
+        - {name: shm, mountPath: /dev/shm}
+      volumes:
+      - name: models
+        hostPath: {path: /models, type: Directory}
+      - name: shm
+        emptyDir: {medium: Memory, sizeLimit: 1Gi}

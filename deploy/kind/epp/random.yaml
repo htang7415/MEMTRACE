@@ -1,0 +1,12 @@
+# Baseline: pick uniformly at random among decode endpoints (no load or cache signal).
+apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+plugins:
+- type: decode-filter
+- type: random-picker
+- type: single-profile-handler
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: decode-filter
+  - pluginRef: random-picker
