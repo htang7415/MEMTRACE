@@ -29,6 +29,7 @@ _COMMANDS = {
     ("evaluate", "gate"): "memtrace.evaluation.gate",
     ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
     ("evaluate", "audit"): "memtrace.evaluation.audit_report",
+    ("evaluate", "bfcl"): "memtrace.evaluation.bfcl",
     ("report", "tables"): "memtrace.evaluation.tables",
     ("report", "figures"): "memtrace.evaluation.figures",
     ("report", "explore"): "memtrace.evaluation.trace_explorer",
@@ -72,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("arguments", nargs=argparse.REMAINDER)
 
     evaluate = groups.add_parser("evaluate", help="Score, validate, and audit results.")
-    evaluate.add_argument("action", choices=("score", "recompute", "validate", "gate", "attribute", "audit"))
+    evaluate.add_argument("action", choices=("score", "recompute", "validate", "gate", "attribute", "audit", "bfcl"))
     evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
 
     report = groups.add_parser("report", help="Generate tables and figures.")

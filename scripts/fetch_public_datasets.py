@@ -58,8 +58,13 @@ DATASETS: dict[str, dict] = {
     },
     "bfcl": {
         "license": "Apache-2.0",
-        "purpose": "BFCL v3 multi-turn tool-calling cases, answers, and function docs (quality gate)",
+        "purpose": "BFCL v3 single-call (simple, multiple) and multi-turn tool-calling cases and answers (quality gate)",
         "files": {
+            **{
+                f"{prefix}BFCL_v3_{category}.json": f"{_BFCL}/{prefix}BFCL_v3_{category}.json"
+                for category in ("simple", "multiple")
+                for prefix in ("", "possible_answer/")
+            },
             "BFCL_v3_multi_turn_base.json": f"{_BFCL}/BFCL_v3_multi_turn_base.json",
             "possible_answer/BFCL_v3_multi_turn_base.json": f"{_BFCL}/possible_answer/BFCL_v3_multi_turn_base.json",
             **{f"multi_turn_func_doc/{doc}.json": f"{_BFCL}/multi_turn_func_doc/{doc}.json" for doc in _BFCL_FUNC_DOCS},
