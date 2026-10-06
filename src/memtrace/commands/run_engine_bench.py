@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--token-scale", type=float, default=1 / 40, help="copilot-agent: token length scale")
     parser.add_argument("--max-calls", type=int, default=40, help="copilot-agent: first N LLM calls per session")
     parser.add_argument("--gap-scale", type=float, default=0.1, help="copilot-agent: inter-call gap compression")
+    parser.add_argument("--max-gap", type=float, default=30.0, help="copilot-agent: cap on compressed gaps (s)")
     parser.add_argument("--window-seconds", type=float, default=300.0, help="copilot-agent: session start window")
     parser.add_argument("--slo-ttft", type=float, default=2.0, help="TTFT SLO in seconds")
     parser.add_argument("--slo-tpot", type=float, default=0.1, help="TPOT SLO in seconds")
@@ -78,6 +79,7 @@ def main(argv: list[str] | None = None) -> None:
             token_scale=args.token_scale,
             max_calls=args.max_calls,
             gap_scale=args.gap_scale,
+            max_gap_seconds=args.max_gap,
             window_seconds=args.window_seconds,
             output_range=(4, args.max_tokens),
         )
@@ -190,6 +192,8 @@ def _replay_description(args: argparse.Namespace, sessions: list[workloads.Agent
     return {
         "token_scale": args.token_scale,
         "gap_scale": args.gap_scale,
+        "max_gap_seconds": args.max_gap,
+        "capped_gaps": sum(1 for call in calls if call.gap_before >= args.max_gap),
         "window_seconds": args.window_seconds,
         "max_calls_per_session": args.max_calls,
         "sessions": len(sessions),

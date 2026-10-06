@@ -136,6 +136,7 @@ def copilot_sessions(
     max_prompt_tokens: int = 3500,
     max_calls: int = 40,
     gap_scale: float = 0.1,
+    max_gap_seconds: float = 30.0,
     window_seconds: float = 300.0,
     output_range: tuple[int, int] = (4, 128),
 ) -> list[AgentSession]:
@@ -146,7 +147,9 @@ def copilot_sessions(
     prefix-cache structure; all lengths are scaled by `token_scale` to fit a small model's context.
     Call `timestamp`s mark completion (consecutive calls never overlap under that reading; 32% would if
     they marked the start), so a call starts at `timestamp - duration_ms` and the gap before it is
-    measured from the previous call's completion. Gaps are compressed by `gap_scale`, and session start
+    measured from the previous call's completion. Gaps are compressed by `gap_scale` and capped at
+    `max_gap_seconds` (the long tail is a user idle between turns, up to 46 minutes after compression,
+    which would stretch a replay without adding load), and session start
     times are compressed into `window_seconds` in their real order. Calls without token counts are skipped.
     """
     raw = []
@@ -184,7 +187,7 @@ def copilot_sessions(
             words = context[:cached] + [rng.choice(_WORDS) for _ in range(length - cached)]
             end = _trace_time(call["timestamp"])
             begin = end - call["duration_ms"] / 1000
-            gap = 0.0 if previous_end is None else max(0.0, begin - previous_end) * gap_scale
+            gap = 0.0 if previous_end is None else min(max_gap_seconds, max(0.0, begin - previous_end) * gap_scale)
             output = min(high, max(low, round(tokens["completion"] * token_scale)))
             built.append(AgentCall(" ".join(words), output, gap, length, cached))
             context, previous_end = words, end

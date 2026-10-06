@@ -393,3 +393,11 @@ def test_run_sessions_keeps_calls_ordered_within_a_session() -> None:
     assert sorted(r["index"] for r in records) == [0, 1, 2]
     assert {(r["session"], r["call"]) for r in records} == {(0, 0), (0, 1), (1, 0)}
     assert 1 <= peak <= 2
+
+
+def test_copilot_gaps_are_capped(tmp_path) -> None:
+    sessions = workloads.copilot_sessions(
+        [_copilot_trace(tmp_path)], num_sessions=10, token_scale=0.1, gap_scale=1.0, max_gap_seconds=2.0
+    )
+
+    assert sessions[0].calls[1].gap_before == 2.0  # 3 s gap at scale 1.0, capped at 2 s
