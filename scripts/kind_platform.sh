@@ -15,6 +15,9 @@
 #   scripts/kind_platform.sh hetero_study        # policies x workloads x levels on the heterogeneous pool
 #   scripts/kind_platform.sh capacity_epp        # switch the EPP to the custom image with capacity-load-scorer
 #                                                #   (scripts/build_epp.sh) and label pods with their capacity
+#   scripts/kind_platform.sh hosted [CAPACITY]   # add Gemini Flash-Lite to the pool via the hosted adapter
+#   scripts/kind_platform.sh hosted_down         # remove it (stops any further spend)
+#   scripts/kind_platform.sh hosted_study        # overflow study: GPU+CPU vs +Gemini at two capacities
 #   scripts/kind_platform.sh down
 #
 # Uses llm-d-router's own kind dev environment (cloned to ~/.cache/memtrace, outside this
@@ -296,6 +299,44 @@ capacity_epp() {
   k patch deploy/vllm-gpu-relay -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"memtrace/capacity\":\"$weight\"}}}}}"
   k patch deploy/vllm-cpu-sim -p '{"spec":{"template":{"metadata":{"labels":{"memtrace/capacity":"1"}}}}}'
   k rollout status deploy/$EPP deploy/vllm-gpu-relay deploy/vllm-cpu-sim --timeout=300s
+}
+
+hosted() {
+  local capacity="${1:-${HOSTED_CAPACITY:-2}}"
+  # The key goes from file to Secret without passing through a command line or the repo.
+  k create secret generic gemini-api --from-file=api-key=docs/gemini_api.txt --dry-run=client -o yaml | k apply -f - >/dev/null
+  k create configmap hosted-adapter --from-file=hosted_adapter.py=src/memtrace/serving/hosted_adapter.py \
+    --dry-run=client -o yaml | k apply -f -
+  docker image inspect python:3.12-slim >/dev/null 2>&1 || docker pull -q python:3.12-slim
+  docker save python:3.12-slim | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
+  HOSTED_CAPACITY="$capacity" HOSTED_BUDGET_USD="${HOSTED_BUDGET_USD:-2}" \
+    envsubst '${HOSTED_CAPACITY} ${HOSTED_BUDGET_USD}' < deploy/kind/gemini-adapter.yaml | k apply -f -
+  k rollout restart deploy/gemini-adapter >/dev/null   # pick up a new capacity label / adapter code
+  k rollout status deploy/gemini-adapter --timeout=300s
+}
+
+hosted_down() {
+  k delete deploy gemini-adapter --ignore-not-found --wait=true
+}
+
+hosted_study() {
+  # Overflow at a load the GPU alone cannot carry: GPU + CPU, then + Gemini at two capacities.
+  local root="${OUT_ROOT:-data/hosted}" level="${LEVEL:-16}"
+  mkdir -p "$root"
+  for setup in ${SETUPS:-local hosted2 hosted4}; do
+    case "$setup" in
+      local) hosted_down ;;
+      hosted*) hosted "${setup#hosted}" ;;
+    esac
+    for rep in $(seq 1 "${REPS:-3}"); do
+      local out="$root/$setup/rep$rep"
+      mkdir -p "$out"
+      cp "${OUT_DIR:-data/hetero}/gpu_weight.txt" "$out/"
+      OUT_DIR="$out" WORKLOADS=agent-sessions LEVELS="$level" POLICIES="${POLICY:-capacity}" SESSIONS="${SESSIONS:-32}" \
+        hetero_study
+    done
+  done
+  hosted_down
 }
 
 down() { kind delete cluster --name "$CLUSTER"; }

@@ -88,7 +88,7 @@ def scrape_pool(context: str, selector: str, namespace: str = "default") -> dict
             capture_output=True,
             text=True,
         ).stdout
-        totals = _sum_counters(raw, (*_PREFIX_METRICS, "vllm:request_success_total"))
+        totals = _sum_counters(raw, (*_PREFIX_METRICS, "vllm:request_success_total", "memtrace_hosted_spend_usd"))
         result[pod] = totals
     return result
 
@@ -104,6 +104,8 @@ def pool_delta(before: dict[str, dict[str, float]], after: dict[str, dict[str, f
             "requests": delta["vllm:request_success_total"],
             "prefix_hit_rate": delta["vllm:prefix_cache_hits_total"] / queries if queries else None,
         }
+        if delta.get("memtrace_hosted_spend_usd"):  # hosted-model adapter pods report spend
+            pods[pod]["spend_usd"] = delta["memtrace_hosted_spend_usd"]
     requests = [p["requests"] for p in pods.values()]
     queries = sum(
         after[p]["vllm:prefix_cache_queries_total"] - before.get(p, {}).get("vllm:prefix_cache_queries_total", 0.0)

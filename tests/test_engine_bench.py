@@ -299,3 +299,22 @@ def test_agent_sessions_resend_growing_history_with_unique_prefixes() -> None:
     for r in second_turn:
         assert sum(r.prompt.startswith(f.prompt) for f in first_turn) == 1
     assert len({r.prompt.split(" ")[:20].__str__() for r in first_turn}) == 3
+
+
+def test_pool_delta_reports_hosted_spend_only_for_pods_that_spend() -> None:
+    from memtrace.serving.bench import pool_delta
+
+    def counters(requests, spend=0.0):
+        return {
+            "vllm:request_success_total": requests,
+            "vllm:prefix_cache_queries_total": 0,
+            "vllm:prefix_cache_hits_total": 0,
+            "memtrace_hosted_spend_usd": spend,
+        }
+
+    delta = pool_delta(
+        {"gpu": counters(0), "gemini": counters(0, 0.5)}, {"gpu": counters(9), "gemini": counters(3, 0.52)}
+    )
+
+    assert "spend_usd" not in delta["pods"]["gpu"]
+    assert delta["pods"]["gemini"]["spend_usd"] == pytest.approx(0.02)

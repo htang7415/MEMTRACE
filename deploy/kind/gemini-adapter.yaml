@@ -1,0 +1,52 @@
+# Hosted overflow tier: Gemini Flash-Lite as an InferencePool endpoint, through MEMTRACE's hosted-model
+# adapter (src/memtrace/serving/hosted_adapter.py, mounted from the ConfigMap `hosted-adapter`). The adapter
+# exports the vLLM metric names the EPP scorers read and enforces a hard spend cap; the API key comes from
+# the Secret `gemini-api` (created from docs/gemini_api.txt by scripts/kind_platform.sh; never in the repo).
+# Prices: docs/gpu_llm_api_pricing.md. ${HOSTED_CAPACITY}: relative capacity for capacity-load-scorer.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gemini-adapter
+  labels: {app: qwen3-0-6b-inference-pool}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: qwen3-0-6b-inference-pool, memtrace/replica: hosted}
+  template:
+    metadata:
+      labels:
+        app: qwen3-0-6b-inference-pool
+        llm-d.ai/component: decode
+        llm-d.ai/role: decode
+        memtrace/replica: hosted
+        memtrace/hardware: hosted
+        memtrace/capacity: "${HOSTED_CAPACITY}"
+    spec:
+      containers:
+      - name: adapter
+        image: python:3.12-slim
+        imagePullPolicy: IfNotPresent
+        command: ["python", "/app/hosted_adapter.py"]
+        env:
+        - {name: HOSTED_BASE_URL, value: "https://generativelanguage.googleapis.com/v1beta/openai"}
+        - {name: HOSTED_MODEL, value: "gemini-3.5-flash-lite"}
+        - {name: PRICE_INPUT, value: "0.30"}
+        - {name: PRICE_CACHED, value: "0.03"}
+        - {name: PRICE_OUTPUT, value: "2.50"}
+        - {name: BUDGET_USD, value: "${HOSTED_BUDGET_USD}"}
+        - {name: PORT, value: "8000"}
+        - name: HOSTED_API_KEY
+          valueFrom: {secretKeyRef: {name: gemini-api, key: api-key}}
+        ports:
+        - {name: http, containerPort: 8000}
+        resources:
+          requests: {cpu: 100m, memory: 64Mi}
+          limits: {memory: 256Mi}
+        readinessProbe:
+          httpGet: {path: /health, port: 8000}
+          periodSeconds: 5
+        volumeMounts:
+        - {name: adapter, mountPath: /app}
+      volumes:
+      - name: adapter
+        configMap: {name: hosted-adapter}
