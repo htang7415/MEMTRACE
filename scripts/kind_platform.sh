@@ -60,9 +60,15 @@ real() {
 sims() {
   local replicas=$1
   k delete deploy vllm-cpu-a vllm-cpu-b --ignore-not-found --wait=true
+  # A homogeneous simulator pool: take the heterogeneous-pool replicas out if present.
+  for d in vllm-cpu-sim vllm-gpu-relay gemini-adapter; do
+    k get deploy "$d" >/dev/null 2>&1 && k scale deploy "$d" --replicas=0
+  done
   k scale deploy/vllm-render --replicas=0
+  # SIM_ARGS: deploy/kind/sim-args-vllm-metal.json (calibrated to real vllm-metal, 2026-10-06);
+  # sim-args-vllm-metal-v1.json reproduces the Phase 2 runs (1.8-2.5x faster than the real engine).
   k patch deploy/vllm-d --type=json \
-    -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":$(cat deploy/kind/sim-args-vllm-metal.json)}]"
+    -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":$(cat "${SIM_ARGS:-deploy/kind/sim-args-vllm-metal.json}")}]"
   k scale deploy/vllm-d --replicas="$replicas"
   k rollout status deploy/vllm-d --timeout=300s
 }
