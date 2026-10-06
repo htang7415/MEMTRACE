@@ -4,8 +4,8 @@ Every source is pinned to an immutable revision. Files land in the git-ignored
 ``data/public/<dataset>/`` directory, and ``data/public/MANIFEST.json`` records the
 URL, license, size, and SHA-256 of each file so runs can cite exactly what they used.
 
-    python scripts/fetch_public_datasets.py              # everything (~690 MB, mostly ShareGPT)
-    python scripts/fetch_public_datasets.py mooncake bfcl
+    python scripts/fetch_public_datasets.py              # everything (~810 MB, mostly ShareGPT)
+    python scripts/fetch_public_datasets.py mooncake bfcl copilot_agent
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import hashlib
 import json
 import shutil
 import sys
+import tarfile
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ _MOONCAKE = "https://raw.githubusercontent.com/kvcache-ai/Mooncake/245e710604d46
 _AZURE = "https://raw.githubusercontent.com/Azure/AzurePublicDataset/215becdacba1ce682c7368642ce97d5a332de7a6/data"
 _SHAREGPT = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/192ab2185289094fc556ec8ce5ce1e8e587154ca"
 _BFCL = "https://huggingface.co/datasets/gorilla-llm/Berkeley-Function-Calling-Leaderboard/resolve/61fc0608cfd831fcfbbaa676ebdfef0ed963eeda"
+_COPILOT = "https://github.com/Azure/AzurePublicDataset/releases/download/ghcp-coding-agent-2026"
 _BFCL_FUNC_DOCS = [
     "gorilla_file_system",
     "math_api",
@@ -49,6 +51,13 @@ DATASETS: dict[str, dict[str, Any]] = {
         "files": {
             name: f"{_AZURE}/{name}" for name in ("AzureLLMInferenceTrace_code.csv", "AzureLLMInferenceTrace_conv.csv")
         },
+    },
+    "copilot_agent": {
+        "license": "CC-BY-4.0",
+        "purpose": "GitHub Copilot coding-agent session telemetry (sessions, LLM calls with prompt/cached/completion "
+        "tokens, tool calls); smallest day of the release",
+        "files": {"date.2026-06-06.tar.gz": f"{_COPILOT}/date.2026-06-06.tar.gz"},
+        "extract": True,
     },
     "sharegpt": {
         "license": "Apache-2.0",
@@ -119,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
                 status = "downloaded"
             entry["files"][rel] = {"url": url, "bytes": size, "sha256": sha}
             print(f"{status:10} {name}/{rel}  {size / 1e6:.1f} MB")
+            if spec.get("extract") and rel.endswith(".tar.gz"):
+                with tarfile.open(dest) as archive:
+                    archive.extractall(dest.parent, filter="data")
         manifest[name] = entry
     args.out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

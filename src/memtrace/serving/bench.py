@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
-from memtrace.serving.workloads import Request
+from memtrace.serving.workloads import AgentSession, Request
 
 _PREFIX_METRICS = ("vllm:prefix_cache_queries_total", "vllm:prefix_cache_hits_total")
 
@@ -41,6 +41,52 @@ def run_requests(
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         records = list(pool.map(one, range(len(requests)), requests))
     return records, time.monotonic() - started
+
+
+def run_sessions(
+    model: OpenAICompatibleActorModel, sessions: list[AgentSession], *, sleep: Any = time.sleep
+) -> tuple[list[dict[str, Any]], float, int]:
+    """Open-loop agent replay: each session starts at its offset and issues its calls in order, waiting
+    the recorded gap after each completion. Returns per-call records, wall time, and peak in-flight calls."""
+    lock = threading.Lock()
+    in_flight = 0
+    peak = 0
+    origin = time.monotonic()
+
+    def replay(index: int, session: AgentSession) -> list[dict[str, Any]]:
+        nonlocal in_flight, peak
+        sleep(max(0.0, session.start_offset - (time.monotonic() - origin)))
+        records: list[dict[str, Any]] = []
+        for position, call in enumerate(session.calls):
+            sleep(call.gap_before)
+            with lock:
+                in_flight += 1
+                peak = max(peak, in_flight)
+            started_at = time.time()
+            base = {
+                "index": len(records),
+                "session": index,
+                "call": position,
+                "started_at": started_at,
+                "prompt_target": call.prompt_target,
+                "cached_target": call.cached_target,
+            }
+            try:
+                text = model.generate(call.prompt, max_tokens=call.max_tokens)
+                records.append({**base, "ok": True, **(model.last_call or {}), "output_text": text})
+            except RuntimeError as exc:
+                records.append({**base, "ok": False, "error": str(exc.__cause__ or exc)})
+            finally:
+                with lock:
+                    in_flight -= 1
+        return records
+
+    with ThreadPoolExecutor(max_workers=max(1, len(sessions))) as pool:
+        per_session = list(pool.map(replay, range(len(sessions)), sessions))
+    records = [record for session_records in per_session for record in session_records]
+    for i, record in enumerate(records):
+        record["index"] = i
+    return records, time.monotonic() - origin, peak
 
 
 def scrape_prefix_cache(base_url: str) -> dict[str, float] | None:

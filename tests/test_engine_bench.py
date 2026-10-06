@@ -325,3 +325,71 @@ def test_pool_delta_reports_hosted_spend_only_for_pods_that_spend() -> None:
 
     assert "spend_usd" not in delta["pods"]["gpu"]
     assert delta["pods"]["gemini"]["spend_usd"] == pytest.approx(0.02)
+
+
+def _copilot_trace(tmp_path):
+    import gzip
+
+    def call(end, duration_ms, prompt, cached, completion):
+        return {
+            "message_id": f"m{end}",
+            "timestamp": f"2026-06-06T00:00:{end:02d}.000000000Z",
+            "duration_ms": duration_ms,
+            "tokens": {"prompt": prompt, "cached": cached, "completion": completion},
+        }
+
+    sessions = [
+        # ends at t=2 (started t=0), then a 3 s gap, ends at t=7 (started t=5)
+        {"session_id": "a", "turns": [{"llm_calls": [call(2, 2000, 400, 0, 80), call(7, 2000, 800, 400, 40)]}]},
+        {"session_id": "b", "turns": [{"llm_calls": [call(12, 1000, 200, 0, 8), call(14, 1000, 240, 200, 8)]}]},
+        {"session_id": "c", "turns": [{"llm_calls": [call(20, 1000, 100, 0, 4)]}]},  # single call: skipped
+        {"session_id": "d", "turns": [{"llm_calls": [call(30, 1000, 100, None, 4), call(31, 500, 120, 100, 4)]}]},
+    ]
+    path = tmp_path / "shard.jsonl.gz"
+    with gzip.open(path, "wt") as handle:
+        handle.write("".join(json.dumps(s) + "\n" for s in sessions))
+    return path
+
+
+def test_copilot_sessions_reproduce_cache_structure_and_timing(tmp_path) -> None:
+    sessions = workloads.copilot_sessions(
+        [_copilot_trace(tmp_path)], num_sessions=10, token_scale=0.1, gap_scale=0.5, window_seconds=10
+    )
+
+    assert [s.session_id for s in sessions] == ["a", "b"]  # c: one call; d: one call left after dropping null tokens
+    a = sessions[0]
+    first, second = a.calls
+    assert (first.prompt_target, first.cached_target) == (40, 0)
+    assert (second.prompt_target, second.cached_target) == (80, 40)
+    assert second.prompt.split(" ")[:40] == first.prompt.split(" ")  # cached part is the previous prompt
+    assert second.prompt.split(" ")[40:] != first.prompt.split(" ")
+    assert first.gap_before == 0.0 and second.gap_before == pytest.approx(1.5)  # (5 - 2) s x 0.5
+    assert (first.max_tokens, second.max_tokens) == (8, 4)  # 80 x 0.1; 40 x 0.1 floored at 4
+    assert a.start_offset == 0.0 and sessions[1].start_offset == pytest.approx(10.0)  # starts 0 s and 11 s -> window
+
+
+def test_run_sessions_keeps_calls_ordered_within_a_session() -> None:
+    from memtrace.serving.bench import run_sessions
+    from memtrace.serving.workloads import AgentCall, AgentSession
+
+    class _Model:
+        def __init__(self):
+            self.prompts = []
+            self.last_call = {"ttft_seconds": 0.1, "tpot_seconds": 0.01, "e2e_seconds": 0.2, "output_tokens": 2}
+
+        def generate(self, prompt, max_tokens=None):
+            self.prompts.append(prompt)
+            return "ok"
+
+    sessions = [
+        AgentSession("s0", 0.0, (AgentCall("a1", 4, 0.0, 2, 0), AgentCall("a2", 4, 0.0, 2, 1))),
+        AgentSession("s1", 0.0, (AgentCall("b1", 4, 0.0, 2, 0),)),
+    ]
+    model = _Model()
+    records, _, peak = run_sessions(model, sessions, sleep=lambda _: None)
+
+    assert len(records) == 3 and all(r["ok"] for r in records)
+    assert model.prompts.index("a1") < model.prompts.index("a2")
+    assert sorted(r["index"] for r in records) == [0, 1, 2]
+    assert {(r["session"], r["call"]) for r in records} == {(0, 0), (0, 1), (1, 0)}
+    assert 1 <= peak <= 2

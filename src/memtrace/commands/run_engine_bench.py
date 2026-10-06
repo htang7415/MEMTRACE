@@ -16,6 +16,7 @@ from memtrace.evaluation.serving import summarize_requests
 from memtrace.serving import workloads
 from memtrace.serving.bench import (
     PowerSampler,
+    run_sessions,
     host_swap_pages,
     pool_delta,
     run_requests,
@@ -35,7 +36,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--engine", required=True, help="Label for the engine under test, e.g. vllm-metal")
     parser.add_argument("--base-url", required=True, help="OpenAI-compatible base URL, e.g. http://localhost:8200/v1")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--workload", choices=sorted([*_WORKLOAD_FILES, "agent-sessions"]), required=True)
+    parser.add_argument(
+        "--workload", choices=sorted([*_WORKLOAD_FILES, "agent-sessions", "copilot-agent"]), required=True
+    )
     parser.add_argument("--num-requests", type=int, default=100)
     parser.add_argument("--max-tokens", type=int, default=128)
     parser.add_argument("--concurrency", default="1,2,4,8", help="Comma-separated concurrency levels")
@@ -43,6 +46,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--max-blocks", type=int, default=100, help="Keep only the first N Mooncake blocks")
     parser.add_argument("--sessions", type=int, default=32, help="agent-sessions: concurrent sessions")
     parser.add_argument("--turns", type=int, default=8, help="agent-sessions: turns per session")
+    parser.add_argument(
+        "--copilot-shards",
+        default="copilot_agent/date=2026-06-06/shard-0000.jsonl.gz",
+        help="copilot-agent: comma-separated trace shards under --data-dir",
+    )
+    parser.add_argument("--token-scale", type=float, default=1 / 40, help="copilot-agent: token length scale")
+    parser.add_argument("--max-calls", type=int, default=40, help="copilot-agent: first N LLM calls per session")
+    parser.add_argument("--gap-scale", type=float, default=0.1, help="copilot-agent: inter-call gap compression")
+    parser.add_argument("--window-seconds", type=float, default=300.0, help="copilot-agent: session start window")
     parser.add_argument("--slo-ttft", type=float, default=2.0, help="TTFT SLO in seconds")
     parser.add_argument("--slo-tpot", type=float, default=0.1, help="TPOT SLO in seconds")
     parser.add_argument("--seed", type=int, default=0)
@@ -56,7 +68,20 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     path = args.data_dir / _WORKLOAD_FILES.get(args.workload, "")
-    if args.workload == "agent-sessions":
+    sessions: list[workloads.AgentSession] = []
+    requests: list[workloads.Request] = []
+    if args.workload == "copilot-agent":
+        sessions = workloads.copilot_sessions(
+            [args.data_dir / shard for shard in args.copilot_shards.split(",")],
+            num_sessions=args.sessions,
+            seed=args.seed,
+            token_scale=args.token_scale,
+            max_calls=args.max_calls,
+            gap_scale=args.gap_scale,
+            window_seconds=args.window_seconds,
+            output_range=(4, args.max_tokens),
+        )
+    elif args.workload == "agent-sessions":
         requests = workloads.agent_sessions(
             num_sessions=args.sessions, turns=args.turns, max_tokens=args.max_tokens, seed=args.seed
         )
@@ -84,19 +109,17 @@ def main(argv: list[str] | None = None) -> None:
             "model": args.model,
             "workload": args.workload,
             "engine_version": _engine_version(args.base_url),
-            "dataset": (
-                {"synthetic": "agent-sessions", "sessions": args.sessions, "turns": args.turns}
-                if args.workload == "agent-sessions"
-                else _dataset_entry(args.data_dir, _WORKLOAD_FILES[args.workload])
-            ),
-            "num_requests": len(requests),
+            "dataset": _dataset_description(args),
+            "num_requests": len(requests) or sum(len(session.calls) for session in sessions),
             "truncated_requests": sum(1 for request in requests if request.truncated_blocks),
+            "replay": _replay_description(args, sessions) if sessions else None,
             "settings": {k: str(v) for k, v in vars(args).items()},
             "started_at": datetime.now(timezone.utc).isoformat(),
         },
     )
 
-    for concurrency in (int(level) for level in args.concurrency.split(",")):
+    levels = [0] if sessions else [int(level) for level in args.concurrency.split(",")]
+    for concurrency in levels:
         cache_reset = False if args.no_reset_prefix_cache else _reset_prefix_cache(args.base_url)
         for warmup in ("Warm up. Reply with one word.", "Second warm-up. Reply with one word."):
             model.generate(warmup, max_tokens=8)
@@ -106,7 +129,10 @@ def main(argv: list[str] | None = None) -> None:
         pool_before = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
         swap_before = host_swap_pages()
         with PowerSampler() as power:
-            records, wall = run_requests(model, requests, concurrency)
+            if sessions:  # open loop: concurrency is whatever the replay produces
+                records, wall, concurrency = run_sessions(model, sessions)
+            else:
+                records, wall = run_requests(model, requests, concurrency)
         cache_after = scrape_prefix_cache(args.base_url)
         pool_after = scrape_pool(args.k8s_context, args.k8s_pool) if args.k8s_pool else None
         swap_after = host_swap_pages()
@@ -130,18 +156,47 @@ def main(argv: list[str] | None = None) -> None:
             added_watts = power_summary["mean_sys_w"] - idle_summary["mean_sys_w"]
             summary["energy_joules_per_output_token"] = added_watts * wall / summary["output_tokens"]
 
-        level_dir = run_dir / f"c{concurrency}"
+        if sessions:
+            summary["open_loop"] = {"sessions": len(sessions), "calls": len(records), "peak_in_flight": concurrency}
+        level_dir = run_dir / ("open" if sessions else f"c{concurrency}")
         level_dir.mkdir(exist_ok=True)
         (level_dir / "requests.jsonl").write_text("".join(json.dumps(record) + "\n" for record in records))
         (level_dir / "power.jsonl").write_text("".join(json.dumps(sample) + "\n" for sample in power.samples))
         _write_json(level_dir / "summary.json", summary)
         latency = summary["latency"]
         print(
-            f"{args.engine} {args.workload} c={concurrency}: "
+            f"{args.engine} {args.workload} {'open-loop peak' if sessions else 'c'}={concurrency}: "
             f"{summary['output_tokens_per_second']:.1f} out tok/s, "
             f"TTFT p95 {_p(latency, 'ttft_seconds')}, TPOT p95 {_p(latency, 'tpot_seconds')}, "
             f"SLO {summary['slo_attainment']:.0%}, errors {summary['errors']}"
         )
+
+
+def _dataset_description(args: argparse.Namespace) -> dict[str, Any]:
+    if args.workload == "agent-sessions":
+        return {"synthetic": "agent-sessions", "sessions": args.sessions, "turns": args.turns}
+    if args.workload == "copilot-agent":
+        return {
+            "name": "GitHubCopilotCodingAgentDataset2026",
+            "license": "CC-BY-4.0",
+            "shards": args.copilot_shards.split(","),
+        }
+    return _dataset_entry(args.data_dir, _WORKLOAD_FILES[args.workload])
+
+
+def _replay_description(args: argparse.Namespace, sessions: list[workloads.AgentSession]) -> dict[str, Any]:
+    calls = [call for session in sessions for call in session.calls]
+    prompt = sum(call.prompt_target for call in calls)
+    return {
+        "token_scale": args.token_scale,
+        "gap_scale": args.gap_scale,
+        "window_seconds": args.window_seconds,
+        "max_calls_per_session": args.max_calls,
+        "sessions": len(sessions),
+        "calls": len(calls),
+        "synthesized_cached_share": sum(call.cached_target for call in calls) / prompt if prompt else None,
+        "prompt_capped_calls": sum(1 for call in calls if call.prompt_target >= 3500),
+    }
 
 
 def _engine_version(base_url: str) -> str | None:

@@ -7,9 +7,11 @@ behaves the way it would under the original traffic.
 
 from __future__ import annotations
 
+import gzip
 import json
 import random
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 # Mooncake traces hash prompts in 512-token blocks. Engines here serve small models with
@@ -102,3 +104,89 @@ def agent_sessions(
             prefix, chunks = sessions[session]
             requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens))
     return requests
+
+
+@dataclass(frozen=True)
+class AgentCall:
+    prompt: str
+    max_tokens: int
+    gap_before: float  # seconds to wait after the previous call in the session finishes
+    prompt_target: int  # scaled prompt length in words (~tokens)
+    cached_target: int  # leading words reused from the session's previous prompt
+
+
+@dataclass(frozen=True)
+class AgentSession:
+    session_id: str
+    start_offset: float  # seconds after the replay starts
+    calls: tuple[AgentCall, ...]
+
+
+def _trace_time(stamp: str) -> float:
+    base, _, frac = stamp.rstrip("Z").partition(".")
+    return datetime.fromisoformat(base + "+00:00").timestamp() + float("0." + (frac or "0"))
+
+
+def copilot_sessions(
+    paths: list[Path],
+    *,
+    num_sessions: int,
+    seed: int = 0,
+    token_scale: float = 1 / 40,
+    max_prompt_tokens: int = 3500,
+    max_calls: int = 40,
+    gap_scale: float = 0.1,
+    window_seconds: float = 300.0,
+    output_range: tuple[int, int] = (4, 128),
+) -> list[AgentSession]:
+    """Replayable agent sessions from the GitHub Copilot coding-agent traces (Azure, 2026).
+
+    The traces carry token counts but no text. Each call's prompt is synthesized so that its first
+    `cached` tokens repeat the session's previous prompt and the rest is new, reproducing the real
+    prefix-cache structure; all lengths are scaled by `token_scale` to fit a small model's context.
+    Call `timestamp`s mark completion (consecutive calls never overlap under that reading; 32% would if
+    they marked the start), so a call starts at `timestamp - duration_ms` and the gap before it is
+    measured from the previous call's completion. Gaps are compressed by `gap_scale`, and session start
+    times are compressed into `window_seconds` in their real order. Calls without token counts are skipped.
+    """
+    raw = []
+    for path in paths:
+        with gzip.open(path, "rt") as handle:
+            for line in handle:
+                session = json.loads(line)
+                calls = sorted(
+                    (
+                        c
+                        for turn in session["turns"]
+                        for c in turn["llm_calls"]
+                        if all(isinstance(c["tokens"].get(k), int) for k in ("prompt", "cached", "completion"))
+                    ),
+                    key=lambda c: c["timestamp"],
+                )
+                if len(calls) >= 2:
+                    raw.append((session["session_id"], calls[:max_calls]))
+    raw.sort(key=lambda item: item[0])
+    chosen = random.Random(seed).sample(raw, min(num_sessions, len(raw)))
+    starts = [_trace_time(calls[0]["timestamp"]) - calls[0]["duration_ms"] / 1000 for _, calls in chosen]
+    first, span = min(starts), (max(starts) - min(starts)) or 1.0
+    low, high = output_range
+
+    sessions = []
+    for (session_id, calls), start in zip(chosen, starts):
+        rng = random.Random(f"{seed}:{session_id}")
+        context: list[str] = []
+        previous_end = None
+        built = []
+        for call in calls:
+            tokens = call["tokens"]
+            length = min(max_prompt_tokens, max(1, round(tokens["prompt"] * token_scale)))
+            cached = min(length, len(context), round(tokens["cached"] * token_scale))
+            words = context[:cached] + [rng.choice(_WORDS) for _ in range(length - cached)]
+            end = _trace_time(call["timestamp"])
+            begin = end - call["duration_ms"] / 1000
+            gap = 0.0 if previous_end is None else max(0.0, begin - previous_end) * gap_scale
+            output = min(high, max(low, round(tokens["completion"] * token_scale)))
+            built.append(AgentCall(" ".join(words), output, gap, length, cached))
+            context, previous_end = words, end
+        sessions.append(AgentSession(session_id, (start - first) / span * window_seconds, tuple(built)))
+    return sorted(sessions, key=lambda s: s.start_offset)
