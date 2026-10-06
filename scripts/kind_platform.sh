@@ -7,6 +7,8 @@
 #   scripts/kind_platform.sh policy NAME         # EPP config deploy/kind/epp/NAME.yaml; cold-restarts EPP and pool
 #   scripts/kind_platform.sh study               # every policy x workload x concurrency level, cold start each run
 #   scripts/kind_platform.sh failover            # delete one replica mid-run under load; count failures, time recovery
+#   scripts/kind_platform.sh autoscaling         # Prometheus + KEDA; ScaledObject on in-flight requests
+#   scripts/kind_platform.sh burst               # low -> high -> low load with autoscaling; replica timeline
 #   scripts/kind_platform.sh down
 #
 # Uses llm-d-router's own kind dev environment (cloned to ~/.cache/memtrace, outside this
@@ -138,6 +140,54 @@ print(sum(1 for p in pods if healthy(p)))' "$victim" "${MODE:-crash}")" -ge "${R
     "$victim" "$killed_at" "${MODE:-crash}" | tee "$out/recovery-${MODE:-crash}.txt"
   echo "killed_at_epoch=$killed_at" >> "$out/recovery-${MODE:-crash}.txt"
   wait "$bench"
+}
+
+autoscaling() {
+  helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 91.9.0 \
+    --kube-context "$CTX" --namespace monitoring --create-namespace \
+    --set grafana.enabled=false --set alertmanager.enabled=false \
+    --set kubeControllerManager.enabled=false --set kubeEtcd.enabled=false \
+    --set kubeProxy.enabled=false --set kubeScheduler.enabled=false \
+    --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+    --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+    --set prometheus.prometheusSpec.scrapeInterval=5s \
+    --set prometheus.prometheusSpec.resources.requests.memory=512Mi \
+    --set prometheus.prometheusSpec.resources.limits.memory=1Gi --wait --timeout 600s
+  helm upgrade --install keda kedacore/keda --version 2.21.0 --kube-context "$CTX" \
+    --namespace keda --create-namespace --wait --timeout 600s
+  k apply -f deploy/kind/autoscaling/pod-monitor.yaml
+  k apply -f deploy/kind/autoscaling/scaledobject.yaml
+}
+
+burst() {
+  local out="${OUT_DIR:-data/autoscale}"
+  mkdir -p "$out"
+  policy "${POLICY:-combined}"
+  if [ -n "${FIXED:-}" ]; then  # baseline: hold the replica count with KEDA's pause annotation
+    k annotate scaledobject vllm-d autoscaling.keda.sh/paused-replicas="$FIXED" --overwrite
+    k scale deploy/vllm-d --replicas="$FIXED"
+  else
+    k annotate scaledobject vllm-d autoscaling.keda.sh/paused-replicas- 2>/dev/null || true
+    k scale deploy/vllm-d --replicas=1   # KEDA owns the count from here; start from the minimum
+  fi
+  sleep 45
+  # Timeline: ready replicas and HPA desired replicas, once per second.
+  ( while true; do
+      printf '%s %s %s\n' "$(python3 -c 'import time; print(time.time())')" \
+        "$(k get deploy vllm-d -o jsonpath='{.status.readyReplicas}')" \
+        "$(k get hpa keda-hpa-vllm-d -o jsonpath='{.status.desiredReplicas}' 2>/dev/null)"  # no HPA while paused
+      sleep 1
+    done ) > "$out/timeline.txt" &
+  local watcher=$!
+  local phase=0
+  for spec in ${PHASES:-4:96 24:512 4:160}; do  # concurrency:requests
+    phase=$((phase + 1))
+    .venv/bin/memtrace run engine-bench --engine "phase$phase" --base-url "$GATEWAY" --model Qwen/Qwen3-0.6B \
+      --workload agent-sessions --sessions $(( ${spec#*:} / 8 )) --turns 8 --seed "$phase" --max-tokens 32 \
+      --concurrency "${spec%%:*}" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 --out-dir "$out"
+  done
+  sleep "${COOLDOWN_WATCH:-120}"  # keep watching while KEDA scales back down
+  kill "$watcher"
 }
 
 down() { kind delete cluster --name "$CLUSTER"; }

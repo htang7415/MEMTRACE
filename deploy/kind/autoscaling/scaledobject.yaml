@@ -1,0 +1,30 @@
+# Scale the replica Deployment on in-flight requests across the pool: KEDA's Prometheus trigger
+# treats `threshold` as a per-replica average, so desired replicas = ceil(in-flight / 6), i.e.
+# 75% of each replica's 8 sequence slots (--max-num-seqs=8).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-d
+spec:
+  scaleTargetRef: {name: vllm-d}
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 5
+  cooldownPeriod: 30
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies: [{type: Pods, value: 4, periodSeconds: 5}]
+        scaleDown:
+          stabilizationWindowSeconds: 30
+          policies: [{type: Pods, value: 1, periodSeconds: 15}]
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090
+      query: >-
+        sum(vllm:num_requests_running{namespace="default",pod=~"vllm-d-.*"})
+        + sum(vllm:num_requests_waiting{namespace="default",pod=~"vllm-d-.*"})
+      threshold: "6"

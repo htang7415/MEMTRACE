@@ -1,0 +1,13 @@
+# Scrape vLLM metrics from every InferencePool replica every 5 s (llm-d's own PodMonitor targets
+# the routing-sidecar port, which the no-disaggregation pods here do not have).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-pool
+spec:
+  selector:
+    matchLabels: {app: qwen3-0-6b-inference-pool}
+  podMetricsEndpoints:
+  - port: http
+    path: /metrics
+    interval: 5s

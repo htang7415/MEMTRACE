@@ -23,17 +23,19 @@ def run_requests(
     """Send every request with at most `concurrency` in flight; return per-request telemetry and wall time."""
 
     def one(index: int, request: Request) -> dict[str, Any]:
+        started_at = time.time()
         try:
             text = model.generate(request.prompt, max_tokens=request.max_tokens)
             return {
                 "index": index,
+                "started_at": started_at,
                 "ok": True,
                 **(model.last_call or {}),
                 "output_text": text,
                 "reasoning_text": model.last_reasoning,
             }
         except RuntimeError as exc:
-            return {"index": index, "ok": False, "error": str(exc.__cause__ or exc)}
+            return {"index": index, "started_at": started_at, "ok": False, "error": str(exc.__cause__ or exc)}
 
     started = time.monotonic()
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
