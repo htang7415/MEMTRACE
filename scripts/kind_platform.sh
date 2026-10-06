@@ -13,8 +13,8 @@
 #   scripts/kind_platform.sh hetero              # pool = host vllm-metal (GPU, via relay pod) + CPU-calibrated simulator
 #   scripts/kind_platform.sh calibrate           # measure each real replica alone; writes the GPU/CPU weight
 #   scripts/kind_platform.sh hetero_study        # policies x workloads x levels on the heterogeneous pool
-#   scripts/kind_platform.sh capacity_epp        # switch the EPP to the custom image with capacity-load-scorer
-#                                                #   (scripts/build_epp.sh) and label pods with their capacity
+#   scripts/kind_platform.sh capacity_epp        # switch the EPP to the custom image (scripts/build_epp.sh); required
+#                                                #   before any capacity / cache-cost / overflow policy
 #   scripts/kind_platform.sh hosted [CAPACITY]   # add Gemini Flash-Lite to the pool via the hosted adapter
 #   scripts/kind_platform.sh hosted_down         # remove it (stops any further spend)
 #   scripts/kind_platform.sh hosted_study        # overflow study: GPU+CPU vs +Gemini at two capacities
@@ -34,8 +34,11 @@ EPP=qwen3-0-6b-endpoint-picker
 POOL_SELECTOR="app=qwen3-0-6b-inference-pool"
 GATEWAY=http://localhost:30080/v1
 k() { kubectl --context "$CTX" "$@"; }
+# shellcheck source=images.sh
+source "$(dirname "$0")/images.sh"
 
 up() {
+  pin_images
   [ -d "$ROUTER_DIR" ] || git clone -q --depth 1 --branch "$ROUTER_TAG" https://github.com/llm-d/llm-d-router.git "$ROUTER_DIR"
   # EPP/sidecar `dev` tags are amd64-only; the release tags ship arm64. The render image is
   # set to the already-pulled vLLM CPU image to avoid a second ~1 GB download.
@@ -241,11 +244,14 @@ hetero() {
     VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve $GPU_ENGINE_ARGS > data/engine_logs/vllm-metal-pool.log 2>&1 &
     until curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; do sleep 3; done
   fi
-  docker save alpine/socat:1.8.0.3 | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
+  pin_images
+  docker save "$RELAY_IMAGE" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
   k delete deploy vllm-cpu-a vllm-cpu-b --ignore-not-found --wait=true
   k apply -f deploy/kind/cpu-sim.yaml
+  # Capacity labels live in the manifests (GPU weight from the last calibration; 1 until calibrated).
   HOST_IP=$(docker exec "$CLUSTER-control-plane" getent hosts host.docker.internal | awk '{print $1}') \
-    envsubst '${HOST_IP}' < deploy/kind/gpu-relay.yaml | k apply -f -
+    GPU_WEIGHT="$(cat "${OUT_DIR:-data/hetero}/gpu_weight.txt" 2>/dev/null || echo 1)" \
+    envsubst '${HOST_IP} ${GPU_WEIGHT}' < deploy/kind/gpu-relay.yaml | k apply -f -
   k wait --for=condition=available deploy/vllm-gpu-relay deploy/vllm-cpu-sim --timeout=900s
 }
 
@@ -272,6 +278,8 @@ weight = max(1, round(tps["gpu-alone"] / tps["cpu-sim-alone"]))
 gpu, cpu = tps["gpu-alone"], tps["cpu-sim-alone"]
 print(f"gpu {gpu:.1f} tok/s, cpu {cpu:.1f} tok/s -> GPU weight {weight}")
 open(f"{sys.argv[1]}/gpu_weight.txt", "w").write(str(weight))' "$out" | tee "$out/calibration.txt"
+  k patch deploy/vllm-gpu-relay -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"memtrace/capacity\":\"$(cat "$out/gpu_weight.txt")\"}}}}}"
+  k rollout status deploy/vllm-gpu-relay --timeout=120s
 }
 
 hetero_study() {
@@ -291,14 +299,11 @@ hetero_study() {
 }
 
 capacity_epp() {
-  local weight
-  weight=$(cat "${OUT_DIR:-data/hetero}/gpu_weight.txt")
-  k set image deploy/$EPP epp="${EPP_IMAGE:-memtrace/llm-d-epp:v0.11.0-capacity}"
+  # Switch the EPP to the custom image (scripts/build_epp.sh); capacity labels come from the manifests and
+  # from `calibrate`, so this only changes the image.
+  k set image deploy/$EPP epp="${EPP_IMAGE:-$EPP_CUSTOM_IMAGE}"
   k patch deploy/$EPP --type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
-  # Capacity labels from the calibration (GPU/CPU throughput ratio), consumed by capacity-load-scorer.
-  k patch deploy/vllm-gpu-relay -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"memtrace/capacity\":\"$weight\"}}}}}"
-  k patch deploy/vllm-cpu-sim -p '{"spec":{"template":{"metadata":{"labels":{"memtrace/capacity":"1"}}}}}'
-  k rollout status deploy/$EPP deploy/vllm-gpu-relay deploy/vllm-cpu-sim --timeout=300s
+  k rollout status deploy/$EPP --timeout=300s
 }
 
 hosted() {
@@ -307,8 +312,8 @@ hosted() {
   k create secret generic gemini-api --from-file=api-key=docs/gemini_api.txt --dry-run=client -o yaml | k apply -f - >/dev/null
   k create configmap hosted-adapter --from-file=hosted_adapter.py=src/memtrace/serving/hosted_adapter.py \
     --dry-run=client -o yaml | k apply -f -
-  docker image inspect python:3.12-slim >/dev/null 2>&1 || docker pull -q python:3.12-slim
-  docker save python:3.12-slim | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
+  pin_image "$PYTHON_IMAGE" "$PYTHON_DIGEST"
+  docker save "$PYTHON_IMAGE" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
   HOSTED_CAPACITY="$capacity" HOSTED_BUDGET_USD="${HOSTED_BUDGET_USD:-2}" \
     envsubst '${HOSTED_CAPACITY} ${HOSTED_BUDGET_USD}' < deploy/kind/gemini-adapter.yaml | k apply -f -
   k rollout restart deploy/gemini-adapter >/dev/null   # pick up a new capacity label / adapter code

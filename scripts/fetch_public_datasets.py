@@ -17,6 +17,7 @@ import shutil
 import sys
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 _MOONCAKE = "https://raw.githubusercontent.com/kvcache-ai/Mooncake/245e710604d46a14c46f8882e4381bd87bcd94ce/FAST25-release/traces"
 _AZURE = "https://raw.githubusercontent.com/Azure/AzurePublicDataset/215becdacba1ce682c7368642ce97d5a332de7a6/data"
@@ -33,7 +34,7 @@ _BFCL_FUNC_DOCS = [
     "vehicle_control",
 ]
 
-DATASETS: dict[str, dict] = {
+DATASETS: dict[str, dict[str, Any]] = {
     "mooncake": {
         "license": "Apache-2.0",
         "purpose": "Prefix-heavy production request traces (conversation, tool-agent, synthetic) with prefix-block hash IDs",

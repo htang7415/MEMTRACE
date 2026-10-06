@@ -5,6 +5,8 @@ LOG_DIR="${LOG_DIR:-data/engine_logs}"
 # Qwen3 emits Hermes-style tool calls; this only affects requests that carry `tools`.
 VLLM_TOOL_FLAGS="--enable-auto-tool-choice --tool-call-parser hermes"
 mkdir -p "$LOG_DIR"
+# shellcheck source=images.sh
+source "$(dirname "${BASH_SOURCE[0]}")/images.sh"
 
 start_engine() {
   case "$1" in
@@ -14,6 +16,7 @@ start_engine() {
         >"$LOG_DIR/vllm-metal.log" 2>&1 &
       PORT=8200 ;;
     vllm-cpu)
+      pin_image "$VLLM_CPU_IMAGE" "$VLLM_CPU_DIGEST"
       docker rm -f memtrace-vllm-cpu >/dev/null 2>&1 || true
       # /dev/shm must exceed Docker's 64 MB default or the engine fails to start.
       docker run -d --name memtrace-vllm-cpu -p 8100:8000 -m 6g --shm-size 1g \

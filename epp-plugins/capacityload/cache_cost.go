@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	fwkplugin "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/plugin"
 	fwksched "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/scheduling"
@@ -63,6 +64,7 @@ type CacheCostScorer struct {
 	prefixKey           fwkplugin.DataKey
 	decodeTokenCost     float64
 	defaultOutputTokens int
+	missingLabel        sync.Once
 }
 
 // CacheCostFactory builds the scorer from EPP configuration.
@@ -114,7 +116,8 @@ func (s *CacheCostScorer) Consumes() fwkplugin.DataDependencies {
 }
 
 // Score returns a score in (0, 1] per endpoint.
-func (s *CacheCostScorer) Score(_ context.Context, request *fwksched.InferenceRequest, endpoints []fwksched.Endpoint) map[fwksched.Endpoint]float64 {
+func (s *CacheCostScorer) Score(ctx context.Context, request *fwksched.InferenceRequest, endpoints []fwksched.Endpoint) map[fwksched.Endpoint]float64 {
+	warnMissingCapacity(ctx, endpoints, s.capacityLabel, &s.missingLabel, s.typedName.Name)
 	output := float64(s.outputTokens(request))
 	times := make(map[fwksched.Endpoint]float64, len(endpoints))
 	minTime := 0.0

@@ -83,6 +83,7 @@ def main(argv: list[str] | None = None) -> None:
             "base_url": args.base_url,
             "model": args.model,
             "workload": args.workload,
+            "engine_version": _engine_version(args.base_url),
             "dataset": (
                 {"synthetic": "agent-sessions", "sessions": args.sessions, "turns": args.turns}
                 if args.workload == "agent-sessions"
@@ -141,6 +142,16 @@ def main(argv: list[str] | None = None) -> None:
             f"TTFT p95 {_p(latency, 'ttft_seconds')}, TPOT p95 {_p(latency, 'tpot_seconds')}, "
             f"SLO {summary['slo_attainment']:.0%}, errors {summary['errors']}"
         )
+
+
+def _engine_version(base_url: str) -> str | None:
+    """vLLM's GET /version, so each run records the exact engine build. None if the server has none."""
+    url = re.sub(r"/v1/?$", "", base_url.rstrip("/")) + "/version"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            return str(json.loads(response.read()).get("version")) or None
+    except (OSError, ValueError):
+        return None
 
 
 def _reset_prefix_cache(base_url: str) -> bool:

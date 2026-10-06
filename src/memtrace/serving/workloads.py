@@ -55,7 +55,7 @@ def mooncake(
     Prompts longer than `max_blocks` keep only their leading blocks, so they still fit the
     engine's context window and still share whatever prefix they shared in the trace.
     """
-    requests = []
+    requests: list[Request] = []
     with path.open() as handle:
         for line in handle:
             if len(requests) == num_requests:

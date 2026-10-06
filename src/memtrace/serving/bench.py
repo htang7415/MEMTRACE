@@ -95,18 +95,19 @@ def scrape_pool(context: str, selector: str, namespace: str = "default") -> dict
 
 def pool_delta(before: dict[str, dict[str, float]], after: dict[str, dict[str, float]]) -> dict[str, Any]:
     """Requests served and prefix-cache hit rate per pod, plus load imbalance (max/mean requests)."""
-    pods = {}
+    pods: dict[str, dict[str, float | None]] = {}
+    served: list[float] = []
     for pod, end in after.items():
         start = before.get(pod, {})
         delta = {name: end[name] - start.get(name, 0.0) for name in end}
         queries = delta["vllm:prefix_cache_queries_total"]
+        served.append(delta["vllm:request_success_total"])
         pods[pod] = {
             "requests": delta["vllm:request_success_total"],
             "prefix_hit_rate": delta["vllm:prefix_cache_hits_total"] / queries if queries else None,
         }
         if delta.get("memtrace_hosted_spend_usd"):  # hosted-model adapter pods report spend
             pods[pod]["spend_usd"] = delta["memtrace_hosted_spend_usd"]
-    requests = [p["requests"] for p in pods.values()]
     queries = sum(
         after[p]["vllm:prefix_cache_queries_total"] - before.get(p, {}).get("vllm:prefix_cache_queries_total", 0.0)
         for p in after
@@ -115,11 +116,11 @@ def pool_delta(before: dict[str, dict[str, float]], after: dict[str, dict[str, f
         after[p]["vllm:prefix_cache_hits_total"] - before.get(p, {}).get("vllm:prefix_cache_hits_total", 0.0)
         for p in after
     )
-    mean = sum(requests) / len(requests) if requests else 0.0
+    mean = sum(served) / len(served) if served else 0.0
     return {
         "pods": pods,
         "pool_prefix_hit_rate": hits / queries if queries else None,
-        "load_imbalance": max(requests) / mean if mean else None,
+        "load_imbalance": max(served) / mean if mean else None,
     }
 
 

@@ -66,6 +66,11 @@ class _FakeEngine(BaseHTTPRequestHandler):
     resets = 0
 
     def do_GET(self) -> None:
+        if self.path == "/version":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"version": "0.31.0"}')
+            return
         body = (
             f'vllm:prefix_cache_queries_total{{engine="0"}} {_FakeEngine.queries}\n'
             f'vllm:prefix_cache_hits_total{{engine="0"}} {_FakeEngine.hits}\n'
@@ -141,7 +146,9 @@ def test_engine_bench_end_to_end_against_fake_engine(tmp_path, monkeypatch) -> N
         server.shutdown()
 
     run_dir = tmp_path / "out" / "fake" / "mooncake-toolagent"
-    assert json.loads((run_dir / "manifest.json").read_text())["num_requests"] == 4
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    assert manifest["num_requests"] == 4
+    assert manifest["engine_version"] == "0.31.0"
     summary = json.loads((run_dir / "c2" / "summary.json").read_text())
     assert summary["requests"] == 4 and summary["errors"] == 0
     assert summary["output_tokens"] == 8

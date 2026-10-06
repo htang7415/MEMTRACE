@@ -24,6 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
+
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	fwkplugin "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/plugin"
 	fwksched "github.com/llm-d/llm-d-router/pkg/epp/framework/interface/scheduling"
@@ -59,6 +62,7 @@ type Parameters struct {
 type CapacityLoadScorer struct {
 	typedName     fwkplugin.TypedName
 	capacityLabel string
+	missingLabel  sync.Once
 }
 
 // Factory builds the scorer from EPP configuration.
@@ -106,7 +110,8 @@ func (s *CapacityLoadScorer) Consumes() fwkplugin.DataDependencies {
 }
 
 // Score returns a score in (0, 1] per endpoint.
-func (s *CapacityLoadScorer) Score(_ context.Context, _ *fwksched.InferenceRequest, endpoints []fwksched.Endpoint) map[fwksched.Endpoint]float64 {
+func (s *CapacityLoadScorer) Score(ctx context.Context, _ *fwksched.InferenceRequest, endpoints []fwksched.Endpoint) map[fwksched.Endpoint]float64 {
+	warnMissingCapacity(ctx, endpoints, s.capacityLabel, &s.missingLabel, s.typedName.Name)
 	loads := make(map[fwksched.Endpoint]float64, len(endpoints))
 	minLoad := 0.0
 	for i, endpoint := range endpoints {
@@ -122,6 +127,24 @@ func (s *CapacityLoadScorer) Score(_ context.Context, _ *fwksched.InferenceReque
 		scores[endpoint] = minLoad / load
 	}
 	return scores
+}
+
+// warnMissingCapacity logs once per plugin instance if any endpoint lacks a valid capacity label: such
+// endpoints count as capacity 1, which silently turns a capacity-aware policy into a load-only one.
+func warnMissingCapacity(ctx context.Context, endpoints []fwksched.Endpoint, label string, once *sync.Once, plugin string) {
+	for _, endpoint := range endpoints {
+		metadata := endpoint.GetMetadata()
+		if metadata == nil {
+			continue
+		}
+		if value, err := strconv.ParseFloat(metadata.Labels[label], 64); err != nil || value <= 0 {
+			once.Do(func() {
+				log.FromContext(ctx).Info("endpoint has no valid capacity label; treating it as capacity 1",
+					"plugin", plugin, "label", label, "endpoint", metadata.ID.String())
+			})
+			return
+		}
+	}
 }
 
 // capacityOf reads an endpoint's relative capacity from a numeric pod label; missing or invalid -> 1.

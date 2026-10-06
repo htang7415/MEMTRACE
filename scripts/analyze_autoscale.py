@@ -12,19 +12,20 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any, Callable
 
 import numpy as np
 
 
-def summarize(run: Path) -> dict:
-    timeline = []
+def summarize(run: Path) -> dict[str, Any]:
+    timeline: list[tuple[float, int, int | None]] = []
     for line in (run / "timeline.txt").read_text().splitlines():
         parts = line.split()
         if len(parts) >= 2:
             timeline.append(
                 (float(parts[0]), int(parts[1] or 0), int(parts[2]) if len(parts) > 2 and parts[2] else None)
             )
-    phases = {}
+    phases: dict[str, list[dict[str, Any]]] = {}
     for phase_dir in sorted(run.glob("phase*/agent-sessions/c*")):
         records = [json.loads(line) for line in (phase_dir / "requests.jsonl").read_text().splitlines()]
         phases[phase_dir.parts[-3]] = records
@@ -33,7 +34,7 @@ def summarize(run: Path) -> dict:
     burst_end = max(r["started_at"] + (r.get("e2e_seconds") or 0) for r in burst)
     peak = max(ready for _, ready, _ in timeline)
 
-    def first_time(predicate):
+    def first_time(predicate: Callable[[int, int | None], bool]) -> float | None:
         return next(
             (t - burst_start for t, ready, desired in timeline if t >= burst_start and predicate(ready, desired)), None
         )

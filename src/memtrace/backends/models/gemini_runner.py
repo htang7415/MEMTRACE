@@ -158,7 +158,7 @@ class GeminiActorModel(ActorModel):
             text = getattr(response, "text", None)
             if text is None:
                 raise RuntimeError("Gemini response contained no text output")
-            return text.strip()
+            return str(text).strip()
 
         raise RuntimeError("Gemini generation failed") from last_exc
 

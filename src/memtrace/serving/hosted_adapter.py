@@ -173,7 +173,7 @@ def make_handler(
             # Envoy forwards bodies it has processed (ext_proc) with chunked transfer encoding and no
             # Content-Length; reading only Content-Length bytes would forward an empty request.
             if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
-                chunks = []
+                chunks: list[bytes] = []
                 while True:
                     size = int(self.rfile.readline().split(b";")[0].strip() or b"0", 16)
                     if size == 0:

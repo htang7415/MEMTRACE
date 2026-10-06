@@ -22,6 +22,7 @@ spec:
         llm-d.ai/role: decode
         memtrace/replica: cpu-sim
         memtrace/hardware: cpu
+        memtrace/capacity: "1"  # reference tier for capacity-load-scorer
     spec:
       containers:
       - name: vllm

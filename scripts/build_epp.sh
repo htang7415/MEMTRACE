@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build llm-d's EPP (v0.11.0) with MEMTRACE's capacity-load-scorer and load it into the kind cluster.
 #
-#   scripts/build_epp.sh            # test, build memtrace/llm-d-epp:v0.11.0-capacity, load into kind
+#   scripts/build_epp.sh            # test, build $EPP_CUSTOM_IMAGE (scripts/images.sh), load into kind
 #
 # The plugin source lives in epp-plugins/capacityload; it is copied into the pinned upstream checkout
 # (~/.cache/memtrace/llm-d-router) and registered next to queue-scorer, so upstream code is otherwise
@@ -10,7 +10,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROUTER_DIR="$HOME/.cache/memtrace/llm-d-router"
 PLUGIN_DIR="pkg/epp/framework/plugins/scheduling/scorer/capacityload"
-IMAGE="${IMAGE:-memtrace/llm-d-epp:v0.11.0-capacity}"
+# shellcheck source=images.sh
+source "$(dirname "$0")/images.sh"
+IMAGE="${IMAGE:-$EPP_CUSTOM_IMAGE}"
 
 mkdir -p "$ROUTER_DIR/$PLUGIN_DIR"
 cp epp-plugins/capacityload/*.go "$ROUTER_DIR/$PLUGIN_DIR/"
