@@ -1,8 +1,89 @@
 # MEMTRACE
 
+MEMTRACE is an LLM serving platform built on one Apple Silicon Mac: an **llm-d control plane on kind** routing
+across **vLLM on the Apple Silicon GPU (`vllm-metal`)**, a **vLLM CPU tier** (a simulator calibrated to a real vLLM
+CPU pod), and optionally **Gemini Flash-Lite** as hosted overflow. It is tested with replayed real agent traffic
+(GitHub Copilot coding-agent traces), injected failures, and a task-level quality gate. It began as a benchmark of
+persistent-memory risk in tool-using agents; that benchmark and its regression gate are still here
+([below](#memory-risk-benchmark)).
+
+This is one machine, not a datacenter: a 16 GB Mac mini, Qwen3-0.6B (Qwen3-4B 4-bit in one study), and simulated
+replicas where real ones do not fit. Every number below names what was real and what was simulated.
+
+## Architecture
+
+```text
+client ──> Istio gateway (kind, :30080) ──ext_proc──> llm-d EPP (endpoint picker, v0.11.0 + MEMTRACE plugins)
+                │                                        │ scrapes vLLM metrics from every pool endpoint
+                ▼                                        ▼
+        InferencePool ─┬─ vllm-gpu-relay pod ──TCP──> vllm-metal on the macOS host (Metal GPU)
+                       ├─ vllm-cpu-sim pod   (llm-d-inference-sim calibrated to a real vLLM CPU pod)
+                       └─ gemini-adapter pod (opt-in; vLLM-style metrics + hard spend cap)
+```
+
+- **Custom EPP plugins** (Go, `epp-plugins/capacityload`, built into llm-d's EPP by `scripts/build_epp.sh`):
+  `capacity-load-scorer` (load = in-flight / measured capacity), `cache-aware-capacity-scorer` (expected completion
+  time with prefix hits), `overflow-filter` (hosted endpoints only when the local pool is saturated).
+- **Host GPU in the pool:** containers on macOS cannot use Metal, so the engine runs on the host and a relay pod
+  stands in for it; the EPP routes to it with the engine's real metrics.
+- Pinned container images (by digest), pinned upstream router tag, and per-run manifests (engine version, dataset
+  hash, swap counters, replay scaling factors).
+
+## Quick start
+
+Requirements: Apple Silicon Mac, Docker Desktop (VM: 8 GB, 10 CPUs), `kind`, `kubectl`, `helm`, `envsubst`
+(`gettext`), Go (only to build the custom EPP image the first time), and `vllm-metal` installed with its official
+installer into `~/.venv-vllm-metal`. The project's Python environment is described under [Install](#install).
+
+```bash
+make up                # kind + llm-d + GPU relay + CPU tier + custom EPP (about 3 minutes from nothing)
+make up HOSTED=1       # also Gemini Flash-Lite as overflow (key in a local file, never committed; spend-capped)
+make bench             # Copilot-replay routing comparison: combined vs capacity vs cache-cost, 3 repetitions
+make down              # stop the GPU engine, delete the cluster
+scripts/kind_platform.sh observability   # Prometheus, scrapes, alert rules (deploy/kind/observability/)
+```
+
+`deploy/kind/observability/dashboard.json` is a Grafana dashboard (TTFT / TPOT / goodput / errors per tier, KV and
+prefix-cache use, hosted spend); `alerts.yaml` alerts on an absent load metric, gateway timeouts, TTFT SLO, replica
+down, and hosted spend. A stream cut by the gateway's 30 s timeout still returns HTTP 200; the timeout alert keys on
+Envoy's `UT` response flag instead.
+
+Other studies: `scripts/kind_platform.sh` (`study`, `failover`, `autoscaling`, `burst`, `hetero_study`,
+`hosted_study`), `scripts/precise_study.sh`, `scripts/run_engine_baselines.sh`.
+
+## Results
+
+All on one 16 GB Apple Silicon Mac. "Sim" = `llm-d-inference-sim` calibrated to a measured engine.
+
+| Question | Setup | Result |
+| --- | --- | --- |
+| Which engine per tier? | Qwen3-0.6B bf16; ShareGPT and Mooncake tool-agent prompts, concurrency 1–8; real engines | `vllm-metal` 450 tok/s and 0.039 J/token on ShareGPT at concurrency 8 (2.2× `mlx_lm.server`, which crashed with a Metal OOM on long prompts and exposes no metrics); vLLM CPU 5.6–8.3× slower; BFCL tool-call accuracy 81.0–81.5% on every engine and batch size |
+| Does cache-aware routing pay? | llm-d on kind, 4 sim replicas calibrated to `vllm-metal`, synthetic agent sessions | Prefix-aware routing gives 1.8–2.3× the throughput of random; combined prefix + queue + KV is best at capacity and is the default |
+| Does reactive autoscaling absorb bursts? | KEDA on in-flight requests, sim replicas, 37 s burst | Reacts in 12 s, 4 replicas Ready at 23 s: 63% SLO vs 100% with 4 fixed replicas; real cold starts (20–185 s) need warm headroom |
+| Failure handling | Engine SIGKILL with 5 requests in flight (sim pool) | 2/512 client failures (503), pool recovered in 5.2 s |
+| Routing a GPU + CPU pool | Real `vllm-metal` + CPU sim (11× slower) | Hardware-blind routing: 9–36 tok/s with 30 s timeouts; `capacity-load-scorer` 1.6–2.3× the default where the GPU is not cache-bound |
+| Hosted overflow | + Gemini Flash-Lite via adapter, overloaded local pool | 1.77 → 5.1–5.7 req/s, TTFT p95 13.5 → ~5 s, timeouts 14 → 0–1, $0.27–0.30 per 1k requests |
+| Real agent traffic | 64 GitHub Copilot sessions (1,422 calls, 84% of prompt tokens cached), open-loop at recorded timing; real GPU + CPU sim | Capacity scorers finish 11–13% sooner but double TTFT p95 (9.2 vs 4.5 s): no policy wins both |
+| Larger model | Qwen3-4B (MLX 4-bit) on `vllm-metal`; CPU sim scaled by parameter count (estimate) | Capacity scorers win both: −18% time to finish, TTFT p95 2.1 vs 3.45 s; the default's CPU calls time out |
+| Precise vs approximate prefix index | llm-d precise index fed by KV events from both tiers, Copilot replay | No gain (681 vs 728 s, same prefix-hit rates); approximate index kept |
+
+Caveats: many runs paged on the 16 GB host (swap counters are recorded per run); differences under ~15% are not
+claimed. The CPU tier is simulated in every mixed-pool result. The autoscaling and failover rows used an earlier GPU
+simulator later found 1.8–2.5× faster than the real engine; their reaction times are bound by the metrics pipeline,
+not engine speed, and the routing study was rerun with the recalibrated simulator.
+
+## Limits
+
+- One machine, one GPU; no datacenter GPUs and no multi-node scale.
+- CPU tier simulated (a real vLLM CPU pod next to the GPU engine pages the host); the 4B CPU tier is an estimate.
+- Qwen3-0.6B for most results; hosted-model quality was not compared with the local model.
+- Prefill/decode disaggregation, scale-from-zero, and a long-running production endpoint are out of scope.
+
+## Memory-risk benchmark
+
 MEMTRACE evaluates persistent-memory risk in tool-using agents. It separates retrieval exposure, poisoned-memory admission, delayed retrieval, unsafe proposals, policy-checker blocking, unsafe execution, and execution-format failure.
 
-## Install
+### Install
 
 Create an environment and install the project:
 
@@ -41,7 +122,7 @@ python -m piptools compile --extra dev --output-file requirements/ci-lock.txt --
 python -m piptools compile --extra retrieval --extra gemini --output-file requirements/canary-lock.txt --strip-extras pyproject.toml
 ```
 
-## CLI
+### CLI
 
 MEMTRACE exposes one command:
 
@@ -101,7 +182,7 @@ memtrace report explore --label unsafe --ambiguity-reason partial_argument_match
 
 Arguments after a workflow name are forwarded to that workflow. Use, for example, `memtrace run pilot --help` for its detailed options.
 
-## Configuration
+### Configuration
 
 Configuration files use a `[memtrace]` TOML table. Environment variables override file values:
 
@@ -116,7 +197,7 @@ top_k = 5
 
 Common overrides include `MEMTRACE_DATA_DIR`, `MEMTRACE_ACTOR_MODELS`, `MEMTRACE_RETRIEVAL_BACKEND`, `MEMTRACE_MEMORY_WRITER_BACKEND`, `MEMTRACE_PLANNER_BACKEND`, `MEMTRACE_PLANNER_PROMPT_PATH`, `MEMTRACE_MEMORY_CONFLICT_RESOLUTION` (`none` default, or `latest_wins_per_task_and_type`; see `configs/profile-latest-wins.toml`), and `MEMTRACE_MEMORY_TTL_TURNS`.
 
-## Development
+### Development
 
 ```bash
 python -m ruff check .
@@ -130,19 +211,21 @@ CI runs these checks on Python 3.11 and 3.13, smoke-tests the built wheel, and r
 required regression-gate job that rebuilds a deterministic benchmark slice and diffs its
 metrics against a frozen baseline (`tests/fixtures/regression/`).
 
-## Structure
+### Structure
 
 - `src/memtrace/core/`: benchmark domain, schemas, traces, and agent workflows.
 - `src/memtrace/backends/`: model, retrieval, storage, and tool adapters.
 - `src/memtrace/evaluation/`: scoring, metrics, audit, and reporting.
 - `src/memtrace/commands/`: internal implementations behind the CLI.
+- `src/memtrace/serving/`: serving benchmark harness (workloads, open-loop replay, metrics) and the hosted-model adapter.
+- `deploy/kind/`, `scripts/`, `epp-plugins/`, `Makefile`: the serving platform (manifests, study scripts, EPP plugins).
 - `configs/`: versioned non-secret runtime configurations.
 - `tests/`: deterministic tests; real model inference is not required.
 - `data/`, `artifacts/`, and `figures/`: ignored runtime outputs.
 
 Extension policy: add a backend behind an existing interface when a second implementation is needed; do not add a service, queue, database server, or deployment layer until a concrete use case requires it.
 
-## Limitations
+### Limitations
 
 - Tasks are synthetic enterprise-assistant scenarios.
 - The `profile` backend is a deterministic smoke-test fixture.
