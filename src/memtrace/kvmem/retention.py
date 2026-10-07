@@ -13,6 +13,11 @@ are waste (`max(0, reusable - cached)`), attributed to the first cause that appl
   near the start of the context, which the trace cannot tell apart;
 - other: gaps in between, where expiry and placement cannot be told apart.
 
+`retained(lifetime)` is what a cache with that lifetime (refreshed on every use) and perfect placement would
+serve: the reusable prefix of every same-model call that was not compacted and came within the lifetime.
+`working_set` is the KV that cache holds: each call's prompt + completion, from the call's start until the
+session's next call or the lifetime after the call ends.
+
 The trace's cached counts reflect one unnamed provider's policy: an observed baseline, not ground truth.
 """
 
@@ -22,17 +27,28 @@ import argparse
 import glob
 import json
 import statistics
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from memtrace.kvmem.traces import TraceCall, TraceSession, read_sessions
+from memtrace.kvmem.costs import ANTHROPIC, breakeven_storage, relative_cost
+from memtrace.kvmem.traces import TraceCall, TraceSession, read_sessions, trace_time
 
 PLACEMENT_GAP = 10.0
 EXPIRY_GAP = 300.0
 COMPACTION_SHRINK = 0.10
 GAP_BINS = ((10.0, "<10s"), (60.0, "10-60s"), (300.0, "1-5min"), (600.0, "5-10min"), (3600.0, "10-60min"))
 CAUSES = ("model_switch", "compaction", "expiry", "placement", "placement_or_edit", "other")
+LIFETIMES = {"5min": 300.0, "1h": 3600.0, "24h": 86400.0}
+# KV-cache bytes per token in bf16: K and V x layers x KV heads x head dim x 2 bytes, from each model's
+# config.json. Qwen2.5-72B stands in for the 70B class. Trace token counts come from the provider's own models,
+# so these sizes answer "if this traffic were served by model X".
+KV_BYTES_PER_TOKEN = {
+    "Qwen3-4B": 2 * 36 * 8 * 128 * 2,
+    "Qwen3-32B": 2 * 64 * 8 * 128 * 2,
+    "Qwen2.5-72B": 2 * 80 * 8 * 128 * 2,
+}
 
 
 @dataclass(frozen=True)
@@ -50,10 +66,18 @@ class LaterCall:
         return max(0, self.reusable - self.call.cached)
 
     @property
+    def compacted(self) -> bool:
+        return self.call.prompt <= (1 - COMPACTION_SHRINK) * self.previous.prompt
+
+    def retained(self, lifetime: float) -> int:
+        same_prefix = self.call.model == self.previous.model and not self.compacted
+        return self.reusable if same_prefix and self.gap < lifetime else 0
+
+    @property
     def cause(self) -> str:
         if self.call.model != self.previous.model:
             return "model_switch"
-        if self.call.prompt <= (1 - COMPACTION_SHRINK) * self.previous.prompt:
+        if self.compacted:
             return "compaction"
         if self.gap >= EXPIRY_GAP:
             return "expiry"
@@ -80,6 +104,36 @@ def gap_bin(gap: float) -> str:
     return next((label for bound, label in GAP_BINS if gap < bound), ">1h")
 
 
+def trace_window(sessions: list[TraceSession]) -> tuple[float, float]:
+    """The UTC days the sessions are partitioned under, or the span of their calls if they carry no date."""
+    dates = sorted({s.date for s in sessions if s.date})
+    if dates:
+        return trace_time(dates[0] + "T00:00:00Z"), trace_time(dates[-1] + "T00:00:00Z") + 86400.0
+    calls = [call for session in sessions for call in session.calls]
+    return min(c.start for c in calls), max(c.end for c in calls)
+
+
+def working_set(sessions: list[TraceSession], lifetime: float) -> tuple[float, int]:
+    """Time-averaged and peak tokens held within `trace_window`."""
+    start, end = trace_window(sessions)
+    events: dict[float, int] = defaultdict(int)
+    for session in sessions:
+        for call, following in zip(session.calls, [*session.calls[1:], None]):
+            until = call.end + lifetime if following is None else min(following.start, call.end + lifetime)
+            held = call.prompt + call.completion
+            events[call.start] += held
+            events[until] -= held
+    held, peak, area, now = 0, 0, 0.0, start
+    for t in sorted(events):
+        clipped = min(max(t, start), end)
+        area += held * (clipped - now)
+        now = clipped
+        held += events[t]
+        if start <= t < end:
+            peak = max(peak, held)
+    return area / (end - start), peak
+
+
 def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
     sessions = list(sessions)
     items = list(later_calls(sessions))
@@ -87,6 +141,9 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
     bins = {label: _Bin() for label in labels}
     causes = {cause: {"calls": 0, "waste": 0} for cause in CAUSES}
     grew_near_total_miss = 0
+    # Paired test for placement_or_edit: at short gaps on the same model, does a slight shrink make a near-total
+    # miss more likely than growth does? Placement should not care whether the prompt shrank; an edit does.
+    short = {"grew": [0, 0], "shrank_slightly": [0, 0]}  # [calls, near-total misses]
     for item in items:
         b = bins[gap_bin(item.gap)]
         b.calls += 1
@@ -99,9 +156,14 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
             causes[item.cause]["waste"] += item.waste
             if item.cause == "placement" and item.call.cached < 0.1 * item.reusable:
                 grew_near_total_miss += item.waste  # prompt only grew, yet (almost) nothing was cached
+        if item.gap < PLACEMENT_GAP and item.call.model == item.previous.model and not item.compacted:
+            group = short["grew" if item.call.prompt >= item.previous.prompt else "shrank_slightly"]
+            group[0] += 1
+            group[1] += item.call.cached < 0.1 * item.reusable
     gaps = sorted(item.gap for item in items)
     q = statistics.quantiles(gaps, n=100)
     later_prompt = sum(item.call.prompt for item in items)
+    total_prompt = sum(call.prompt for session in sessions for call in session.calls)
     waste = sum(c["waste"] for c in causes.values())
     switch_calls = sum(1 for item in items if item.call.model != item.previous.model)
     return {
@@ -125,8 +187,34 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
             for cause, c in causes.items()
         },
         "placement_near_total_miss_share_of_waste": grew_near_total_miss / waste if waste else 0.0,
+        "short_gap_near_total_miss_rate": {
+            k: misses / calls if calls else None for k, (calls, misses) in short.items()
+        },
         "model_switch_calls": switch_calls,
         "model_switch_share_of_later_calls": switch_calls / len(items),
+        "lifetimes": {name: _lifetime(sessions, items, seconds) for name, seconds in LIFETIMES.items()},
+        "relative_cost": {
+            p.name: relative_cost(total_prompt, sum(i.retained(p.lifetime) for i in items), p) for p in ANTHROPIC
+        },
+    }
+
+
+def _lifetime(sessions: list[TraceSession], items: list[LaterCall], lifetime: float) -> dict[str, object]:
+    reusable = sum(item.reusable for item in items)
+    retained = sum(item.retained(lifetime) for item in items)
+    mean, peak = working_set(sessions, lifetime)
+    start, end = trace_window(sessions)
+    hours = (end - start) / 3600
+    return {
+        "retained_share_of_reusable": retained / reusable if reusable else 0.0,
+        "observed_cached_share_of_reusable": sum(min(i.call.cached, i.reusable) for i in items) / reusable
+        if reusable
+        else 0.0,
+        "working_set_tokens": {"mean": mean, "peak": peak},
+        "breakeven_storage_per_token_hour": breakeven_storage(retained, mean * hours),
+        "working_set_gb": {
+            model: {"mean": mean * size / 1e9, "peak": peak * size / 1e9} for model, size in KV_BYTES_PER_TOKEN.items()
+        },
     }
 
 
@@ -136,11 +224,18 @@ def main() -> None:
         "paths", nargs="*", help="trace shards (default: every downloaded day under data/public/copilot_agent)"
     )
     parser.add_argument("--out", type=Path, help="write the summary JSON here as well as to stdout")
+    parser.add_argument("--by-day", action="store_true", help="one summary per trace day (shard directory)")
     args = parser.parse_args()
     paths = sorted(Path(p) for p in args.paths or glob.glob("data/public/copilot_agent/date=*/shard-*.jsonl.gz"))
     if not paths:
         raise SystemExit("no trace shards found; run scripts/fetch_public_datasets.py copilot_agent")
-    summary = json.dumps(analyze(read_sessions(paths)), indent=2)
+    if args.by_day:
+        days: dict[str, list[Path]] = defaultdict(list)
+        for path in paths:
+            days[path.parent.name.removeprefix("date=")].append(path)
+        summary = json.dumps({day: analyze(read_sessions(shards)) for day, shards in sorted(days.items())}, indent=2)
+    else:
+        summary = json.dumps(analyze(read_sessions(paths)), indent=2)
     print(summary)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

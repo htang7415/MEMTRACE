@@ -28,6 +28,7 @@ class TraceCall:
 class TraceSession:
     session_id: str
     calls: tuple[TraceCall, ...]  # in completion order
+    date: str = ""  # the dataset's day partition (YYYY-MM-DD); a few sessions also hold calls from earlier days
 
 
 def trace_time(stamp: str) -> float:
@@ -64,4 +65,4 @@ def read_sessions(paths: list[Path]) -> Iterator[TraceSession]:
                             tokens["completion"],
                         )
                     )
-                yield TraceSession(session["session_id"], tuple(calls))
+                yield TraceSession(session["session_id"], tuple(calls), session.get("date") or "")
