@@ -1,0 +1,18 @@
+[
+  "--mode=random",
+  "--port=8000",
+  "--model=Qwen/Qwen3-0.6B",
+  "--render-url=http://vllm-render.default.svc.cluster.local:8082",
+  "--zmq-endpoint=tcp://qwen3-0-6b-endpoint-picker.default.svc.cluster.local:5557",
+  "--max-model-len=4096",
+  "--max-num-seqs=8",
+  "--enable-kvcache=true",
+  "--kv-cache-size=585",
+  "--block-size=16",
+  "--latency-calculator=per-token",
+  "--prefill-overhead=50ms",
+  "--prefill-time-per-token=11400us",
+  "--inter-token-latency=210ms",
+  "--inter-token-latency-std-dev=45ms",
+  "--time-factor-under-load=1.3"
+]

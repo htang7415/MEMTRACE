@@ -18,6 +18,11 @@
 #   scripts/kind_platform.sh hosted [CAPACITY]   # add Gemini Flash-Lite to the pool via the hosted adapter
 #   scripts/kind_platform.sh hosted_down         # remove it (stops any further spend)
 #   scripts/kind_platform.sh hosted_study        # overflow study: GPU+CPU vs +Gemini at two capacities
+#   scripts/kind_platform.sh render_up           # vllm-render tokenizer (precise prefix index, Phase 4c)
+#   scripts/kind_platform.sh kv_events           # restart the GPU engine publishing KV events to the EPP (4c)
+#   scripts/kind_platform.sh kv_events_forward   # (re)attach those events to the EPP via a port-forward loop
+#   scripts/kind_platform.sh served_model        # model name the pool serves
+#   MODEL_4B=1 scripts/kind_platform.sh ...      # Phase 4b: Qwen3-4B on the GPU tier, CPU simulator scaled to it
 #   scripts/kind_platform.sh down
 #
 # Uses llm-d-router's own kind dev environment (cloned to ~/.cache/memtrace, outside this
@@ -86,7 +91,7 @@ policy() {
   k rollout status deploy/vllm-d --timeout=300s
   for _ in $(seq 1 60); do  # the gateway needs the new EPP endpoint before it can route
     curl -sf -m 5 "$GATEWAY/chat/completions" -H 'content-type: application/json' \
-      -d '{"model":"Qwen/Qwen3-0.6B","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' >/dev/null && return 0
+      -d "{\"model\":\"$SERVED_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}" >/dev/null && return 0
     sleep 2
   done
   echo "gateway not routing after policy $name" >&2
@@ -214,8 +219,57 @@ burst() {
 GPU_PORT=8210
 # 0.31 = 2 GiB KV cache, as in Phase 1. (Next to a real ~5 GiB vLLM CPU pod the host paged heavily even at
 # 0.2; the CPU tier is therefore simulated, see deploy/kind/cpu-sim.yaml.)
-GPU_ENGINE_ARGS="Qwen/Qwen3-0.6B --host 127.0.0.1 --port $GPU_PORT --max-model-len 4096 --enable-prefix-caching \
-  --gpu-memory-utilization 0.31 --enable-auto-tool-choice --tool-call-parser hermes"
+SERVED_MODEL=Qwen/Qwen3-0.6B
+GPU_MODEL_ARGS="$SERVED_MODEL --gpu-memory-utilization 0.31"
+CPU_SIM_ARGS="${CPU_SIM_ARGS:-}"
+if [ -n "${MODEL_4B:-}" ]; then
+  # Phase 4b: Qwen3-4B, MLX 4-bit, on the GPU tier; 0.35 gives a 1.37 GiB KV cache, as 0.31 gives with 0.6B.
+  # CPU tier: the 0.6B simulator with per-token costs x6.7 (parameter ratio; an estimate, not measured).
+  SERVED_MODEL=Qwen/Qwen3-4B
+  GPU_MODEL_ARGS="mlx-community/Qwen3-4B-4bit --revision 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25 \
+    --served-model-name $SERVED_MODEL --gpu-memory-utilization 0.35"
+  CPU_SIM_ARGS=deploy/kind/cpu-sim-args-qwen3-4b.json
+fi
+GPU_ENGINE_ARGS="$GPU_MODEL_ARGS --host 127.0.0.1 --port $GPU_PORT --max-model-len 4096 --enable-prefix-caching \
+  --enable-auto-tool-choice --tool-call-parser hermes"
+
+served_model() { echo "$SERVED_MODEL"; }
+
+kv_events() {
+  # Phase 4c: restart the GPU engine so it publishes KV-cache events to the EPP. The topic names the relay pod,
+  # the endpoint the EPP scores for the GPU tier; events reach the EPP through kv_events_forward.
+  local relay_ip
+  k rollout status deploy/vllm-gpu-relay --timeout=120s >/dev/null
+  relay_ip=$(k get pod -l memtrace/replica=gpu -o json | python3 -c '
+import json, sys
+print(next(p["status"]["podIP"] for p in json.load(sys.stdin)["items"] if not p["metadata"].get("deletionTimestamp")))')
+  pkill -f "vllm serve .*--port $GPU_PORT" || true
+  while pgrep -f "vllm serve .*--port $GPU_PORT" >/dev/null; do sleep 2; done
+  # shellcheck disable=SC2086
+  VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve $GPU_ENGINE_ARGS --kv-events-config \
+    "{\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://127.0.0.1:5557\",\"topic\":\"kv@$relay_ip:8000@$SERVED_MODEL\"}" \
+    > data/engine_logs/vllm-metal-pool.log 2>&1 &
+  until curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; do sleep 3; done
+}
+
+render_up() {
+  # Tokenizer for the precise prefix index and the CPU simulator; must serve before the simulator starts.
+  k scale deploy/vllm-render --replicas=1
+  k rollout status deploy/vllm-render --timeout=600s
+  until k exec deploy/vllm-render -- python3 -c 'import urllib.request; urllib.request.urlopen("http://localhost:8082/health")' \
+    >/dev/null 2>&1; do sleep 3; done
+}
+
+kv_events_forward() {
+  # Carry the GPU engine's event stream to the EPP. kubectl port-forward exits whenever the EPP's subscriber
+  # drops a connection (any publisher restart) or the EPP pod is replaced, so run it in a loop; the vLLM
+  # publisher reconnects on its own. Events published during a gap are lost.
+  pkill -f "memtrace-kv-forward" || true
+  pkill -f "port-forward svc/$EPP 5557" || true
+  nohup bash -c "while true; do kubectl --context $CTX port-forward svc/$EPP 5557:5557; sleep 1; done" \
+    memtrace-kv-forward >/dev/null 2>&1 &
+  sleep 3
+}
 
 wait_gpu_free() {
   # Another project's GPU run invalidates both measurements. Wait until no MaxionBench harness runs
@@ -252,8 +306,17 @@ hetero() {
   fi
   pin_images
   docker save "$RELAY_IMAGE" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
-  k delete deploy vllm-cpu-a vllm-cpu-b --ignore-not-found --wait=true
+  # Recreate the simulator: patches from an earlier mode (args, env) do not merge cleanly under apply.
+  k delete deploy vllm-cpu-a vllm-cpu-b vllm-cpu-sim --ignore-not-found --wait=true
   k apply -f deploy/kind/cpu-sim.yaml
+  if [ -n "$CPU_SIM_ARGS" ]; then
+    k patch deploy/vllm-cpu-sim --type=json \
+      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":$(cat "$CPU_SIM_ARGS")}]"
+  fi
+  if [ -n "${CPU_SIM_ENV:-}" ]; then  # e.g. a KV-event topic that names the pod as IP:port (4c)
+    k patch deploy/vllm-cpu-sim --type=json \
+      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/env\",\"value\":$(cat "$CPU_SIM_ENV")}]"
+  fi
   # Capacity labels live in the manifests (GPU weight from the last calibration; 1 until calibrated).
   HOST_IP=$(docker exec "$CLUSTER-control-plane" getent hosts host.docker.internal | awk '{print $1}') \
     GPU_WEIGHT="$(cat "${OUT_DIR:-data/hetero}/gpu_weight.txt" 2>/dev/null || echo 1)" \
@@ -271,7 +334,7 @@ calibrate() {
   sleep 3
   for target in "gpu-alone http://127.0.0.1:$GPU_PORT/v1" "cpu-sim-alone http://127.0.0.1:18000/v1"; do
     set -- $target
-    .venv/bin/memtrace run engine-bench --engine "$1" --base-url "$2" --model Qwen/Qwen3-0.6B \
+    .venv/bin/memtrace run engine-bench --engine "$1" --base-url "$2" --model "$SERVED_MODEL" \
       --workload agent-sessions --sessions 8 --turns 4 --max-tokens 32 --concurrency 4 \
       --ignore-eos --idle-seconds 0 --out-dir "$out/calibration"
   done
@@ -295,7 +358,7 @@ hetero_study() {
       for name in ${POLICIES:-random queue combined hw-weighted-random hw-combined}; do
         policy "$name"
         reset_caches
-        .venv/bin/memtrace run engine-bench --engine "hetero-$name" --base-url "$GATEWAY" --model Qwen/Qwen3-0.6B \
+        .venv/bin/memtrace run engine-bench --engine "hetero-$name" --base-url "$GATEWAY" --model "$SERVED_MODEL" \
           --workload "$workload" --num-requests "${NUM_REQUESTS:-128}" --sessions "${SESSIONS:-16}" --turns "${TURNS:-8}" \
           --max-tokens 32 --concurrency "$level" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 \
           --k8s-context "$CTX" --k8s-pool "$POOL_SELECTOR" --out-dir "$out"

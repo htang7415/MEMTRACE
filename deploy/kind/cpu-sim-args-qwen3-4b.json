@@ -1,0 +1,17 @@
+[
+  "--mode=random",
+  "--port=8000",
+  "--model=Qwen/Qwen3-4B",
+  "--force-dummy-tokenizer",
+  "--max-model-len=4096",
+  "--max-num-seqs=8",
+  "--enable-kvcache=true",
+  "--kv-cache-size=455",
+  "--block-size=16",
+  "--latency-calculator=per-token",
+  "--prefill-overhead=50ms",
+  "--prefill-time-per-token=76400us",
+  "--inter-token-latency=1407ms",
+  "--inter-token-latency-std-dev=302ms",
+  "--time-factor-under-load=1.3"
+]
