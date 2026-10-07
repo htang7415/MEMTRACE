@@ -143,3 +143,14 @@ def test_approximate_router_forgets_sessions_idle_past_sticky_idle() -> None:
     forgetful = simulate(sessions, config(replicas=2, router="approximate", sticky_idle=5.0))
     assert sticky.hit_tokens["gpu"] == 100
     assert forgetful.hit_tokens["gpu"] == 0
+
+
+def test_overlapping_calls_replace_the_sessions_entry() -> None:
+    # a's second call starts before its first ends; both write on the one replica. The second write replaces the
+    # first entry: 100 tokens held 5..8 (lifetime 2 after the second write at 6), not 200 during 6..7.
+    session = TraceSession(
+        "a",
+        (TraceCall(0, 5, "A", 100, 0, 0), TraceCall(3, 6, "A", 100, 0, 0), TraceCall(20, 21, "A", 100, 0, 0)),
+    )
+    result = simulate([session], config(retention=Retention("t", 2.0)))
+    assert result.gb_hours["gpu"] == pytest.approx(300 / 3600)

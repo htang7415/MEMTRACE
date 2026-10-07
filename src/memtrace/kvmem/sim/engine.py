@@ -142,7 +142,7 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
             result.calls += 1
             result.prompt_tokens += call.prompt
             preferred = _preferred(config.router, s, sessions[s].session_id, n, last_sent, holder)
-            if config.router == "approximate" and t - last_end.get(s, -math.inf) >= config.sticky_idle:
+            if config.router == "approximate" and s in last_end and t - last_end[s] >= config.sticky_idle:
                 preferred = None  # idle long enough that its KV is probably gone: place it afresh
             if preferred is not None and inflight[preferred] < config.max_inflight:
                 r = preferred
@@ -171,6 +171,9 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
             inflight[r] -= 1
             last_end[s] = t
             entry = Entry(call.prompt + call.completion, t, call.model, call.prompt)
+            older = next((e for store in stores[r] if (e := store.get(s))), None)
+            if older is not None:  # an overlapping call of the same session wrote here first
+                take(s, older)
             place(s, entry, r, config.retention.turn_aware and call.turn_end)
             if entry.where is not None:
                 holder[s] = r
