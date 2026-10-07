@@ -115,3 +115,18 @@ def test_zero_duration_calls_are_handled() -> None:
 def test_a_call_ending_before_it_starts_ends_at_its_start() -> None:
     session = TraceSession("a", (TraceCall(10, 4, "A", 100, 0, 0), TraceCall(12, 13, "A", 120, 0, 0)))
     assert simulate([session], config(retention=Retention("t", 3.0))).hit_tokens["gpu"] == 100
+
+
+def test_turn_awareness_does_not_reorder_lower_tiers() -> None:
+    # GPU and RAM each hold one 100-token context.
+    tiers = (Tier("gpu", 100.0, math.inf), Tier("ram", 100.0, 1e12))
+    sessions = [
+        TraceSession("c", (call(0, 100),)),  # in-turn, written at 1; demoted to RAM by b's write at 3
+        TraceSession("b", (call(2, 100),)),  # in-turn, written at 3
+        TraceSession("a", (call(4, 100, turn_end=True), call(10, 100))),  # turn ends; written at 5, back at 10
+    ]
+    # At 5 the GPU demotes a (its turn ended) to RAM, which then holds c (written at 1) and a (at 5). RAM is LRU,
+    # so it drops c, the older one, and a's return at 10 is served from RAM. Preferring to drop idle-turn KV in RAM
+    # would drop a instead.
+    aware = simulate(sessions, config(tiers=tiers, prefill_tokens_per_second=1e-3, retention=RETENTION["session"]))
+    assert aware.hit_tokens == {"gpu": 0, "ram": 100}

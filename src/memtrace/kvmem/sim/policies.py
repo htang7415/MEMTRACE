@@ -11,7 +11,7 @@ from dataclasses import dataclass
 class Retention:
     name: str
     lifetime: float = math.inf  # KV idle this long is dropped from every tier
-    turn_aware: bool = False  # KV of a session whose turn ended is evicted (demoted) before in-turn KV
+    turn_aware: bool = False  # the GPU tier demotes KV of sessions whose turn ended before in-turn KV
 
 
 RETENTION = {

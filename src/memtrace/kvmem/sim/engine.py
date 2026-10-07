@@ -3,7 +3,9 @@
 Each call's start routes it to a replica and looks up its session's cached prefix there, in any tier; the lookup
 consumes the entry. Its end stores the session's new context (prompt + completion) in that replica's GPU tier.
 Tier capacity is the budget for these idle prefixes; KV of running calls is not counted. Over capacity, entries
-are demoted a tier (dropped from the last), oldest first, and idle-turn entries first under a turn-aware policy.
+are demoted a tier (dropped from the last), oldest first. Under a turn-aware policy the GPU tier demotes entries of
+sessions whose turn ended first; lower tiers hold mostly such entries, so they stay LRU (evicting idle-turn KV
+first there drops exactly what they are for).
 
 A hit serves `min(prompt, prompt of the call that wrote the entry)` tokens, as M1's `reusable`, unless the model
 changed or the prompt shrank by `COMPACTION_SHRINK` or more. A hit from a slower tier is used only if loading it
@@ -120,6 +122,7 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
             held[k] -= entry.tokens
             entry.where = None
             k += 1
+            idle = False  # turn-awareness applies to the GPU tier only
             if k == len(tiers):
                 if holder.get(s) == r:
                     del holder[s]
