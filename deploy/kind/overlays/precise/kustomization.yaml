@@ -1,0 +1,6 @@
+# Phase 4c: precise prefix routing (scripts/precise_study.sh).
+resources:
+- ../../base
+patches:
+- path: cpu-sim-patch.yaml
+  target: {kind: Deployment, name: vllm-cpu-sim}

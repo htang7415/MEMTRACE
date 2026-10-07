@@ -233,17 +233,16 @@ burst() {
 
 GPU_PORT=8210
 # 0.31 = 2 GiB KV cache, as in Phase 1. (Next to a real ~5 GiB vLLM CPU pod the host paged heavily even at
-# 0.2; the CPU tier is therefore simulated, see deploy/kind/cpu-sim.yaml.)
+# 0.2; the CPU tier is therefore simulated, see deploy/kind/base/cpu-sim.yaml.)
 SERVED_MODEL=Qwen/Qwen3-0.6B
 GPU_MODEL_ARGS="$SERVED_MODEL --gpu-memory-utilization 0.31"
-CPU_SIM_ARGS="${CPU_SIM_ARGS:-}"
+OVERLAY="${OVERLAY:-hetero}"  # deploy/kind/overlays/<name>: the pool replicas for this mode
 if [ -n "${MODEL_4B:-}" ]; then
   # Phase 4b: Qwen3-4B, MLX 4-bit, on the GPU tier; 0.35 gives a 1.37 GiB KV cache, as 0.31 gives with 0.6B.
-  # CPU tier: the 0.6B simulator with per-token costs x6.7 (parameter ratio; an estimate, not measured).
   SERVED_MODEL=Qwen/Qwen3-4B
   GPU_MODEL_ARGS="mlx-community/Qwen3-4B-4bit --revision 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25 \
     --served-model-name $SERVED_MODEL --gpu-memory-utilization 0.35"
-  CPU_SIM_ARGS=deploy/kind/cpu-sim-args-qwen3-4b.json
+  OVERLAY=qwen3-4b  # CPU tier: the 0.6B simulator scaled to 4B
 fi
 GPU_ENGINE_ARGS="$GPU_MODEL_ARGS --host 127.0.0.1 --port $GPU_PORT --max-model-len 4096 --enable-prefix-caching \
   --enable-auto-tool-choice --tool-call-parser hermes"
@@ -323,15 +322,7 @@ hetero() {
   docker save "$RELAY_IMAGE" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
   # Recreate the simulator: patches from an earlier mode (args, env) do not merge cleanly under apply.
   k delete deploy vllm-cpu-a vllm-cpu-b vllm-cpu-sim --ignore-not-found --wait=true
-  k apply -f deploy/kind/cpu-sim.yaml
-  if [ -n "$CPU_SIM_ARGS" ]; then
-    k patch deploy/vllm-cpu-sim --type=json \
-      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":$(cat "$CPU_SIM_ARGS")}]"
-  fi
-  if [ -n "${CPU_SIM_ENV:-}" ]; then  # e.g. a KV-event topic that names the pod as IP:port (4c)
-    k patch deploy/vllm-cpu-sim --type=json \
-      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/env\",\"value\":$(cat "$CPU_SIM_ENV")}]"
-  fi
+  k apply -k "deploy/kind/overlays/$OVERLAY"
   # Capacity labels live in the manifests (GPU weight from the last calibration; 1 until calibrated).
   HOST_IP=$(docker exec "$CLUSTER-control-plane" getent hosts host.docker.internal | awk '{print $1}') \
     GPU_WEIGHT="$(cat "${OUT_DIR:-data/hetero}/gpu_weight.txt" 2>/dev/null || echo 1)" \

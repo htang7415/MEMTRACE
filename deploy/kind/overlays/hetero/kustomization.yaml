@@ -1,0 +1,3 @@
+# Default heterogeneous pool, Qwen3-0.6B.
+resources:
+- ../../base

@@ -1,0 +1,6 @@
+# Phase 4b: Qwen3-4B on the GPU tier (MODEL_4B=1).
+resources:
+- ../../base
+patches:
+- path: cpu-sim-patch.yaml
+  target: {kind: Deployment, name: vllm-cpu-sim}

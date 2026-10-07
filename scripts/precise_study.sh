@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Phase 4c: precise vs approximate prefix routing on the Copilot replay (heterogeneous pool, Qwen3-0.6B).
 # `precise` is `combined` with the prefix index fed by the engines' KV-cache events (deploy/kind/epp/precise.yaml);
-# the CPU simulator tokenizes through vllm-render (deploy/kind/cpu-sim-args-precise.json) so its events match.
+# the CPU simulator tokenizes through vllm-render (deploy/kind/overlays/precise) so its events match.
 #
 #   REPS=3 scripts/precise_study.sh      # -> data/precise/rep<N>/hetero-<policy>/copilot-agent/open
 set -euo pipefail
 cd "$(dirname "$0")/.."
 P=scripts/kind_platform.sh
-export CPU_SIM_ARGS=deploy/kind/cpu-sim-args-precise.json CPU_SIM_ENV=deploy/kind/cpu-sim-env-precise.json
+export OVERLAY=precise
 $P wait_gpu_free
 $P render_up
 $P hetero
