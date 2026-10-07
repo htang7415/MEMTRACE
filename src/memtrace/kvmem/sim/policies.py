@@ -27,7 +27,8 @@ RETENTION = {
 #   least-loaded  no cache affinity
 #   session-key   a stable hash of the session, like OpenAI's prompt_cache_key
 #   approximate   the replica the router last sent the session to (it does not see evictions), like llm-d's
-#                 approximate prefix index
+#                 approximate prefix index; with `SimConfig.sticky_idle` it forgets a session idle that long and
+#                 places it afresh, approximating "the KV was probably evicted" without KV events
 #   precise       the replica that holds the session's KV in any tier, like llm-d's KV-event-fed index
 ROUTERS = ("least-loaded", "session-key", "approximate", "precise")
 

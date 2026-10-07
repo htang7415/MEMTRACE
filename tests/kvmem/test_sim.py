@@ -130,3 +130,16 @@ def test_turn_awareness_does_not_reorder_lower_tiers() -> None:
     # would drop a instead.
     aware = simulate(sessions, config(tiers=tiers, prefill_tokens_per_second=1e-3, retention=RETENTION["session"]))
     assert aware.hit_tokens == {"gpu": 0, "ram": 100}
+
+
+def test_approximate_router_forgets_sessions_idle_past_sticky_idle() -> None:
+    # a's replica 0 is busy with z when a returns after 10 s idle. Sticky: a waits in line on replica 0 (capacity
+    # allows), and hits; with sticky_idle 5 the router forgets a and places it on idle replica 1, missing.
+    sessions = [
+        TraceSession("a", (call(0, 100), call(12, 100))),
+        TraceSession("z", (TraceCall(11, 20, "A", 10, 0, 0),)),  # busy on replica 0 from 11 to 20
+    ]
+    sticky = simulate(sessions, config(replicas=2, router="approximate"))
+    forgetful = simulate(sessions, config(replicas=2, router="approximate", sticky_idle=5.0))
+    assert sticky.hit_tokens["gpu"] == 100
+    assert forgetful.hit_tokens["gpu"] == 0

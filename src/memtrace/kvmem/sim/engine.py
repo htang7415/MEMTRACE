@@ -33,6 +33,7 @@ class SimConfig:
     retention: Retention
     router: str
     max_inflight: int = 8  # concurrent calls per replica before the router spills to the least-loaded one
+    sticky_idle: float = math.inf  # approximate router: forget a session's replica after this long idle
     prefill_tokens_per_second: float = 10_000.0  # recompute speed, to price loads from slower tiers
 
 
@@ -83,6 +84,7 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
     inflight = [0] * n
     assigned: dict[tuple[int, int], int] = {}
     last_sent: dict[int, int] = {}
+    last_end: dict[int, float] = {}
     holder: dict[int, int] = {}  # session -> replica holding its newest entry
     expiries: deque[tuple[float, int, Entry]] = deque()  # in last_use order: entries are written in time order
     window_start, window_end = trace_window(sessions)
@@ -140,6 +142,8 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
             result.calls += 1
             result.prompt_tokens += call.prompt
             preferred = _preferred(config.router, s, sessions[s].session_id, n, last_sent, holder)
+            if config.router == "approximate" and t - last_end.get(s, -math.inf) >= config.sticky_idle:
+                preferred = None  # idle long enough that its KV is probably gone: place it afresh
             if preferred is not None and inflight[preferred] < config.max_inflight:
                 r = preferred
             else:
@@ -165,6 +169,7 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
         else:
             r = assigned.pop((s, c))
             inflight[r] -= 1
+            last_end[s] = t
             entry = Entry(call.prompt + call.completion, t, call.model, call.prompt)
             place(s, entry, r, config.retention.turn_aware and call.turn_end)
             if entry.where is not None:
