@@ -41,6 +41,34 @@ jobs:
           /tmp/memtrace-wheel-smoke/bin/python -m pip install --no-deps dist/*.whl
           /tmp/memtrace-wheel-smoke/bin/memtrace --version
 
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: shellcheck -x -P SCRIPTDIR -S warning scripts/*.sh scripts/studies/*.sh
+
+  epp-plugins:
+    # The plugins compile only inside the pinned llm-d-router tree, as in scripts/build_epp.sh.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch llm-d-router v0.11.0
+        run: git clone -q --depth 1 --branch v0.11.0 https://github.com/llm-d/llm-d-router.git llm-d-router
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: llm-d-router/go.mod
+          cache-dependency-path: llm-d-router/go.sum
+      - name: Vet and test
+        run: |
+          test -z "$(gofmt -l epp-plugins)"
+          dir=pkg/epp/framework/plugins/scheduling/scorer/capacityload
+          mkdir -p "llm-d-router/$dir"
+          cp epp-plugins/capacityload/*.go "llm-d-router/$dir/"
+          cd llm-d-router
+          go vet "./$dir/"
+          go test "./$dir/"
+
   regression-gate:
     runs-on: ubuntu-latest
     env:

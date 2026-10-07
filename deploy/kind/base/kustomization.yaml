@@ -1,0 +1,4 @@
+# The simulated CPU tier of the heterogeneous pool. The GPU relay (deploy/kind/gpu-relay.yaml) stays outside
+# kustomize: it is an envsubst template, and kustomize drops the quotes that keep ${GPU_WEIGHT} a string label.
+resources:
+- cpu-sim.yaml

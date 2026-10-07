@@ -1,4 +1,4 @@
-"""Summarize an autoscaling burst run (`scripts/kind_platform.sh burst`).
+"""Summarize an autoscaling burst run (`scripts/studies/platform_studies.sh burst`).
 
 Reads `<run>/timeline.txt` (epoch, ready replicas, HPA desired replicas, once per second) and the
 per-request records of each load phase, and reports: HPA reaction time and time to full capacity after

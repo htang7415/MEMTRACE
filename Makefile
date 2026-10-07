@@ -8,14 +8,14 @@
 #
 # Requires Docker Desktop, kind, kubectl, helm, envsubst, and vllm-metal in ~/.venv-vllm-metal (see README).
 
-P := scripts/kind_platform.sh
+P := scripts/stack.sh
 POLICY ?= combined
 REPS ?= 3
 
 .PHONY: up down bench
 
 # The upstream dev environment starts a ~1 GB tokenizer pod (vllm-render); only the precise-prefix study
-# (scripts/precise_study.sh, render_up) needs it, so `up` scales it to zero.
+# (scripts/studies/precise_study.sh, render_up) needs it, so `up` scales it to zero.
 up:
 	mkdir -p data/engine_logs
 	kind get clusters 2>/dev/null | grep -qx memtrace || $(P) up
@@ -27,7 +27,7 @@ up:
 	if [ -n "$(HOSTED)" ]; then $(P) hosted; fi
 
 bench:
-	REPS=$(REPS) scripts/copilot_study.sh
+	REPS=$(REPS) scripts/studies/copilot_study.sh
 
 down:
 	-$(P) hosted_down

@@ -1,3 +1,4 @@
+# shellcheck shell=bash disable=SC2034  # sourced; the variables are used by the scripts that source it
 # Shared engine lifecycle for the Phase 1 scripts. Source it, then call start_engine NAME
 # (sets PORT) and stop_engine NAME. Same model, dtype, context, and ~2 GiB KV budget everywhere.
 MODEL="${MODEL:-Qwen/Qwen3-0.6B}"

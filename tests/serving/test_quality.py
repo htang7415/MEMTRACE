@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from memtrace.evaluation.bfcl import check_call, load_cases, summarize, to_openai_tools
+from memtrace.serving.quality import check_call, load_cases, summarize, to_openai_tools
 
 
 def _call(name, **arguments):

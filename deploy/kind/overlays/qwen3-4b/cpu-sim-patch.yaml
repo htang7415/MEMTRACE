@@ -1,0 +1,19 @@
+# Phase 4b: the 0.6B CPU simulator with per-token costs x6.7 (parameter ratio; an estimate, not measured).
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value:
+  - --mode=random
+  - --port=8000
+  - --model=Qwen/Qwen3-4B
+  - --force-dummy-tokenizer
+  - --max-model-len=4096
+  - --max-num-seqs=8
+  - --enable-kvcache=true
+  - --kv-cache-size=455
+  - --block-size=16
+  - --latency-calculator=per-token
+  - --prefill-overhead=50ms
+  - --prefill-time-per-token=76400us
+  - --inter-token-latency=1407ms
+  - --inter-token-latency-std-dev=302ms
+  - --time-factor-under-load=1.3

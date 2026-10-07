@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from memtrace.commands import run_engine_bench
-from memtrace.evaluation.serving import summarize_requests
+from memtrace.serving.metrics import summarize_requests
 from memtrace.serving import workloads
 
 
@@ -171,7 +171,7 @@ class _NoPower:
 
 
 def test_engine_report_renders_one_row_per_level(tmp_path) -> None:
-    from memtrace.evaluation.engine_report import engine_rows, render
+    from memtrace.serving.report import engine_rows, render
 
     for engine, level in (("b-engine", 2), ("a-engine", 1), ("a-engine", 8)):
         level_dir = tmp_path / engine / "sharegpt" / f"c{level}"
@@ -193,7 +193,7 @@ def test_engine_report_renders_one_row_per_level(tmp_path) -> None:
 
 
 def test_engine_parity_compares_outputs_by_index(tmp_path) -> None:
-    from memtrace.evaluation.engine_parity import parity
+    from memtrace.serving.parity import parity
 
     ref, cand = tmp_path / "ref.jsonl", tmp_path / "cand.jsonl"
     ref.write_text(
@@ -231,7 +231,7 @@ def test_mooncake_truncates_long_prompts_to_leading_blocks(tmp_path) -> None:
 
 
 def test_engine_parity_normalizes_inline_and_separate_thinking(tmp_path) -> None:
-    from memtrace.evaluation.engine_parity import parity
+    from memtrace.serving.parity import parity
 
     inline, separate = tmp_path / "inline.jsonl", tmp_path / "separate.jsonl"
     inline.write_text(

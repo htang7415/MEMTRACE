@@ -29,12 +29,13 @@ _COMMANDS = {
     ("evaluate", "gate"): "memtrace.evaluation.gate",
     ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
     ("evaluate", "audit"): "memtrace.evaluation.audit_report",
-    ("evaluate", "bfcl"): "memtrace.evaluation.bfcl",
+    ("evaluate", "bfcl"): "memtrace.serving.quality",
     ("report", "tables"): "memtrace.evaluation.tables",
     ("report", "figures"): "memtrace.evaluation.figures",
     ("report", "explore"): "memtrace.evaluation.trace_explorer",
-    ("report", "engines"): "memtrace.evaluation.engine_report",
-    ("report", "engine-parity"): "memtrace.evaluation.engine_parity",
+    ("report", "engines"): "memtrace.serving.report",
+    ("report", "engine-parity"): "memtrace.serving.parity",
+    ("report", "retention"): "memtrace.kvmem.retention",
 }
 
 _ASSET_BUILD_ORDER = (
@@ -77,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
 
     report = groups.add_parser("report", help="Generate tables and figures.")
-    report.add_argument("action", choices=("tables", "figures", "explore", "engines", "engine-parity"))
+    report.add_argument("action", choices=("tables", "figures", "explore", "engines", "engine-parity", "retention"))
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 
