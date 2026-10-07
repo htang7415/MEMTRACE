@@ -75,3 +75,8 @@ files = [
 ]
 python_version = "3.11"
 strict = true
+
+[[tool.mypy.overrides]]
+# google-genai is an optional extra (`.[gemini]`) and is not installed in CI.
+module = ["google", "google.*"]
+ignore_missing_imports = true
