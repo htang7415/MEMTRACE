@@ -130,9 +130,7 @@ def main(argv: list[str] | None = None) -> None:
             }
         )
         _write_json(run_summary_path, summaries)
-    serving = summarize_serving(
-        executed_traces, wall_seconds=time.monotonic() - started, concurrency=args.concurrency
-    )
+    serving = summarize_serving(executed_traces, wall_seconds=time.monotonic() - started, concurrency=args.concurrency)
 
     episode_scores = score_run_summary_items(summaries)
     metrics = aggregate_metrics(episode_scores)
