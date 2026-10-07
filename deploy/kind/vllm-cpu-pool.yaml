@@ -8,7 +8,7 @@
 # same pool label, so the InferencePool selects these pods, and `llm-d.ai/role: decode`,
 # so the EPP `decode-filter` keeps them. Each replica pins its OpenMP threads to its own
 # four cores, so the two engines do not compete for the same cores. Weights are read from
-# /models on the kind node (copied in by scripts/kind_platform.sh); nothing is downloaded.
+# /models on the kind node (copied in by scripts/stack.sh); nothing is downloaded.
 # Settings match the Phase 1 CPU engine except the KV cache (1 GiB per pod).
 apiVersion: apps/v1
 kind: Deployment

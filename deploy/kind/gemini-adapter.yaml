@@ -1,7 +1,7 @@
 # Hosted overflow tier: Gemini Flash-Lite as an InferencePool endpoint, through MEMTRACE's hosted-model
 # adapter (src/memtrace/serving/adapters/hosted.py, mounted from the ConfigMap `hosted-adapter`). The adapter
 # exports the vLLM metric names the EPP scorers read and enforces a hard spend cap; the API key comes from
-# the Secret `gemini-api` (created from docs/gemini_api.txt by scripts/kind_platform.sh; never in the repo).
+# the Secret `gemini-api` (created from docs/gemini_api.txt by scripts/stack.sh; never in the repo).
 # Prices: docs/gpu_llm_api_pricing.md. ${HOSTED_CAPACITY}: relative capacity for capacity-load-scorer.
 apiVersion: apps/v1
 kind: Deployment

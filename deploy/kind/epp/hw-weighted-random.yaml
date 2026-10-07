@@ -1,6 +1,6 @@
 # Capacity-proportional baseline: weighted random by hardware tier. With one replica per tier the
 # GPU replica receives GPU_WEIGHT / (GPU_WEIGHT + 1) of requests (weighted round robin, in expectation).
-# ${GPU_WEIGHT} is the GPU/CPU throughput ratio measured in the pool (scripts/kind_platform.sh calibrate).
+# ${GPU_WEIGHT} is the GPU/CPU throughput ratio measured in the pool (scripts/stack.sh calibrate).
 # endpoint-attribute-weight-scorer is experimental: the EPP needs --allow-experimental-plugins=true.
 apiVersion: llm-d.ai/v1alpha1
 kind: EndpointPickerConfig

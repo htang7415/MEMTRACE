@@ -2,12 +2,12 @@
 # Phase 4a: real agent traffic. Replay GitHub Copilot coding-agent sessions (open loop, real cache
 # structure and timing, scaled) on the heterogeneous pool and compare routing policies.
 #
-#   REPS=3 scripts/copilot_study.sh      # -> data/copilot/rep<N>/hetero-<policy>/copilot-agent/open
-#   MODEL_4B=1 OUT_DIR=data/copilot-4b OUT_ROOT=data/copilot-4b scripts/copilot_study.sh   # Phase 4b (Qwen3-4B; run
-#                                        #   `scripts/kind_platform.sh hetero` and `calibrate` with the same env first)
+#   REPS=3 scripts/studies/copilot_study.sh      # -> data/copilot/rep<N>/hetero-<policy>/copilot-agent/open
+#   MODEL_4B=1 OUT_DIR=data/copilot-4b OUT_ROOT=data/copilot-4b scripts/studies/copilot_study.sh   # Phase 4b (Qwen3-4B; run
+#                                        #   `scripts/stack.sh hetero` and `calibrate` with the same env first)
 set -euo pipefail
-cd "$(dirname "$0")/.."
-P=scripts/kind_platform.sh
+cd "$(dirname "$0")/../.."
+P=scripts/stack.sh
 $P wait_gpu_free
 $P hetero
 $P capacity_epp

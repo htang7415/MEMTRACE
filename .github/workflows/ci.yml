@@ -41,6 +41,13 @@ jobs:
           /tmp/memtrace-wheel-smoke/bin/python -m pip install --no-deps dist/*.whl
           /tmp/memtrace-wheel-smoke/bin/memtrace --version
 
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: shellcheck -x -P SCRIPTDIR -S warning scripts/*.sh scripts/studies/*.sh
+
   regression-gate:
     runs-on: ubuntu-latest
     env:

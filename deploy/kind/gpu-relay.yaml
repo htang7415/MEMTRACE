@@ -2,7 +2,7 @@
 # Containers on macOS cannot use the Metal GPU, so the engine runs on the host (bound to 127.0.0.1;
 # Docker Desktop's host.docker.internal reaches it without exposing it on the LAN) and this pod
 # stands in for it in the pool. The EPP scrapes /metrics and routes requests through the relay
-# exactly as it would for an in-cluster vLLM pod. ${HOST_IP} and ${GPU_WEIGHT} are filled in by scripts/kind_platform.sh.
+# exactly as it would for an in-cluster vLLM pod. ${HOST_IP} and ${GPU_WEIGHT} are filled in by scripts/stack.sh.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +20,7 @@ spec:
         llm-d.ai/role: decode
         memtrace/replica: gpu
         memtrace/hardware: gpu
-        memtrace/capacity: "${GPU_WEIGHT}"  # GPU/CPU throughput ratio from scripts/kind_platform.sh calibrate
+        memtrace/capacity: "${GPU_WEIGHT}"  # GPU/CPU throughput ratio from scripts/stack.sh calibrate
     spec:
       hostAliases:
       - ip: "${HOST_IP}"

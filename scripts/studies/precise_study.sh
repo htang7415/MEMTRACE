@@ -3,10 +3,10 @@
 # `precise` is `combined` with the prefix index fed by the engines' KV-cache events (deploy/kind/epp/precise.yaml);
 # the CPU simulator tokenizes through vllm-render (deploy/kind/overlays/precise) so its events match.
 #
-#   REPS=3 scripts/precise_study.sh      # -> data/precise/rep<N>/hetero-<policy>/copilot-agent/open
+#   REPS=3 scripts/studies/precise_study.sh      # -> data/precise/rep<N>/hetero-<policy>/copilot-agent/open
 set -euo pipefail
-cd "$(dirname "$0")/.."
-P=scripts/kind_platform.sh
+cd "$(dirname "$0")/../.."
+P=scripts/stack.sh
 export OVERLAY=precise
 $P wait_gpu_free
 $P render_up

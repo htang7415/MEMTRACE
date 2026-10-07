@@ -40,7 +40,7 @@ make up                # kind + llm-d + GPU relay + CPU tier + custom EPP (about
 make up HOSTED=1       # also Gemini Flash-Lite as overflow (key in a local file, never committed; spend-capped)
 make bench             # Copilot-replay routing comparison: combined vs capacity vs cache-cost, 3 repetitions
 make down              # stop the GPU engine, delete the cluster
-scripts/kind_platform.sh observability   # Prometheus, scrapes, alert rules (deploy/kind/observability/)
+scripts/stack.sh observability           # Prometheus, scrapes, alert rules (deploy/kind/observability/)
 ```
 
 `deploy/kind/observability/dashboard.json` is a Grafana dashboard (TTFT / TPOT / goodput / errors per tier, KV and
@@ -48,8 +48,8 @@ prefix-cache use, hosted spend); `alerts.yaml` alerts on an absent load metric, 
 down, and hosted spend. A stream cut by the gateway's 30 s timeout still returns HTTP 200; the timeout alert keys on
 Envoy's `UT` response flag instead.
 
-Other studies: `scripts/kind_platform.sh` (`study`, `failover`, `autoscaling`, `burst`, `hetero_study`,
-`hosted_study`), `scripts/precise_study.sh`, `scripts/run_engine_baselines.sh`.
+Other studies: `scripts/studies/platform_studies.sh` (`study`, `failover`, `burst` after `scripts/stack.sh
+autoscaling`, `hetero_study`, `hosted_study`), `scripts/studies/precise_study.sh`, `scripts/run_engine_baselines.sh`.
 
 ## Results
 

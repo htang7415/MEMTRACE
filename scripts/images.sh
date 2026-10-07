@@ -1,3 +1,4 @@
+# shellcheck shell=bash disable=SC2034  # sourced; the variables are used by the scripts that source it
 # Pinned container images. Manifests reference tags (kind's image import and imagePullPolicy: Never work with
 # tags, not digest-only references), so every script calls pin_images first: it verifies that each local tag
 # points at the digest the results were measured with, and re-pulls the pinned digest if it drifted.

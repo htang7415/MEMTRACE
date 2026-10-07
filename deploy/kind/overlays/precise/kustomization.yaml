@@ -1,4 +1,4 @@
-# Phase 4c: precise prefix routing (scripts/precise_study.sh).
+# Phase 4c: precise prefix routing (scripts/studies/precise_study.sh).
 resources:
 - ../../base
 patches:
