@@ -36,6 +36,7 @@ _COMMANDS = {
     ("report", "engines"): "memtrace.serving.report",
     ("report", "engine-parity"): "memtrace.serving.parity",
     ("report", "retention"): "memtrace.kvmem.retention",
+    ("report", "kv-sim"): "memtrace.kvmem.sim.sweep",
 }
 
 _ASSET_BUILD_ORDER = (
@@ -78,7 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
 
     report = groups.add_parser("report", help="Generate tables and figures.")
-    report.add_argument("action", choices=("tables", "figures", "explore", "engines", "engine-parity", "retention"))
+    report.add_argument(
+        "action", choices=("tables", "figures", "explore", "engines", "engine-parity", "retention", "kv-sim")
+    )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 
