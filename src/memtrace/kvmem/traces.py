@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class TraceCall:
     prompt: int
     cached: int
     completion: int
+    turn_end: bool = False  # last call of its turn: the agent stopped calling tools and waits for the user
 
 
 @dataclass(frozen=True)
@@ -42,17 +44,20 @@ def read_sessions(paths: list[Path]) -> Iterator[TraceSession]:
         with gzip.open(path, "rt") as handle:
             for line in handle:
                 session = json.loads(line)
-                raw = sorted(
-                    (
-                        c
-                        for turn in session["turns"]
-                        for c in turn["llm_calls"]
-                        if all(isinstance(c["tokens"].get(k), int) for k in ("prompt", "cached", "completion"))
-                    ),
-                    key=lambda c: c["timestamp"],
-                )
+                raw: list[tuple[dict[str, Any], bool]] = []
+                for turn in session["turns"]:
+                    valid = sorted(
+                        (
+                            c
+                            for c in turn["llm_calls"]
+                            if all(isinstance(c["tokens"].get(k), int) for k in ("prompt", "cached", "completion"))
+                        ),
+                        key=lambda c: c["timestamp"],
+                    )
+                    raw.extend((c, c is valid[-1]) for c in valid)
+                raw.sort(key=lambda item: item[0]["timestamp"])
                 calls = []
-                for c in raw:
+                for c, turn_end in raw:
                     end = trace_time(c["timestamp"])
                     tokens = c["tokens"]
                     calls.append(
@@ -63,6 +68,7 @@ def read_sessions(paths: list[Path]) -> Iterator[TraceSession]:
                             tokens["prompt"],
                             tokens["cached"],
                             tokens["completion"],
+                            turn_end,
                         )
                     )
                 yield TraceSession(session["session_id"], tuple(calls), session.get("date") or "")
