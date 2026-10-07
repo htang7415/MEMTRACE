@@ -8,7 +8,8 @@ are waste (`max(0, reusable - cached)`), attributed to the first cause that appl
 - compaction: the prompt shrank by at least `COMPACTION_SHRINK`, so the context was compacted or edited;
 - expiry: the gap since the previous call is at least `EXPIRY_GAP` (the common 5-minute cache lifetime);
 - placement: the gap is under `PLACEMENT_GAP` and the prompt did not shrink, so the cache should still exist
-  but the call missed it;
+  but the call missed it -- or the prompt grew while earlier content (system prompt, tool list) was rewritten,
+  which token counts cannot reveal, so this is an upper bound on true placement misses;
 - placement_or_edit: as placement, but the prompt shrank slightly; a miss here is either placement or an edit
   near the start of the context, which the trace cannot tell apart;
 - other: gaps in between, where expiry and placement cannot be told apart.
@@ -110,6 +111,8 @@ def trace_window(sessions: list[TraceSession]) -> tuple[float, float]:
     if dates:
         return trace_time(dates[0] + "T00:00:00Z"), trace_time(dates[-1] + "T00:00:00Z") + 86400.0
     calls = [call for session in sessions for call in session.calls]
+    if not calls:
+        return 0.0, 0.0
     return min(c.start for c in calls), max(c.end for c in calls)
 
 
@@ -126,12 +129,14 @@ def working_set(sessions: list[TraceSession], lifetime: float) -> tuple[float, i
     held, peak, area, now = 0, 0, 0.0, start
     for t in sorted(events):
         clipped = min(max(t, start), end)
+        if start <= t:
+            peak = max(peak, held)  # what was held up to t, including caches written before the window
         area += held * (clipped - now)
         now = clipped
         held += events[t]
         if start <= t < end:
             peak = max(peak, held)
-    return area / (end - start), peak
+    return (area / (end - start) if end > start else 0.0), peak
 
 
 def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
@@ -161,7 +166,13 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
             group[0] += 1
             group[1] += item.call.cached < 0.1 * item.reusable
     gaps = sorted(item.gap for item in items)
-    q = statistics.quantiles(gaps, n=100)
+    p90: float | None
+    p99: float | None
+    if len(gaps) >= 2:
+        q = statistics.quantiles(gaps, n=100)
+        p90, p99 = q[89], q[98]
+    else:  # quantiles() needs two points; a single gap is every percentile
+        p90 = p99 = gaps[0] if gaps else None
     later_prompt = sum(item.call.prompt for item in items)
     total_prompt = sum(call.prompt for session in sessions for call in session.calls)
     waste = sum(c["waste"] for c in causes.values())
@@ -171,17 +182,17 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
         "sessions_with_later_calls": sum(1 for s in sessions if len(s.calls) >= 2),
         "calls": sum(len(s.calls) for s in sessions),
         "later_calls": len(items),
-        "gap_seconds": {"median": statistics.median(gaps), "p90": q[89], "p99": q[98]},
+        "gap_seconds": {"median": statistics.median(gaps), "p90": p90, "p99": p99} if gaps else None,
         "hit_by_gap": {
             label: {
-                "share_of_later_calls": b.calls / len(items),
+                "share_of_later_calls": _ratio(b.calls, len(items)),
                 "hit_ratio_tokens": b.cached / b.prompt if b.prompt else None,
                 "hit_ratio_mean_per_call": statistics.fmean(b.ratios) if b.ratios else None,
             }
             for label, b in bins.items()
         },
         "waste_tokens": waste,
-        "waste_share_of_later_prompt": waste / later_prompt,
+        "waste_share_of_later_prompt": _ratio(waste, later_prompt),
         "waste_by_cause": {
             cause: {"calls": c["calls"], "tokens": c["waste"], "share": c["waste"] / waste if waste else 0.0}
             for cause, c in causes.items()
@@ -191,12 +202,16 @@ def analyze(sessions: Iterable[TraceSession]) -> dict[str, object]:
             k: misses / calls if calls else None for k, (calls, misses) in short.items()
         },
         "model_switch_calls": switch_calls,
-        "model_switch_share_of_later_calls": switch_calls / len(items),
+        "model_switch_share_of_later_calls": _ratio(switch_calls, len(items)),
         "lifetimes": {name: _lifetime(sessions, items, seconds) for name, seconds in LIFETIMES.items()},
         "relative_cost": {
             p.name: relative_cost(total_prompt, sum(i.retained(p.lifetime) for i in items), p) for p in ANTHROPIC
         },
     }
+
+
+def _ratio(numerator: float, denominator: float) -> float | None:
+    return numerator / denominator if denominator else None
 
 
 def _lifetime(sessions: list[TraceSession], items: list[LaterCall], lifetime: float) -> dict[str, object]:

@@ -101,12 +101,13 @@ def _download(url: str, dest: Path, attempts: int = 8) -> tuple[int, str]:
                 with tmp.open("ab" if resumed else "wb") as out:
                     while chunk := response.read(1 << 20):
                         out.write(chunk)
-        except OSError as error:
+        except OSError as error:  # includes failures before any byte arrived: retry those too
             print(f"retrying {url}: {error}", file=sys.stderr)
+            continue
         if expected < 0 or tmp.stat().st_size == expected:
             break
-    if expected >= 0 and tmp.stat().st_size != expected:
-        raise OSError(f"{url}: got {tmp.stat().st_size} of {expected} bytes after {attempts} attempts")
+    else:
+        raise OSError(f"{url}: download incomplete after {attempts} attempts")
     tmp.replace(dest)
     return dest.stat().st_size, _sha256(dest)
 

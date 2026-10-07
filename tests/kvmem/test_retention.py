@@ -130,3 +130,18 @@ def test_working_set_is_measured_over_the_sessions_day() -> None:
     mean, peak = working_set([session], 0)
     assert peak == 100
     assert mean == pytest.approx(100 * 10 / 86400)
+
+
+def test_peak_counts_caches_written_before_the_window() -> None:
+    day = trace_time("2026-06-06T00:00:00Z")
+    # Written at 23:59:50 the day before, held until it expires 20 s later, inside the day.
+    session = TraceSession("s", (call(day - 11, 90, 0, duration=1),), "2026-06-06")
+    mean, peak = working_set([session], 20)
+    assert peak == 100
+    assert mean == pytest.approx(100 * 10 / 86400)
+
+
+def test_analyze_handles_too_few_later_calls() -> None:
+    assert analyze([TraceSession("a", (call(0, 100, 0),))])["gap_seconds"] is None
+    one = analyze([TraceSession("a", (call(0, 100, 0), call(3, 120, 100)))])
+    assert one["gap_seconds"] == {"median": 2.0, "p90": 2.0, "p99": 2.0}
