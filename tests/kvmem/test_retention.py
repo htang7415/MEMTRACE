@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from memtrace.kvmem.retention import analyze, gap_bin, later_calls
+from memtrace.kvmem.retention import analyze, gap_bin, later_calls, working_set
 from memtrace.kvmem.traces import TraceCall, TraceSession, read_sessions, trace_time
 
 
@@ -98,3 +98,50 @@ def test_analyze_totals_and_shares() -> None:
     assert hits["5-10min"]["hit_ratio_tokens"] == 1.0
     assert hits[">1h"]["hit_ratio_tokens"] is None
     assert summary["model_switch_calls"] == 0
+
+
+def test_retained_needs_same_model_no_compaction_and_a_gap_within_the_lifetime() -> None:
+    (item,) = later_calls([TraceSession("s", (call(0, 1000, 0), call(61, 1200, 0)))])  # gap 60 s
+    assert item.retained(61) == 1000
+    assert item.retained(60) == 0
+    (switched,) = later_calls([TraceSession("s", (call(0, 1000, 0), call(3, 1200, 0, model="B")))])
+    assert switched.retained(300) == 0
+    (compacted,) = later_calls([TraceSession("s", (call(0, 1000, 0), call(3, 900, 0)))])
+    assert compacted.retained(300) == 0
+
+
+def test_working_set_holds_each_call_until_the_next_call_or_the_lifetime() -> None:
+    # Prompt + completion: 110 then 210. Window is 0..6 s (first start to last end).
+    session = TraceSession("s", (call(0, 100, 0), call(5, 200, 0)))
+    # lifetime 2: 110 held 0..3 (call end 1 + 2), 210 held 5..6 (clipped at the window end).
+    assert working_set([session], 2) == (pytest.approx((110 * 3 + 210 * 1) / 6), 210)
+    # lifetime 100: 110 held until the next call starts at 5.
+    assert working_set([session], 100) == (pytest.approx((110 * 5 + 210 * 1) / 6), 210)
+    # Two overlapping sessions add up.
+    other = TraceSession("t", (call(0, 300, 0, duration=6),))
+    assert working_set([session, other], 2)[1] == 210 + 310  # at t = 5
+
+
+def test_working_set_is_measured_over_the_sessions_day() -> None:
+    day = trace_time("2026-06-06T00:00:00Z")
+    # One call held 10 s at noon of its day, plus an old call from the previous day that must not count.
+    old = call(day - 7200, 999, 0)
+    session = TraceSession("s", (old, call(day + 43200, 90, 0, duration=10)), "2026-06-06")
+    mean, peak = working_set([session], 0)
+    assert peak == 100
+    assert mean == pytest.approx(100 * 10 / 86400)
+
+
+def test_peak_counts_caches_written_before_the_window() -> None:
+    day = trace_time("2026-06-06T00:00:00Z")
+    # Written at 23:59:50 the day before, held until it expires 20 s later, inside the day.
+    session = TraceSession("s", (call(day - 11, 90, 0, duration=1),), "2026-06-06")
+    mean, peak = working_set([session], 20)
+    assert peak == 100
+    assert mean == pytest.approx(100 * 10 / 86400)
+
+
+def test_analyze_handles_too_few_later_calls() -> None:
+    assert analyze([TraceSession("a", (call(0, 100, 0),))])["gap_seconds"] is None
+    one = analyze([TraceSession("a", (call(0, 100, 0), call(3, 120, 100)))])
+    assert one["gap_seconds"] == {"median": 2.0, "p90": 2.0, "p99": 2.0}
