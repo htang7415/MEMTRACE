@@ -7,7 +7,7 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from memtrace.serving.hosted_adapter import Accounting, make_handler, upstream_payload
+from memtrace.serving.adapters.hosted import Accounting, make_handler, upstream_payload
 
 PRICES = (0.30, 0.03, 2.50)
 

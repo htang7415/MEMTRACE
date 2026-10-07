@@ -398,7 +398,7 @@ hosted() {
   local capacity="${1:-${HOSTED_CAPACITY:-2}}"
   # The key goes from file to Secret without passing through a command line or the repo.
   k create secret generic gemini-api --from-file=api-key=docs/gemini_api.txt --dry-run=client -o yaml | k apply -f - >/dev/null
-  k create configmap hosted-adapter --from-file=hosted_adapter.py=src/memtrace/serving/hosted_adapter.py \
+  k create configmap hosted-adapter --from-file=hosted_adapter.py=src/memtrace/serving/adapters/hosted.py \
     --dry-run=client -o yaml | k apply -f -
   pin_image "$PYTHON_IMAGE" "$PYTHON_DIGEST"
   docker save "$PYTHON_IMAGE" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null

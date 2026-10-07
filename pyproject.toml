@@ -66,10 +66,6 @@ files = [
   "src/memtrace/backends/models/openai_runner.py",
   "src/memtrace/serving",
   "src/memtrace/commands/run_engine_bench.py",
-  "src/memtrace/evaluation/serving.py",
-  "src/memtrace/evaluation/engine_report.py",
-  "src/memtrace/evaluation/engine_parity.py",
-  "src/memtrace/evaluation/bfcl.py",
   "scripts/fetch_public_datasets.py",
   "scripts/analyze_autoscale.py",
 ]

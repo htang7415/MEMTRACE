@@ -22,7 +22,7 @@ from memtrace.config import (
 )
 from memtrace.evaluation.metrics import aggregate_metrics
 from memtrace.evaluation.scoring import score_run_summary_items
-from memtrace.evaluation.serving import summarize_serving
+from memtrace.serving.metrics import summarize_serving
 from memtrace.core.schema import EpisodeRecord
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
-from memtrace.evaluation.serving import summarize_requests
+from memtrace.serving.metrics import summarize_requests
 from memtrace.serving import workloads
 from memtrace.serving.bench import (
     PowerSampler,

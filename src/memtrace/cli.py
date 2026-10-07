@@ -29,12 +29,12 @@ _COMMANDS = {
     ("evaluate", "gate"): "memtrace.evaluation.gate",
     ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
     ("evaluate", "audit"): "memtrace.evaluation.audit_report",
-    ("evaluate", "bfcl"): "memtrace.evaluation.bfcl",
+    ("evaluate", "bfcl"): "memtrace.serving.quality",
     ("report", "tables"): "memtrace.evaluation.tables",
     ("report", "figures"): "memtrace.evaluation.figures",
     ("report", "explore"): "memtrace.evaluation.trace_explorer",
-    ("report", "engines"): "memtrace.evaluation.engine_report",
-    ("report", "engine-parity"): "memtrace.evaluation.engine_parity",
+    ("report", "engines"): "memtrace.serving.report",
+    ("report", "engine-parity"): "memtrace.serving.parity",
 }
 
 _ASSET_BUILD_ORDER = (

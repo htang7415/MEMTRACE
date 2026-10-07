@@ -1,7 +1,7 @@
 import pytest
 
 from memtrace.commands import run_pilot as run_pilot_module
-from memtrace.evaluation.serving import summarize_serving
+from memtrace.serving.metrics import summarize_serving
 
 
 def _call(role, ttft, e2e, prompt_tokens=100, cached=None, output_tokens=10):
