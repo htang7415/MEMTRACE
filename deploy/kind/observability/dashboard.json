@@ -1,0 +1,328 @@
+{
+  "title": "MEMTRACE serving platform",
+  "uid": "memtrace-serving",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "refresh": "10s",
+  "tags": [
+    "memtrace",
+    "llm-d",
+    "vllm"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Prometheus"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "TTFT p50 / p95 by tier",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le, memtrace_hardware) (rate(vllm:time_to_first_token_seconds_bucket[1m])))",
+          "legendFormat": "p50 {{memtrace_hardware}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, memtrace_hardware) (rate(vllm:time_to_first_token_seconds_bucket[1m])))",
+          "legendFormat": "p95 {{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "TPOT by tier (decode time / output tokens)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (memtrace_hardware) (rate(vllm:request_decode_time_seconds_sum[1m])) / sum by (memtrace_hardware) (rate(vllm:request_generation_tokens_sum[1m]))",
+          "legendFormat": "{{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Goodput by tier (completed requests/s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (memtrace_hardware) (rate(vllm:request_success_total[1m]))",
+          "legendFormat": "{{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Output tokens/s by tier",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (memtrace_hardware) (rate(vllm:generation_tokens_total[1m]))",
+          "legendFormat": "{{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Gateway errors and 30 s timeouts",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(istio_requests_total{response_flags=~\".*UT.*\"}[1m])) or vector(0)",
+          "legendFormat": "timeouts (UT, status 200)"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (response_code) (increase(istio_requests_total{response_code=~\"5..\"}[1m]))",
+          "legendFormat": "HTTP {{response_code}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Running / waiting requests by tier",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (memtrace_hardware) (vllm:num_requests_running)",
+          "legendFormat": "running {{memtrace_hardware}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (memtrace_hardware) (vllm:num_requests_waiting)",
+          "legendFormat": "waiting {{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "KV-cache usage by tier",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (memtrace_hardware) (vllm:kv_cache_usage_perc)",
+          "legendFormat": "{{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Prefix-cache hit rate by tier",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (memtrace_hardware) (rate({__name__=~\"vllm:prefix_cache_hits(_total)?\"}[1m])) / sum by (memtrace_hardware) (rate({__name__=~\"vllm:prefix_cache_queries(_total)?\"}[1m]))",
+          "legendFormat": "{{memtrace_hardware}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Hosted overflow spend (USD)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(memtrace_hosted_spend_usd)",
+          "legendFormat": "spent"
+        },
+        {
+          "refId": "B",
+          "expr": "max(memtrace_hosted_budget_usd)",
+          "legendFormat": "budget"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "EPP request duration p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(llm_d_epp_request_duration_seconds_bucket[1m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    }
+  ]
+}

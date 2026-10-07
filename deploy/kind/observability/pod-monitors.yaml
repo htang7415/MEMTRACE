@@ -1,0 +1,25 @@
+# Gateway (Envoy) and EPP metrics for the observability snapshot; pool replicas are scraped by
+# deploy/kind/autoscaling/pod-monitor.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: inference-gateway
+spec:
+  selector:
+    matchLabels: {gateway.networking.k8s.io/gateway-name: inference-gateway}
+  podMetricsEndpoints:
+  - port: http-envoy-prom
+    path: /stats/prometheus
+    interval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: endpoint-picker
+spec:
+  selector:
+    matchLabels: {app: qwen3-0-6b-endpoint-picker}
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 5s

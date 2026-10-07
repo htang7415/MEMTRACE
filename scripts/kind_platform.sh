@@ -8,6 +8,7 @@
 #   scripts/kind_platform.sh study               # every policy x workload x concurrency level, cold start each run
 #   scripts/kind_platform.sh failover            # delete one replica mid-run under load; count failures, time recovery
 #   scripts/kind_platform.sh autoscaling         # Prometheus + KEDA; ScaledObject on in-flight requests
+#   scripts/kind_platform.sh observability       # Prometheus + scrapes + alert rules (deploy/kind/observability)
 #   scripts/kind_platform.sh burst               # low -> high -> low load with autoscaling; replica timeline
 #   scripts/kind_platform.sh wait_gpu_free       # block until no other vllm-metal / MaxionBench run uses the GPU
 #   scripts/kind_platform.sh hetero              # pool = host vllm-metal (GPU, via relay pod) + CPU-calibrated simulator
@@ -23,6 +24,7 @@
 #   scripts/kind_platform.sh kv_events_forward   # (re)attach those events to the EPP via a port-forward loop
 #   scripts/kind_platform.sh served_model        # model name the pool serves
 #   MODEL_4B=1 scripts/kind_platform.sh ...      # Phase 4b: Qwen3-4B on the GPU tier, CPU simulator scaled to it
+#   scripts/kind_platform.sh gpu_down            # stop the host GPU engine (and the 4c event forward)
 #   scripts/kind_platform.sh down
 #
 # Uses llm-d-router's own kind dev environment (cloned to ~/.cache/memtrace, outside this
@@ -168,7 +170,7 @@ print(sum(1 for p in pods if healthy(p)))' "$victim" "${MODE:-crash}")" -ge "${R
   wait "$bench"
 }
 
-autoscaling() {
+prometheus() {
   helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 91.9.0 \
     --kube-context "$CTX" --namespace monitoring --create-namespace \
     --set grafana.enabled=false --set alertmanager.enabled=false \
@@ -179,10 +181,23 @@ autoscaling() {
     --set prometheus.prometheusSpec.scrapeInterval=5s \
     --set prometheus.prometheusSpec.resources.requests.memory=512Mi \
     --set prometheus.prometheusSpec.resources.limits.memory=1Gi --wait --timeout 600s
+}
+
+autoscaling() {
+  prometheus
   helm upgrade --install keda kedacore/keda --version 2.21.0 --kube-context "$CTX" \
     --namespace keda --create-namespace --wait --timeout 600s
   k apply -f deploy/kind/autoscaling/pod-monitor.yaml
   k apply -f deploy/kind/autoscaling/scaledobject.yaml
+}
+
+observability() {
+  # Phase 5 snapshot: Prometheus, pool / gateway / EPP scrapes, and the alert rules. The Grafana dashboard JSON
+  # (deploy/kind/observability/dashboard.json) is imported by hand into any Grafana pointed at this Prometheus.
+  prometheus
+  k apply -f deploy/kind/autoscaling/pod-monitor.yaml
+  k apply -f deploy/kind/observability/pod-monitors.yaml
+  k apply -f deploy/kind/observability/alerts.yaml
 }
 
 burst() {
@@ -369,8 +384,12 @@ hetero_study() {
 
 capacity_epp() {
   # Switch the EPP to the custom image (scripts/build_epp.sh); capacity labels come from the manifests and
-  # from `calibrate`, so this only changes the image.
-  k set image deploy/$EPP epp="${EPP_IMAGE:-$EPP_CUSTOM_IMAGE}"
+  # from `calibrate`, so this only changes the image. A new cluster does not have the image yet: load it
+  # (building it first if it is not in the local Docker cache).
+  local image="${EPP_IMAGE:-$EPP_CUSTOM_IMAGE}"
+  docker image inspect "$image" >/dev/null 2>&1 || IMAGE="$image" scripts/build_epp.sh
+  docker save "$image" | docker exec -i "$CLUSTER-control-plane" ctr --namespace=k8s.io images import - >/dev/null
+  k set image deploy/$EPP epp="$image"
   k patch deploy/$EPP --type=json -p '[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
   k rollout status deploy/$EPP --timeout=300s
 }
@@ -411,6 +430,12 @@ hosted_study() {
     done
   done
   hosted_down
+}
+
+gpu_down() {
+  # Stop the host GPU engine and any KV-event forward loop (Phase 4c).
+  pkill -f memtrace-kv-forward || true
+  pkill -f "vllm serve .*--port $GPU_PORT" || true
 }
 
 down() { kind delete cluster --name "$CLUSTER"; }

@@ -1,0 +1,46 @@
+# Alert rules for the serving platform (loaded by kube-prometheus-stack via the release label).
+# Each rule maps to a runbook page (docs/runbook.md, kept local).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: memtrace-serving
+  labels: {release: prometheus}
+spec:
+  groups:
+  - name: memtrace-serving
+    rules:
+    # KEDA and the EPP read "no series" as zero load. Seen right after install (PodMonitor not loaded yet)
+    # and when a selector stops matching (ADR 0004).
+    - alert: MemtracePoolMetricAbsent
+      expr: absent(vllm:num_requests_running{namespace="default"})
+      for: 1m
+      labels: {severity: critical}
+      annotations:
+        summary: No pool replica reports vllm:num_requests_running; autoscaling and load-aware routing see zero load.
+    # A stream cut by the gateway's 30 s route timeout still returns HTTP 200; only Envoy's UT response flag marks
+    # it (ADR 0005). Non-streamed requests get a 504.
+    - alert: MemtraceGatewayTimeouts
+      expr: >-
+        (sum(increase(istio_requests_total{response_flags=~".*UT.*"}[5m])) or vector(0))
+        + (sum(increase(istio_requests_total{response_code="504"}[5m])) or vector(0)) > 0
+      labels: {severity: warning}
+      annotations:
+        summary: '{{ $value | printf "%.0f" }} requests hit the gateway timeout in the last 5 minutes.'
+    - alert: MemtraceTTFTp95High
+      expr: >-
+        histogram_quantile(0.95, sum by (le, memtrace_hardware) (rate(vllm:time_to_first_token_seconds_bucket[5m]))) > 2
+      for: 5m
+      labels: {severity: warning}
+      annotations:
+        summary: 'TTFT p95 on the {{ $labels.memtrace_hardware }} tier is {{ $value | printf "%.1f" }} s (SLO 2 s).'
+    - alert: MemtracePoolReplicaDown
+      expr: up{job="default/vllm-pool"} == 0
+      for: 1m
+      labels: {severity: critical}
+      annotations:
+        summary: 'Pool replica {{ $labels.pod }} ({{ $labels.memtrace_hardware }}) is not answering /metrics.'
+    - alert: MemtraceHostedSpendNearCap
+      expr: memtrace_hosted_spend_usd / memtrace_hosted_budget_usd > 0.8
+      labels: {severity: warning}
+      annotations:
+        summary: 'Hosted overflow has spent {{ $value | humanizePercentage }} of its budget; at 100% it refuses requests.'
