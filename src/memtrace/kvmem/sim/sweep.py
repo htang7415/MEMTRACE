@@ -63,6 +63,9 @@ def main() -> None:
         "--retention", choices=sorted(RETENTION), nargs="+", default=["lru", "ttl-5min", "ttl-1h", "session"]
     )
     parser.add_argument("--router", choices=ROUTERS, nargs="+", default=list(ROUTERS))
+    parser.add_argument(
+        "--sticky-idle", type=float, nargs="+", default=[math.inf], help="approximate router: seconds idle to forget"
+    )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
@@ -72,7 +75,10 @@ def main() -> None:
     sessions = list(read_sessions(paths))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w") as out:
-        for gpu_gb, lower, retention, router in itertools.product(args.gpu_gb, args.lower, args.retention, args.router):
+        grid = itertools.product(args.gpu_gb, args.lower, args.retention, args.router, args.sticky_idle)
+        for gpu_gb, lower, retention, router, sticky_idle in grid:
+            if router != "approximate" and sticky_idle != args.sticky_idle[0]:
+                continue  # sticky_idle only changes the approximate router
             config = SimConfig(
                 replicas=args.replicas,
                 tiers=(Tier("gpu", gpu_gb, math.inf), *LOWER_TIERS[lower]),
@@ -81,6 +87,7 @@ def main() -> None:
                 router=router,
                 max_inflight=args.max_inflight,
                 prefill_tokens_per_second=args.prefill_tps,
+                sticky_idle=sticky_idle,
             )
             row = {
                 "day": args.day,
@@ -90,6 +97,7 @@ def main() -> None:
                 "lower": lower,
                 "retention": retention,
                 "router": router,
+                "sticky_idle": sticky_idle if router == "approximate" else None,
                 **simulate(sessions, config).summary(),
             }
             out.write(json.dumps(row) + "\n")
