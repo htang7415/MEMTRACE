@@ -55,8 +55,8 @@ DATASETS: dict[str, dict[str, Any]] = {
     "copilot_agent": {
         "license": "CC-BY-4.0",
         "purpose": "GitHub Copilot coding-agent session telemetry (sessions, LLM calls with prompt/cached/completion "
-        "tokens, tool calls); smallest day of the release",
-        "files": {"date.2026-06-06.tar.gz": f"{_COPILOT}/date.2026-06-06.tar.gz"},
+        "tokens, tool calls); all seven days of the release (June 1-7, 2026)",
+        "files": {f"date.2026-06-0{d}.tar.gz": f"{_COPILOT}/date.2026-06-0{d}.tar.gz" for d in range(1, 8)},
         "extract": True,
     },
     "sharegpt": {
@@ -83,16 +83,32 @@ DATASETS: dict[str, dict[str, Any]] = {
 }
 
 
-def _download(url: str, dest: Path) -> tuple[int, str]:
+def _download(url: str, dest: Path, attempts: int = 8) -> tuple[int, str]:
+    """Download to `dest`. A dropped connection can end the read early without an error, so the size is
+    checked against Content-Length and the transfer resumes with a Range request."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
-    digest = hashlib.sha256()
-    with urllib.request.urlopen(url, timeout=60) as response, tmp.open("wb") as out:
-        while chunk := response.read(1 << 20):
-            digest.update(chunk)
-            out.write(chunk)
+    tmp.unlink(missing_ok=True)
+    expected = -1
+    for _ in range(attempts):
+        have = tmp.stat().st_size if tmp.exists() else 0
+        request = urllib.request.Request(url, headers={"Range": f"bytes={have}-"} if have else {})
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if not have:
+                    expected = int(response.headers.get("Content-Length") or -1)
+                resumed = have and response.status == 206
+                with tmp.open("ab" if resumed else "wb") as out:
+                    while chunk := response.read(1 << 20):
+                        out.write(chunk)
+        except OSError as error:
+            print(f"retrying {url}: {error}", file=sys.stderr)
+        if expected < 0 or tmp.stat().st_size == expected:
+            break
+    if expected >= 0 and tmp.stat().st_size != expected:
+        raise OSError(f"{url}: got {tmp.stat().st_size} of {expected} bytes after {attempts} attempts")
     tmp.replace(dest)
-    return dest.stat().st_size, digest.hexdigest()
+    return dest.stat().st_size, _sha256(dest)
 
 
 def _sha256(path: Path) -> str:
