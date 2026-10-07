@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+import gzip
+import json
+from pathlib import Path
+
+import pytest
+
+from memtrace.kvmem.retention import analyze, gap_bin, later_calls
+from memtrace.kvmem.traces import TraceCall, TraceSession, read_sessions, trace_time
+
+
+def call(start: float, prompt: int, cached: int, *, model: str = "A", duration: float = 1.0) -> TraceCall:
+    return TraceCall(start, start + duration, model, prompt, cached, 10)
+
+
+def test_trace_time_reads_nanosecond_utc_stamps() -> None:
+    assert trace_time("1970-01-01T00:00:01.500000000Z") == pytest.approx(1.5)
+    assert trace_time("1970-01-01T00:01:00Z") == 60.0
+
+
+def test_read_sessions_orders_calls_and_skips_missing_counts(tmp_path: Path) -> None:
+    def raw(stamp: str, prompt: object) -> dict[str, object]:
+        tokens = {"prompt": prompt, "cached": 0, "completion": 5}
+        return {"timestamp": stamp, "duration_ms": 500.0, "model": "Model A", "tokens": tokens}
+
+    record = {
+        "session_id": "s1",
+        "turns": [
+            {"llm_calls": [raw("1970-01-01T00:00:10.000Z", 200), raw("1970-01-01T00:00:12.000Z", None)]},
+            {"llm_calls": [raw("1970-01-01T00:00:05.000Z", 100)]},
+        ],
+    }
+    path = tmp_path / "shard-0000.jsonl.gz"
+    with gzip.open(path, "wt") as handle:
+        handle.write(json.dumps(record) + "\n")
+    (session,) = read_sessions([path])
+    assert session.session_id == "s1"
+    assert [c.prompt for c in session.calls] == [100, 200]
+    assert session.calls[0].start == pytest.approx(4.5)
+    assert session.calls[0].end == pytest.approx(5.0)
+
+
+def test_gap_bins_are_half_open() -> None:
+    assert gap_bin(9.99) == "<10s"
+    assert gap_bin(10.0) == "10-60s"
+    assert gap_bin(299.0) == "1-5min"
+    assert gap_bin(300.0) == "5-10min"
+    assert gap_bin(3600.0) == ">1h"
+
+
+def test_each_miss_is_attributed_to_one_cause_in_precedence_order() -> None:
+    # Each later call's previous call ends at t + 1; gaps are measured from there.
+    calls = [
+        call(0, 1000, 0),
+        call(3, 1100, 1000),  # gap 2 s, full hit: no waste
+        call(6, 1200, 200, model="B"),  # different model: model_switch, waste 1100 - 200
+        call(9, 1300, 1000, model="B"),  # gap 2 s, grew: placement, waste 1200 - 1000
+        call(11, 800, 0, model="B"),  # shrank 38%: compaction, waste 800
+        call(612, 900, 0, model="B"),  # gap 600 s: expiry, waste 800
+        call(643, 950, 0, model="B"),  # gap 30 s: other, waste 900
+        call(646, 940, 40, model="B"),  # gap 2 s, shrank 1%: placement_or_edit, waste 900
+        call(649, 860, 0, model="B"),  # shrank 8.5%, under the threshold: placement_or_edit, waste 860
+        call(652, 774, 0, model="B"),  # shrank exactly 10%: compaction, waste 774
+    ]
+    items = list(later_calls([TraceSession("s", tuple(calls))]))
+    assert [(i.cause, i.waste) for i in items if i.waste] == [
+        ("model_switch", 900),
+        ("placement", 200),
+        ("compaction", 800),
+        ("expiry", 800),
+        ("other", 900),
+        ("placement_or_edit", 900),
+        ("placement_or_edit", 860),
+        ("compaction", 774),
+    ]
+
+
+def test_analyze_totals_and_shares() -> None:
+    sessions = [
+        TraceSession("a", (call(0, 1000, 0), call(3, 1000, 0))),  # placement, near-total miss: waste 1000
+        TraceSession("b", (call(0, 1000, 0), call(401, 1000, 1000))),  # gap 400 s, full hit: no waste
+        TraceSession("c", (call(0, 500, 0),)),  # no later call
+    ]
+    summary = analyze(sessions)
+    assert summary["sessions"] == 3
+    assert summary["sessions_with_later_calls"] == 2
+    assert summary["later_calls"] == 2
+    assert summary["waste_tokens"] == 1000
+    assert summary["waste_share_of_later_prompt"] == pytest.approx(0.5)
+    by_cause = summary["waste_by_cause"]
+    assert isinstance(by_cause, dict)
+    assert by_cause["placement"] == {"calls": 1, "tokens": 1000, "share": 1.0}
+    assert summary["placement_near_total_miss_share_of_waste"] == pytest.approx(1.0)
+    hits = summary["hit_by_gap"]
+    assert isinstance(hits, dict)
+    assert hits["<10s"]["hit_ratio_tokens"] == 0.0
+    assert hits["5-10min"]["hit_ratio_tokens"] == 1.0
+    assert hits[">1h"]["hit_ratio_tokens"] is None
+    assert summary["model_switch_calls"] == 0

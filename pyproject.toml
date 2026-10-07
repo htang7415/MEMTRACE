@@ -65,6 +65,7 @@ files = [
   "src/memtrace/backends/models/gemini_runner.py",
   "src/memtrace/backends/models/openai_runner.py",
   "src/memtrace/serving",
+  "src/memtrace/kvmem",
   "src/memtrace/commands/run_engine_bench.py",
   "scripts/fetch_public_datasets.py",
   "scripts/analyze_autoscale.py",
