@@ -101,8 +101,8 @@ and `scripts/run_engine_baselines.sh`.
 
 Evaluates persistent-memory risk in tool-using agents as a causal chain: retrieval exposure, poisoned-memory
 admission, delayed retrieval, unsafe proposals, policy-checker blocking, unsafe execution, and execution-format
-failure. Report: [results/benchmark/memtrace_results.html](results/benchmark/memtrace_results.html) (download or open
-locally to view; rebuild with `python results/benchmark/build.py`).
+failure. Report: [view online](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html) (source:
+`results/benchmark/`; rebuild with `python results/benchmark/build.py`).
 
 ### Install
 
