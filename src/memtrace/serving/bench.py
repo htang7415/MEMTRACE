@@ -201,14 +201,14 @@ def host_swap_pages() -> dict[str, int] | None:
 class PowerSampler:
     """Background `macmon pipe` reader: power (W) and RAM use, sampled every `interval_ms`.
 
-    `sys_w` is whole-system power and is the basis for energy figures. On macOS 27 / M4,
+    `sys_w` is whole-system power and is the basis for energy figures. On the Apple Silicon machine used here,
     macmon's per-cluster `cpu_power` reads 0 even under full CPU load, so CPU-only engines
     are visible only through `sys_w`; `cpu_w` is kept to show that gap, not to be used.
     """
 
     def __init__(self, interval_ms: int = 250, command: str = "macmon", max_plausible_w: float = 100.0) -> None:
         # macmon's sys_power occasionally reports impossible values under load (run means of
-        # 200+ W on a Mac mini M4 whose rated maximum is about 65 W); samples above
+        # 200+ W on a machine whose rated maximum is about 65 W); samples above
         # `max_plausible_w` are dropped and counted rather than averaged in.
         self.max_plausible_w = max_plausible_w
         self._command = [command, "pipe", "-i", str(interval_ms)]

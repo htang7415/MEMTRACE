@@ -1,6 +1,6 @@
 # MEMTRACE
 
-LLM serving and KV-cache research on one Apple Silicon Mac (16 GB M4 Mac mini). Three parts:
+LLM serving and KV-cache research on one Apple Silicon Mac. Three parts:
 
 1. **Serving platform:** an **llm-d control plane on kind** routing across **vLLM on the Apple Silicon GPU
    (`vllm-metal`)**, a simulated vLLM CPU tier, and optionally **Gemini Flash-Lite** as hosted overflow, tested with
@@ -33,7 +33,7 @@ Every number below says what was real and what was simulated. The project is com
 
 Per-run and per-day tables behind every row, with definitions: [results/](results/README.md).
 
-Caveats: many runs paged on the 16 GB host (swap counters are recorded per run), so differences under ~15% are not
+Caveats: many runs paged on the host (swap counters are recorded per run), so differences under ~15% are not
 claimed. The CPU tier is simulated in every mixed-pool result. In the KV study, the provider also caches prefixes
 shared across sessions, which the simulator does not model, and routing, memory tiers, and lifetimes were tested in
 simulation only.

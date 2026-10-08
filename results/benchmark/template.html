@@ -215,7 +215,7 @@ footer { margin-top: 96px; border-top: 1px solid var(--rule); padding-top: 20px;
         <div><p class="muted" style="font-size:14px;margin-bottom:12px">Output tokens per second</p><div id="fig-tput"></div></div>
         <div><p class="muted" style="font-size:14px;margin-bottom:12px">Latency per model call, seconds</p><div id="fig-lat"></div></div>
       </div>
-      <figcaption><b>Batching raised throughput 1.67× and every score stayed the same.</b> Four episodes in flight lifted throughput from 15.5 to 25.8 output tokens per second and cut wall time from 29.3 to 17.5 minutes, while p95 end-to-end latency rose from 11.6 s to 27.4 s. Measured on one Apple M4 laptop over 54 episodes and 240 model calls per level.</figcaption>
+      <figcaption><b>Batching raised throughput 1.67× and every score stayed the same.</b> Four episodes in flight lifted throughput from 15.5 to 25.8 output tokens per second and cut wall time from 29.3 to 17.5 minutes, while p95 end-to-end latency rose from 11.6 s to 27.4 s. Measured on one Apple Silicon machine over 54 episodes and 240 model calls per level.</figcaption>
     </figure>
   </section>
 
@@ -246,7 +246,7 @@ footer { margin-top: 96px; border-top: 1px solid var(--rule); padding-top: 20px;
     <ul class="caveats">
       <li>One model in a controlled, synthetic setting. The results do not show that memory-enabled agents are safe in general.</li>
       <li>S2 is a reference mechanism for provenance-aware admission, not a complete defense.</li>
-      <li>Serving numbers come from a single laptop and demonstrate the measurement method, not production capacity.</li>
+      <li>Serving numbers come from a single machine and demonstrate the measurement method, not production capacity.</li>
       <li>The policy checker is a non-blocking diagnostic; it records decisions but does not enforce them.</li>
     </ul>
   </section>

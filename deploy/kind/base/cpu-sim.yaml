@@ -1,5 +1,5 @@
 # CPU-tier replica for the heterogeneous pool, simulated: a real vLLM CPU pod (~5.2 GiB) plus the real
-# vllm-metal GPU engine made the 16 GB host page ~16 MB/s under load, which invalidates latency results.
+# vllm-metal GPU engine made the host page ~16 MB/s under load, which invalidates latency results.
 # Calibrated to the real in-cluster vLLM CPU pod (4 pinned cores), measured alone on agent sessions at
 # concurrency 4: 11.8 tok/s. Phase 1 per-token costs (3.8 ms prefill, 70 ms decode, measured with all
 # 10 cores) gave 33.0 tok/s, 2.8x too fast; scaling both by 3.0 gives 11.1 tok/s (-6%). Tails stay
