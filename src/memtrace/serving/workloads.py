@@ -12,6 +12,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+from memtrace.kvmem.retention import COMPACTION_SHRINK
 from memtrace.kvmem.traces import read_sessions
 
 # Mooncake traces hash prompts in 512-token blocks. Engines here serve small models with
@@ -134,6 +135,7 @@ def copilot_sessions(
     max_gap_seconds: float = 30.0,
     window_seconds: float = 300.0,
     output_range: tuple[int, int] = (4, 128),
+    reuse: str = "observed",
 ) -> list[AgentSession]:
     """Replayable agent sessions from the GitHub Copilot coding-agent traces (Azure, 2026).
 
@@ -144,6 +146,10 @@ def copilot_sessions(
     `max_gap_seconds` (the long tail is a user idle between turns, up to 46 minutes after compression,
     which would stretch a replay without adding load), and session start
     times are compressed into `window_seconds` in their real order. Calls without token counts are skipped.
+
+    `reuse="full"` instead makes every prompt extend the previous one (append-only), except after a compaction
+    (the prompt shrinks by `COMPACTION_SHRINK` or more), which starts fresh. That is the structure the M2 simulator
+    assumes, so an engine replay can be compared with it.
     """
     raw = [(s.session_id, s.calls[:max_calls]) for s in read_sessions(paths) if len(s.calls) >= 2]
     raw.sort(key=lambda item: item[0])
@@ -160,7 +166,10 @@ def copilot_sessions(
         built = []
         for call in calls:
             length = min(max_prompt_tokens, max(1, round(call.prompt * token_scale)))
-            cached = min(length, len(context), round(call.cached * token_scale))
+            if reuse == "full":
+                cached = 0 if length <= (1 - COMPACTION_SHRINK) * len(context) else min(length, len(context))
+            else:
+                cached = min(length, len(context), round(call.cached * token_scale))
             words = context[:cached] + [rng.choice(_WORDS) for _ in range(length - cached)]
             gap = 0.0 if previous_end is None else min(max_gap_seconds, max(0.0, call.start - previous_end) * gap_scale)
             output = min(high, max(low, round(call.completion * token_scale)))

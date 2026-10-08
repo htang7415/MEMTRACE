@@ -401,3 +401,23 @@ def test_copilot_gaps_are_capped(tmp_path) -> None:
     )
 
     assert sessions[0].calls[1].gap_before == 2.0  # 3 s gap at scale 1.0, capped at 2 s
+
+
+def test_copilot_full_reuse_extends_the_previous_prompt(tmp_path) -> None:
+    import gzip
+
+    def call(end, prompt, cached):
+        tokens = {"prompt": prompt, "cached": cached, "completion": 40}
+        return {"timestamp": f"2026-06-06T00:00:{end:02d}.000000000Z", "duration_ms": 500, "tokens": tokens}
+
+    # The provider cached only 100 of 400 reusable tokens on call 2; call 3 is a compaction (600 -> 300).
+    record = {"session_id": "e", "turns": [{"llm_calls": [call(1, 400, 0), call(3, 600, 100), call(5, 300, 300)]}]}
+    path = tmp_path / "e.jsonl.gz"
+    with gzip.open(path, "wt") as handle:
+        handle.write(json.dumps(record) + "\n")
+
+    observed = workloads.copilot_sessions([path], num_sessions=1, token_scale=0.1)[0].calls
+    full = workloads.copilot_sessions([path], num_sessions=1, token_scale=0.1, reuse="full")[0].calls
+    assert [c.cached_target for c in observed] == [0, 10, 30]
+    assert [c.cached_target for c in full] == [0, 40, 0]
+    assert full[1].prompt.split(" ")[:40] == full[0].prompt.split(" ")

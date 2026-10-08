@@ -47,6 +47,7 @@ class SimResult:
     prefill_seconds_saved: float = 0.0  # recompute time avoided, net of load time
     spills: int = 0  # calls whose preferred replica was full
     gb_hours: dict[str, float] = field(default_factory=dict)  # memory-time held per tier, within the trace window
+    call_hits: dict[tuple[int, int], int] = field(default_factory=dict)  # (session, call) -> hit tokens, if recorded
 
     def summary(self) -> dict[str, object]:
         hits = sum(self.hit_tokens.values())
@@ -64,7 +65,7 @@ class SimResult:
         }
 
 
-def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
+def simulate(sessions: list[TraceSession], config: SimConfig, *, record_calls: bool = False) -> SimResult:
     n, tiers = config.replicas, config.tiers
     stores = [[TierStore(t, config.kv_bytes_per_token) for t in tiers] for _ in range(n)]
     lifetime = config.retention.lifetime
@@ -166,6 +167,8 @@ def simulate(sessions: list[TraceSession], config: SimConfig) -> SimResult:
                 result.hit_tokens[tiers[k].name] += hit
                 result.load_seconds += load
                 result.prefill_seconds_saved += recompute - load
+                if record_calls:
+                    result.call_hits[(s, c)] = hit
         else:
             r = assigned.pop((s, c))
             inflight[r] -= 1

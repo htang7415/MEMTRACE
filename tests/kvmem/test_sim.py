@@ -154,3 +154,10 @@ def test_overlapping_calls_replace_the_sessions_entry() -> None:
     )
     result = simulate([session], config(retention=Retention("t", 2.0)))
     assert result.gb_hours["gpu"] == pytest.approx(300 / 3600)
+
+
+def test_per_call_hits_are_recorded_on_request() -> None:
+    sessions = [TraceSession("a", (call(0, 100), call(3, 150), call(400, 200)))]
+    result = simulate(sessions, config(retention=Retention("t", 300.0)), record_calls=True)
+    assert result.call_hits == {(0, 1): 100}  # the third call comes after the lifetime
+    assert simulate(sessions, config()).call_hits == {}

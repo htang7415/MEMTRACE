@@ -56,6 +56,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--gap-scale", type=float, default=0.1, help="copilot-agent: inter-call gap compression")
     parser.add_argument("--max-gap", type=float, default=30.0, help="copilot-agent: cap on compressed gaps (s)")
     parser.add_argument("--window-seconds", type=float, default=300.0, help="copilot-agent: session start window")
+    parser.add_argument(
+        "--reuse",
+        choices=("observed", "full"),
+        default="observed",
+        help="copilot-agent: reuse the provider's observed cached prefix, or the whole previous prompt (append-only)",
+    )
     parser.add_argument("--slo-ttft", type=float, default=2.0, help="TTFT SLO in seconds")
     parser.add_argument("--slo-tpot", type=float, default=0.1, help="TPOT SLO in seconds")
     parser.add_argument("--seed", type=int, default=0)
@@ -82,6 +88,7 @@ def main(argv: list[str] | None = None) -> None:
             max_gap_seconds=args.max_gap,
             window_seconds=args.window_seconds,
             output_range=(4, args.max_tokens),
+            reuse=args.reuse,
         )
     elif args.workload == "agent-sessions":
         requests = workloads.agent_sessions(
@@ -195,6 +202,7 @@ def _replay_description(args: argparse.Namespace, sessions: list[workloads.Agent
         "max_gap_seconds": args.max_gap,
         "capped_gaps": sum(1 for call in calls if call.gap_before >= args.max_gap),
         "window_seconds": args.window_seconds,
+        "reuse": args.reuse,
         "max_calls_per_session": args.max_calls,
         "sessions": len(sessions),
         "calls": len(calls),
