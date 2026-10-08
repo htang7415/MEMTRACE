@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from memtrace.kvmem.sim.sweep import frontier
+
 DATA = Path("data")
 OUT = Path("results/README.md")
 
@@ -107,19 +109,44 @@ def platform_section() -> list[str]:
     return lines
 
 
+def commit(made_by: dict[str, Any] | None) -> str:
+    if not made_by or not made_by.get("git_commit"):
+        return "commit not recorded"
+    dirty = " (uncommitted changes)" if made_by.get("git_dirty") else ""
+    return f"commit `{made_by['git_commit'][:7]}`{dirty}"
+
+
+def jsonl(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []
+
+
+def pick(runs: list[dict[str, Any]], **k: Any) -> dict[str, Any]:
+    return next(r for r in runs if all(r.get(a) == b for a, b in k.items()))
+
+
 def phase6_section() -> list[str]:
     lines = [
         "## Agent-session KV memory (Phase 6)",
         "",
-        "How much KV cache to keep for agent sessions, for how long, in which memory tier, and how to route each",
-        "call back to it. Data: all seven days of the GitHub Copilot coding-agent traces (Azure, June 1-7, 2026; 301k",
-        "sessions). The trace's cached-token counts reflect one unnamed provider's cache, so they are an observed",
-        "baseline, not ground truth.",
+        "How much KV cache to keep for agent sessions, for how long, in which memory tier, and how to route each call",
+        "back to it. Data: all seven days of the GitHub Copilot coding-agent traces (Azure, June 1-7, 2026; 301k",
+        "sessions), which record per LLM call the prompt, cached, and completion tokens and the timing, but no text.",
+        "",
+        "Terms used in every table below:",
+        "",
+        "- **Reusable prefix** of a later call: `min(prompt, previous prompt)` tokens, when the model is unchanged and the",
+        "  prompt did not shrink by 10% or more. Shares in the lifetime, simulator, and pilot tables are shares of it.",
+        "- **Waste**: overlap with the previous prompt that the provider did not serve from cache.",
+        "- **Short-gap miss** (gap < 10 s): the cache should still exist, so the miss is a routing (placement) miss, an",
+        "  eviction under memory pressure, or an edit of earlier content; token counts cannot tell these apart.",
+        "- The provider's cached counts reflect one unnamed provider's policy, and that provider also caches prefixes",
+        "  shared across sessions (see *first-call cached*), which this analysis credits to the session's own history.",
         "",
     ]
     m1 = DATA / "kvmem" / "m1-week.json"
     if m1.exists():
-        week = json.loads(m1.read_text())
+        doc = json.loads(m1.read_text())
+        week = doc["days"]
         rows = []
         for day, s in week.items():
             c = {k: v["share"] for k, v in s["waste_by_cause"].items()}
@@ -129,19 +156,18 @@ def phase6_section() -> list[str]:
                     f"{s['sessions']:,}",
                     pct(s["waste_share_of_later_prompt"]),
                     pct(c["expiry"]),
-                    pct(c["placement"]),
-                    pct(c["placement_or_edit"]),
-                    pct(c["other"]),
+                    pct(c["short_gap_grew"]),
+                    pct(c["short_gap_shrank"]),
+                    pct(c["mid_gap"]),
                     pct(c["compaction"]),
                     pct(c["model_switch"]),
+                    pct(s["first_call_cached_share"]),
                 ]
             )
         lines += [
-            "### Reusable prompt tokens the provider recomputed (`memtrace report retention --by-day`)",
+            f"### What the provider recomputed (`memtrace report retention --by-day`, {commit(doc.get('provenance'))})",
             "",
-            "Waste: tokens of a later call's prompt that repeat the previous call's prompt but were not served from",
-            "cache. Placement (gap < 10 s, prompt only grew) is an upper bound: a growing prompt can still have",
-            "rewritten earlier content, which token counts cannot reveal.",
+            "Waste as a share of later calls' prompt tokens, and how the waste splits by cause.",
             "",
             *table(
                 [
@@ -149,11 +175,12 @@ def phase6_section() -> list[str]:
                     "Sessions",
                     "Waste",
                     "Expiry (gap >= 5 min)",
-                    "Placement",
-                    "Placement or edit",
+                    "Short gap, prompt grew",
+                    "Short gap, prompt shrank",
                     "Gap 10 s-5 min",
                     "Compaction",
                     "Model switch",
+                    "First-call cached",
                 ],
                 rows,
             ),
@@ -162,6 +189,8 @@ def phase6_section() -> list[str]:
         rows = [[day] + [pct(s["hit_by_gap"][b]["hit_ratio_tokens"]) for b in bins] for day, s in week.items()]
         lines += [
             "### Provider cache-hit ratio by gap since the session's previous call",
+            "",
+            "Cached tokens / prompt tokens, summed over the later calls in each gap bin.",
             "",
             *table(["Day", *bins], rows),
         ]
@@ -174,41 +203,48 @@ def phase6_section() -> list[str]:
                 + [f"{lt[k]['working_set_gb']['Qwen3-4B']['mean'] / 1000:,.1f}" for k in ("5min", "1h", "24h")]
             )
         lines += [
-            "### What a cache lifetime would keep with perfect placement",
+            "### What a cache lifetime would keep, with every call routed to its cache",
             "",
-            "Share of the reusable prefix served; working set is the mean KV held, in TB of bf16 KV at Qwen3-4B size",
-            "(about 15 GB for a 100k-token context), measured within each trace day.",
+            "Share of the reusable prefix served (*Observed*: what the provider served). Working set: mean KV held, in TB",
+            "of bf16 KV at Qwen3-4B size (about 15 GB for a 100k-token context), within each trace day. These are upper",
+            "bounds: the reusable prefix assumes append-only prompts.",
             "",
             *table(["Day", "Observed", "5 min", "1 h", "24 h", "TB @ 5 min", "TB @ 1 h", "TB @ 24 h"], rows),
         ]
+    routers = ["least-loaded", "session-key", "sticky", "kv-aware"]
+    retentions = ["lru", "ttl-5min", "ttl-1h", "session"]
+    tiers = ["none", "ram256", "ram1024", "ram1024+ssd4000"]
+    simulator_terms = [
+        "Simulated with `memtrace report kv-sim`: each replica caches one prefix per session; GPU budget is per replica",
+        "for idle prefixes; overflow is demoted to RAM, then SSD (assumed 50 and 7 GB/s; recompute 10k tokens/s).",
+        "Routers are idealized, not llm-d's scorers: *session-key* hashes the session; *sticky* returns to the replica",
+        "it last used (the idealized form of llm-d's approximate index); *kv-aware* knows where the KV is, instantly",
+        "(the idealized precise index). A full replica (8 calls in flight) spills to the least-loaded one.",
+        "Retention: *lru*; *ttl-5min* / *ttl-1h* drop KV idle that long; *session* demotes the KV of sessions whose turn",
+        "ended (no further tool call) first.",
+        "",
+    ]
+    lines += ["### Simulated replica pool", "", *simulator_terms]
     for day, replicas in (("2026-06-03", 64), ("2026-06-06", 16)):
-        path = DATA / "kvmem" / f"m2-{day}.jsonl"
-        if not path.exists():
+        runs = jsonl(DATA / "kvmem" / f"m2-{day}.jsonl")
+        if not runs:
             continue
-        runs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-
-        def get(**k: Any) -> dict[str, Any]:
-            return next(r for r in runs if all(r[a] == b for a, b in k.items()))
-
-        routers = ["least-loaded", "session-key", "approximate", "precise"]
         rows = [
             [
-                f"{g:g} GB",
+                f"{g} GB",
                 *(
-                    pct(get(gpu_gb=g, lower="none", retention="lru", router=rt)["hit_share_of_reusable"])
+                    pct(pick(runs, gpu_gb=g, lower="none", retention="lru", router=rt)["hit_share_of_reusable"])
                     for rt in routers
                 ),
             ]
             for g in (16, 32, 64)
         ]
-        tiers = ["none", "ram256", "ram1024", "ram1024+ssd4000"]
-        retentions = ["lru", "ttl-5min", "ttl-1h", "session"]
         tier_rows = [
             [
-                f"{g:g} GB",
+                f"{g} GB",
                 t,
                 *(
-                    pct(get(gpu_gb=g, lower=t, retention=rt, router="approximate")["hit_share_of_reusable"])
+                    pct(pick(runs, gpu_gb=g, lower=t, retention=rt, router="sticky")["hit_share_of_reusable"])
                     for rt in retentions
                 ),
             ]
@@ -216,17 +252,71 @@ def phase6_section() -> list[str]:
             for t in tiers
         ]
         lines += [
-            f"### Simulated pool, {day} ({replicas} replicas, Qwen3-4B bf16 KV) (`memtrace report kv-sim`)",
+            f"#### {day}: {replicas} replicas, Qwen3-4B bf16 KV ({commit(runs[0].get('provenance'))})",
             "",
-            "Share of the reusable prefix served. GPU budget is per replica, for idle prefixes. Assumed bandwidths:",
-            "RAM 50 GB/s, SSD 7 GB/s; prefill 10k tokens/s.",
+            "Share of the reusable prefix served, by router (GPU tier only, LRU):",
             "",
-            "Placement, GPU tier only, LRU:",
-            "",
-            *table(["GPU budget", *routers], rows),
-            "Memory tiers and retention, approximate routing (`ram256` = 256 GB host RAM per replica):",
+            *table(["GPU budget per replica", *routers], rows),
+            "By memory tier and retention (sticky router; `ram256` = 256 GB host RAM per replica):",
             "",
             *table(["GPU budget", "Lower tiers", *retentions], tier_rows),
+        ]
+    weekday = jsonl(DATA / "kvmem" / "m2-2026-06-03.jsonl")
+    if weekday:
+        candidates = [r for r in weekday if r["router"] == "sticky" and r["gpu_gb"] == 16]
+        rows = [
+            [
+                pct(r["hit_share_of_reusable"]),
+                f"{sum(v for k, v in r['gb_hours'].items() if k != 'gpu') / 1000:,.0f}",
+                r["lower"],
+                r["retention"],
+            ]
+            for r in sorted(frontier(candidates), key=lambda r: r["hit_share_of_reusable"])
+        ]
+        lines += [
+            "#### Reuse against memory-time (2026-06-03, 16 GB GPU per replica, sticky router)",
+            "",
+            "Configurations no other one beats on both reuse and RAM/SSD memory-time (GPU memory-time is nearly the same).",
+            "",
+            *table(["Reusable prefix served", "RAM + SSD (TB-hours)", "Lower tiers", "Retention"], rows),
+        ]
+    sticky = jsonl(DATA / "kvmem" / "m2-2026-06-03-sticky.jsonl")
+    if sticky and weekday:
+        rows = []
+        for lower in ("none", "ram256"):
+            base = pick(weekday, gpu_gb=16, lower=lower, retention="lru", router="sticky")["hit_share_of_reusable"]
+            aware = pick(weekday, gpu_gb=16, lower=lower, retention="lru", router="kv-aware")["hit_share_of_reusable"]
+            cells = [
+                pct(pick(sticky, gpu_gb=16, lower=lower, sticky_idle=t)["hit_share_of_reusable"])
+                for t in (10, 30, 60, 300)
+            ]
+            rows.append([lower, pct(base), *cells, pct(aware)])
+        lines += [
+            "#### Can sticky routing approximate kv-aware by forgetting idle sessions? (2026-06-03, 16 GB GPU, LRU)",
+            "",
+            *table(["Lower tiers", "sticky", "forget after 10 s", "30 s", "60 s", "300 s", "kv-aware"], rows),
+        ]
+    big = jsonl(DATA / "kvmem" / "m2-2026-06-06-32b.jsonl")
+    fast = jsonl(DATA / "kvmem" / "m2-2026-06-06-fastprefill.jsonl")
+    base6 = jsonl(DATA / "kvmem" / "m2-2026-06-06.jsonl")
+    if big and fast and base6:
+        rows = []
+        for g in (16, 64):
+            for lower in ("none", "ram256"):
+                key = {"gpu_gb": g, "lower": lower, "retention": "lru", "router": "kv-aware"}
+                rows.append(
+                    [
+                        f"{g} GB",
+                        lower,
+                        pct(pick(base6, **key)["hit_share_of_reusable"]),
+                        pct(pick(big, **key)["hit_share_of_reusable"]),
+                        pct(pick(fast, **key)["hit_share_of_reusable"]),
+                    ]
+                )
+        lines += [
+            "#### Sensitivity (2026-06-06, kv-aware router, LRU)",
+            "",
+            *table(["GPU budget", "Lower tiers", "Qwen3-4B KV", "Qwen3-32B KV", "Recompute 100k tokens/s"], rows),
         ]
     pilot = DATA / "m3" / "pilot" / "validate.json"
     if pilot.exists():
@@ -238,11 +328,13 @@ def phase6_section() -> list[str]:
             if (r := v["by_gap"].get(b))
         ]
         lines += [
-            "### Simulator vs a real engine (`scripts/studies/m3_pilot.sh`, `memtrace report kv-validate`)",
+            f"### Simulator vs a real engine (`scripts/studies/m3_pilot.sh`, {commit(v.get('provenance'))})",
             "",
-            f"One `vllm-metal` replica (Qwen3-0.6B) with KV fixed at {v['kv_tokens']:,} tokens; 120 Copilot sessions",
-            "replayed append-only with their real gaps (capped at 10 min). Predictions were fixed before the run.",
-            "One run, one replica.",
+            f"One `vllm-metal` replica (Qwen3-0.6B), KV fixed at {v['kv_tokens']:,} tokens, LRU; 120 Copilot sessions",
+            "replayed with append-only prompts at their real gaps (capped at 10 min); predictions fixed before the run.",
+            "This validates the simulator for one replica's GPU-tier eviction only, not routing, memory tiers, lifetimes,",
+            "or the session policy. One run; the host swapped heavily during it, which changes timing but not which",
+            "prefixes are cached (the simulator replays the measured timing).",
             "",
             *table(["Gap", "Calls", "Engine", "Simulator", "Diff (points)"], rows),
         ]
@@ -255,7 +347,8 @@ def main() -> None:
         "",
         "Aggregate numbers behind the claims in the [README](../README.md), generated by `scripts/results_page.py`",
         "from the run summaries kept locally under `data/` (not in the repository). Nothing here is raw traffic: no",
-        "prompts, outputs, or trace records. All runs are on one 16 GB Apple Silicon Mac.",
+        "prompts, outputs, or trace records. All runs are on one 16 GB Apple Silicon Mac. The memory-risk benchmark's",
+        "report is [benchmark/memtrace_results.html](benchmark/memtrace_results.html).",
         "",
         *phase6_section(),
         *platform_section(),

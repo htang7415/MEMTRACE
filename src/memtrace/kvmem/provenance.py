@@ -1,4 +1,7 @@
-"""Which code produced an output: recorded in every Phase 6 result so numbers can be tied to a commit."""
+"""Which code produced an output: recorded in every Phase 6 result so numbers can be tied to a commit.
+
+`git_dirty` is true when `src/memtrace` differs from that commit (edits to docs or scripts do not count).
+"""
 
 from __future__ import annotations
 
@@ -13,7 +16,9 @@ def provenance() -> dict[str, object]:
         except (OSError, subprocess.CalledProcessError):
             return None
 
-    status = git("status", "--porcelain", "--untracked-files=no")
+    status = git(
+        "status", "--porcelain", "--untracked-files=no", "--", "src/memtrace"
+    )  # the code that computes results
     return {
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": None if status is None else bool(status),
