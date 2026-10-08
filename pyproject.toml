@@ -69,6 +69,7 @@ files = [
   "src/memtrace/commands/run_engine_bench.py",
   "scripts/fetch_public_datasets.py",
   "scripts/analyze_autoscale.py",
+  "scripts/results_page.py",
 ]
 python_version = "3.11"
 strict = true
