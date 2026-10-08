@@ -16,6 +16,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from memtrace.kvmem.provenance import provenance
 from memtrace.kvmem.retention import KV_BYTES_PER_TOKEN
 from memtrace.kvmem.sim.engine import SimConfig, simulate
 from memtrace.kvmem.sim.policies import RETENTION, ROUTERS
@@ -64,7 +65,7 @@ def main() -> None:
     )
     parser.add_argument("--router", choices=ROUTERS, nargs="+", default=list(ROUTERS))
     parser.add_argument(
-        "--sticky-idle", type=float, nargs="+", default=[math.inf], help="approximate router: seconds idle to forget"
+        "--sticky-idle", type=float, nargs="+", default=[math.inf], help="sticky router: seconds idle to forget"
     )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
@@ -73,12 +74,13 @@ def main() -> None:
     if not paths:
         raise SystemExit(f"no shards for {args.day} under {args.root}")
     sessions = list(read_sessions(paths))
+    made_by = provenance()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w") as out:
         grid = itertools.product(args.gpu_gb, args.lower, args.retention, args.router, args.sticky_idle)
         for gpu_gb, lower, retention, router, sticky_idle in grid:
-            if router != "approximate" and sticky_idle != args.sticky_idle[0]:
-                continue  # sticky_idle only changes the approximate router
+            if router != "sticky" and sticky_idle != args.sticky_idle[0]:
+                continue  # sticky_idle only changes the sticky router
             config = SimConfig(
                 replicas=args.replicas,
                 tiers=(Tier("gpu", gpu_gb, math.inf), *LOWER_TIERS[lower]),
@@ -97,8 +99,9 @@ def main() -> None:
                 "lower": lower,
                 "retention": retention,
                 "router": router,
-                "sticky_idle": sticky_idle if router == "approximate" else None,
+                "sticky_idle": sticky_idle if router == "sticky" else None,
                 **simulate(sessions, config).summary(),
+                "provenance": made_by,
             }
             out.write(json.dumps(row) + "\n")
             out.flush()

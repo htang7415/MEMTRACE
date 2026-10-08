@@ -18,6 +18,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from memtrace.kvmem.provenance import provenance
 from memtrace.kvmem.retention import gap_bin, later_calls
 from memtrace.kvmem.sim.engine import SimConfig, simulate
 from memtrace.kvmem.sim.policies import RETENTION
@@ -55,7 +56,7 @@ def compare(
         tiers=(Tier("gpu", kv_tokens / 1e9, math.inf),),
         kv_bytes_per_token=1,
         retention=RETENTION["lru"],
-        router="precise",
+        router="kv-aware",
         max_inflight=10**9,
     )
     sim = simulate(sessions, config, record_calls=True).call_hits
@@ -102,7 +103,12 @@ def main() -> None:
     args = parser.parse_args()
     records = [json.loads(line) for line in args.run.read_text().splitlines() if line.strip()]
     sessions, cached = sessions_from_run(records)
-    summary = json.dumps(compare(sessions, cached, args.kv_tokens, args.block_size), indent=2)
+    result = {
+        **compare(sessions, cached, args.kv_tokens, args.block_size),
+        "run": str(args.run),
+        "provenance": provenance(),
+    }
+    summary = json.dumps(result, indent=2)
     print(summary)
     if args.out:
         args.out.write_text(summary + "\n")

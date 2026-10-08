@@ -33,7 +33,7 @@ class SimConfig:
     retention: Retention
     router: str
     max_inflight: int = 8  # concurrent calls per replica before the router spills to the least-loaded one
-    sticky_idle: float = math.inf  # approximate router: forget a session's replica after this long idle
+    sticky_idle: float = math.inf  # sticky router: forget a session's replica after this long idle
     prefill_tokens_per_second: float = 10_000.0  # recompute speed, to price loads from slower tiers
 
 
@@ -143,7 +143,7 @@ def simulate(sessions: list[TraceSession], config: SimConfig, *, record_calls: b
             result.calls += 1
             result.prompt_tokens += call.prompt
             preferred = _preferred(config.router, s, sessions[s].session_id, n, last_sent, holder)
-            if config.router == "approximate" and s in last_end and t - last_end[s] >= config.sticky_idle:
+            if config.router == "sticky" and s in last_end and t - last_end[s] >= config.sticky_idle:
                 preferred = None  # idle long enough that its KV is probably gone: place it afresh
             if preferred is not None and inflight[preferred] < config.max_inflight:
                 r = preferred
@@ -196,8 +196,8 @@ def _preferred(
         return None
     if router == "session-key":
         return session_hash(session_id, n)
-    if router == "approximate":
+    if router == "sticky":
         return last_sent.get(s)
-    if router == "precise":
+    if router == "kv-aware":
         return holder.get(s)
     raise ValueError(f"unknown router {router!r}")

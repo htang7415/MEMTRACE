@@ -23,14 +23,16 @@ RETENTION = {
 }
 
 # Placement: each router names its preferred replica (or None); a full preferred replica, or no preference,
-# sends the call to the least-loaded replica.
+# sends the call to the least-loaded replica. These are idealized policies, not llm-d's scorers: llm-d's approximate
+# index matches prefix-block hashes across sessions and weighs them against queue depth and KV use, and its precise
+# index learns evictions from KV events with some lag.
 #   least-loaded  no cache affinity
 #   session-key   a stable hash of the session, like OpenAI's prompt_cache_key
-#   approximate   the replica the router last sent the session to (it does not see evictions), like llm-d's
-#                 approximate prefix index; with `SimConfig.sticky_idle` it forgets a session idle that long and
-#                 places it afresh, approximating "the KV was probably evicted" without KV events
-#   precise       the replica that holds the session's KV in any tier, like llm-d's KV-event-fed index
-ROUTERS = ("least-loaded", "session-key", "approximate", "precise")
+#   sticky        the replica the router last sent the session to; it does not see evictions (the idealized
+#                 counterpart of llm-d's approximate index). With `SimConfig.sticky_idle` it forgets a session idle
+#                 that long and places it afresh
+#   kv-aware      the replica that holds the session's KV in any tier, known instantly (idealized precise index)
+ROUTERS = ("least-loaded", "session-key", "sticky", "kv-aware")
 
 
 def session_hash(session: str, replicas: int) -> int:

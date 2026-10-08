@@ -40,3 +40,10 @@ def test_engine_and_sim_hits_are_compared_per_gap_bin() -> None:
     assert result["within_tolerance"] is False
     # With 100 tokens of capacity no context (110 or 210 tokens) fits, so the simulator predicts no hits.
     assert compare(sessions, cached, kv_tokens=100)["by_gap"]["1-5min"]["sim_hit_share"] == 0.0
+
+
+def test_provenance_names_the_commit() -> None:
+    from memtrace.kvmem.provenance import provenance
+
+    made_by = provenance()
+    assert set(made_by) == {"git_commit", "git_dirty", "generated_utc"}

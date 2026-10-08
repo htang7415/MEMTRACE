@@ -55,30 +55,30 @@ def test_each_miss_is_attributed_to_one_cause_in_precedence_order() -> None:
         call(0, 1000, 0),
         call(3, 1100, 1000),  # gap 2 s, full hit: no waste
         call(6, 1200, 200, model="B"),  # different model: model_switch, waste 1100 - 200
-        call(9, 1300, 1000, model="B"),  # gap 2 s, grew: placement, waste 1200 - 1000
+        call(9, 1300, 1000, model="B"),  # gap 2 s, grew: short_gap_grew, waste 1200 - 1000
         call(11, 800, 0, model="B"),  # shrank 38%: compaction, waste 800
         call(612, 900, 0, model="B"),  # gap 600 s: expiry, waste 800
-        call(643, 950, 0, model="B"),  # gap 30 s: other, waste 900
-        call(646, 940, 40, model="B"),  # gap 2 s, shrank 1%: placement_or_edit, waste 900
-        call(649, 860, 0, model="B"),  # shrank 8.5%, under the threshold: placement_or_edit, waste 860
+        call(643, 950, 0, model="B"),  # gap 30 s: mid_gap, waste 900
+        call(646, 940, 40, model="B"),  # gap 2 s, shrank 1%: short_gap_shrank, waste 900
+        call(649, 860, 0, model="B"),  # shrank 8.5%, under the threshold: short_gap_shrank, waste 860
         call(652, 774, 0, model="B"),  # shrank exactly 10%: compaction, waste 774
     ]
     items = list(later_calls([TraceSession("s", tuple(calls))]))
     assert [(i.cause, i.waste) for i in items if i.waste] == [
         ("model_switch", 900),
-        ("placement", 200),
+        ("short_gap_grew", 200),
         ("compaction", 800),
         ("expiry", 800),
-        ("other", 900),
-        ("placement_or_edit", 900),
-        ("placement_or_edit", 860),
+        ("mid_gap", 900),
+        ("short_gap_shrank", 900),
+        ("short_gap_shrank", 860),
         ("compaction", 774),
     ]
 
 
 def test_analyze_totals_and_shares() -> None:
     sessions = [
-        TraceSession("a", (call(0, 1000, 0), call(3, 1000, 0))),  # placement, near-total miss: waste 1000
+        TraceSession("a", (call(0, 1000, 0), call(3, 1000, 0))),  # short gap, near-total miss: waste 1000
         TraceSession("b", (call(0, 1000, 0), call(401, 1000, 1000))),  # gap 400 s, full hit: no waste
         TraceSession("c", (call(0, 500, 0),)),  # no later call
     ]
@@ -90,8 +90,8 @@ def test_analyze_totals_and_shares() -> None:
     assert summary["waste_share_of_later_prompt"] == pytest.approx(0.5)
     by_cause = summary["waste_by_cause"]
     assert isinstance(by_cause, dict)
-    assert by_cause["placement"] == {"calls": 1, "tokens": 1000, "share": 1.0}
-    assert summary["placement_near_total_miss_share_of_waste"] == pytest.approx(1.0)
+    assert by_cause["short_gap_grew"] == {"calls": 1, "tokens": 1000, "share": 1.0}
+    assert summary["short_gap_grew_near_total_miss_share_of_waste"] == pytest.approx(1.0)
     hits = summary["hit_by_gap"]
     assert isinstance(hits, dict)
     assert hits["<10s"]["hit_ratio_tokens"] == 0.0
@@ -145,3 +145,16 @@ def test_analyze_handles_too_few_later_calls() -> None:
     assert analyze([TraceSession("a", (call(0, 100, 0),))])["gap_seconds"] is None
     one = analyze([TraceSession("a", (call(0, 100, 0), call(3, 120, 100)))])
     assert one["gap_seconds"] == {"median": 2.0, "p90": 2.0, "p99": 2.0}
+
+
+def test_first_call_cached_share_shows_prefixes_shared_across_sessions() -> None:
+    sessions = [TraceSession("a", (call(0, 100, 40), call(3, 120, 100))), TraceSession("b", (call(0, 300, 0),))]
+    assert analyze(sessions)["first_call_cached_share"] == pytest.approx(40 / 400)
+
+
+def test_lifetime_shares_use_the_simulator_denominator() -> None:
+    # Call 2 is a model switch: its overlap counts as waste but not as reusable for lifetimes.
+    sessions = [TraceSession("a", (call(0, 100, 0), call(3, 120, 100), call(6, 150, 0, model="B")))]
+    lifetime = analyze(sessions)["lifetimes"]["5min"]
+    assert lifetime["retained_share_of_reusable"] == 1.0
+    assert lifetime["observed_cached_share_of_reusable"] == 1.0
