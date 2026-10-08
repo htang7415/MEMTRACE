@@ -25,7 +25,7 @@ def config(**overrides: object) -> SimConfig:
         "tiers": (GPU,),
         "kv_bytes_per_token": GB,
         "retention": RETENTION["lru"],
-        "router": "precise",
+        "router": "kv-aware",
         "max_inflight": 100,
         "prefill_tokens_per_second": 1.0,
     }
@@ -91,9 +91,9 @@ def test_routers_and_spill() -> None:
     # Least-loaded sends a's calls wherever is idle; z is busy on replica 0 at t=2, so a's 2nd call goes to 1.
     assert simulate(sessions, config(replicas=2, router="least-loaded")).hit_tokens["gpu"] == 100
     # Precise follows the KV: both later calls hit.
-    assert simulate(sessions, config(replicas=2, router="precise")).hit_tokens["gpu"] == 200
+    assert simulate(sessions, config(replicas=2, router="kv-aware")).hit_tokens["gpu"] == 200
     # With room for one call per replica, the busy preferred replica spills the call.
-    spilled = simulate(sessions, config(replicas=2, router="precise", max_inflight=1))
+    spilled = simulate(sessions, config(replicas=2, router="kv-aware", max_inflight=1))
     assert spilled.spills == 1
     assert spilled.hit_tokens["gpu"] == 100
 
@@ -132,15 +132,15 @@ def test_turn_awareness_does_not_reorder_lower_tiers() -> None:
     assert aware.hit_tokens == {"gpu": 0, "ram": 100}
 
 
-def test_approximate_router_forgets_sessions_idle_past_sticky_idle() -> None:
+def test_sticky_router_forgets_sessions_idle_past_sticky_idle() -> None:
     # a's replica 0 is busy with z when a returns after 10 s idle. Sticky: a waits in line on replica 0 (capacity
     # allows), and hits; with sticky_idle 5 the router forgets a and places it on idle replica 1, missing.
     sessions = [
         TraceSession("a", (call(0, 100), call(12, 100))),
         TraceSession("z", (TraceCall(11, 20, "A", 10, 0, 0),)),  # busy on replica 0 from 11 to 20
     ]
-    sticky = simulate(sessions, config(replicas=2, router="approximate"))
-    forgetful = simulate(sessions, config(replicas=2, router="approximate", sticky_idle=5.0))
+    sticky = simulate(sessions, config(replicas=2, router="sticky"))
+    forgetful = simulate(sessions, config(replicas=2, router="sticky", sticky_idle=5.0))
     assert sticky.hit_tokens["gpu"] == 100
     assert forgetful.hit_tokens["gpu"] == 0
 
@@ -161,3 +161,33 @@ def test_per_call_hits_are_recorded_on_request() -> None:
     result = simulate(sessions, config(retention=Retention("t", 300.0)), record_calls=True)
     assert result.call_hits == {(0, 1): 100}  # the third call comes after the lifetime
     assert simulate(sessions, config()).call_hits == {}
+
+
+def test_tier_accounting_matches_stored_entries_after_every_operation(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Invariant behind the overlap bug: a tier's token count must equal the sum of the entries it stores.
+    from memtrace.kvmem.sim.tiers import TierStore
+
+    violations = []
+    for name in ("add", "pop", "victim"):
+        original = getattr(TierStore, name)
+
+        def checked(self: TierStore, *args: object, _original: object = original) -> object:
+            out = _original(self, *args)  # type: ignore[operator]
+            stored = sum(e.tokens for e in self.active.values()) + sum(e.tokens for e in self.idle.values())
+            if stored != self.tokens:
+                violations.append((self.tier.name, stored, self.tokens))
+            return out
+
+        monkeypatch.setattr(TierStore, name, checked)
+    tiers = (Tier("gpu", 250.0, math.inf), Tier("ram", 300.0, 1e12))
+    sessions = [
+        TraceSession(
+            f"s{i}", tuple(TraceCall(i + 7 * k, i + 7 * k + 3, "A", 100 + 10 * k, 0, 5, k % 3 == 2) for k in range(6))
+        )
+        for i in range(6)
+    ]
+    sessions.append(TraceSession("o", (TraceCall(0, 5, "A", 100, 0, 0), TraceCall(3, 6, "A", 110, 0, 0))))  # overlap
+    for router in ("least-loaded", "session-key", "sticky", "kv-aware"):
+        for retention in ("lru", "ttl-5min", "session"):
+            simulate(sessions, config(replicas=2, tiers=tiers, router=router, retention=RETENTION[retention]))
+    assert violations == []
