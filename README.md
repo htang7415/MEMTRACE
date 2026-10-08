@@ -1,6 +1,6 @@
 # MEMTRACE
 
-**[View the report →](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)** · [Full results](results/README.md)
+**[View the report →](https://htang7415.github.io/MEMTRACE/results/report/)** · [Full results](results/README.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
 
 MEMTRACE studies how to serve LLM agents efficiently on a single Apple Silicon Mac: how to route requests across
 GPU, CPU, and hosted tiers, and how much KV cache an agent session needs, for how long, and where.
@@ -13,7 +13,7 @@ GPU, CPU, and hosted tiers, and how much KV cache an agent session needs, for ho
 - **Agent-session KV memory.** A week of real GitHub Copilot agent traffic (301k sessions), a trace-driven KV-cache
   simulator, and a check of that simulator against a real engine.
 - **Memory-risk benchmark.** Follows a poisoned document through an agent's persistent memory to find where the
-  attack breaks. This is where the project started; see the report above.
+  attack breaks. This is where the project started; it has its own report (linked above).
 
 Every result says what was measured on real engines and what was simulated.
 
@@ -21,7 +21,7 @@ Every result says what was measured on real engines and what was simulated.
 
 | Question | Finding |
 | --- | --- |
-| Which engine serves the GPU tier? | `vllm-metal`: 450 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server`; tool-call accuracy unchanged (81.0–81.5% on BFCL) across engines and batch sizes |
+| Which engine serves the GPU tier? | `vllm-metal`: 455 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server`; tool-call accuracy unchanged (81.0–81.5% on BFCL) across engines and batch sizes |
 | Does cache-aware routing pay? | 1.8–2.3× the throughput of random routing on agent sessions (simulated replicas calibrated to the real engine) |
 | How should a GPU + CPU pool be routed? | A capacity-aware scorer gives 1.6–2.3× the default's throughput where the GPU is not cache-bound and removes the timeouts caused by the 11× slower tier |
 | Does hosted overflow help? | An overloaded local pool goes from 1.77 to 5.1–5.7 req/s and TTFT p95 from 13.5 s to ~5 s, at $0.27–0.30 per 1k requests |
