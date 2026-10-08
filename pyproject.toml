@@ -1,7 +1,7 @@
 [project]
 name = "memtrace"
 version = "0.1.0"
-description = "Stateful safety evaluation for memory-enabled agents"
+description = "LLM serving and agent KV-cache research on Apple Silicon, with a memory-risk benchmark for agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

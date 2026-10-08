@@ -50,7 +50,7 @@ _ASSET_BUILD_ORDER = (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="memtrace", description="Evaluate persistent-memory risk in tool-using agents."
+        prog="memtrace", description="LLM serving and agent KV-cache research, and a memory-risk benchmark for agents."
     )
     parser.add_argument("--config", type=Path, help="TOML file containing a [memtrace] settings table.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
