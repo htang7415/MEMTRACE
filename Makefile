@@ -5,6 +5,8 @@
 #   make up HOSTED=1       # also add Gemini Flash-Lite to the pool (needs docs/gemini_api.txt; spend-capped)
 #   make bench             # rerun the headline routing comparison (Copilot replay, ADR 0007); REPS=3 by default
 #   make down              # stop the GPU engine and delete the cluster
+#   make data              # download the public datasets (pinned, SHA-256 checked)
+#   make results           # rebuild the published results page from local outputs
 #
 # Requires Docker Desktop, kind, kubectl, helm, envsubst, and vllm-metal in ~/.venv-vllm-metal (see README).
 
@@ -12,7 +14,7 @@ P := scripts/stack.sh
 POLICY ?= combined
 REPS ?= 3
 
-.PHONY: up down bench
+.PHONY: up down bench data results
 
 # The upstream dev environment starts a ~1 GB tokenizer pod (vllm-render); only the precise-prefix study
 # (scripts/studies/precise_study.sh, render_up) needs it, so `up` scales it to zero.
@@ -33,3 +35,9 @@ down:
 	-$(P) hosted_down
 	$(P) gpu_down
 	$(P) down
+
+data:
+	python3 scripts/fetch_public_datasets.py
+
+results:
+	.venv/bin/python scripts/results_page.py
