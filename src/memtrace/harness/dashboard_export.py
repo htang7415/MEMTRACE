@@ -29,6 +29,8 @@ EXPERIMENTS = {
     "e7b-engines-mooncake": "engines",
     "e8-routing-kind-sims": "routing",
     "e9-hetero-pool": "routing",
+    "e9b-hetero-policies-agent": "routing",
+    "e9c-hetero-policies-mooncake": "routing",
     "e11-copilot-replay": "replay",
     "e11b-copilot-replay-4b": "replay",
     "e11c-copilot-precise-index": "replay",

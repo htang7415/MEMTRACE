@@ -73,6 +73,18 @@ BATCHES: list[Batch] = [
         lambda p: ({"target.policy": _policy(p)}, _rep(p) + (3 if p.parts[1] == "hetero_reps2" else 0)),
     ),
     (
+        "e9b_hetero_policies_agent",
+        "sweep",
+        "hetero/hetero-*/agent-sessions/c*",
+        lambda p: ({"target.policy": _policy(p), "workload.concurrency": _level(p)}, 0),
+    ),
+    (
+        "e9c_hetero_policies_mooncake",
+        "sweep",
+        "hetero/hetero-*/mooncake-toolagent/c*",
+        lambda p: ({"target.policy": _policy(p), "workload.concurrency": _level(p)}, 0),
+    ),
+    (
         "e10_hosted_overflow",
         "runs",
         "hosted/*/rep*/hetero-capacity/agent-sessions/c16",
@@ -88,7 +100,7 @@ BATCHES: list[Batch] = [
         "e11b_copilot_replay_4b",
         "runs",
         "copilot-4b*/rep*/hetero-*/copilot-agent/open",
-        lambda p: ({"target.policy": _policy(p), "workload.sessions": 32 if "s32" in p.parts[-6] else 16}, _rep(p)),
+        lambda p: ({"target.policy": _policy(p), "workload.sessions": 32 if p.parts[1].endswith("-s32") else 16}, _rep(p)),
     ),
     (
         "e11c_copilot_precise_index",

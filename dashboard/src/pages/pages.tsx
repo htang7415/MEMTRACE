@@ -23,6 +23,8 @@ const LABELS: Record<string, string> = {
   session: "Session hash",
   sticky: "Sticky",
   kv_aware: "KV-aware",
+  "hw-weighted-random": "Weighted random",
+  "hw-combined": "Weighted combined",
   llamacpp_metal: "llama.cpp (Metal)",
   vllm_apc_on: "vLLM on",
   vllm_apc_off: "vLLM off",
@@ -321,6 +323,7 @@ export function Caching({ data }: { data: Data }) {
 export function Routing({ data }: { data: Data }) {
   const sim = data.results["e3-llmd-sim"], metal = data.results["e3-llmd-metal"];
   const e8 = data.results["e8-routing-kind-sims"], e9 = data.results["e9-hetero-pool"];
+  const e9b = data.results["e9b-hetero-policies-agent"], e9c = data.results["e9c-hetero-policies-mooncake"];
   const profile = (c: CellSummary) => param(c, "target.scorer_profile");
   const policy = (c: CellSummary) => param(c, "target.policy");
   return (
@@ -337,6 +340,12 @@ export function Routing({ data }: { data: Data }) {
           <BarCard r={e9} title="Time to first token p95 (E9)" subtitle="Milliseconds; calls sent to the slow tier set the tail" metric="ttft_p95_ms" by={policy} format={ms} />
         </Grid>
       ) : <Missing what="E9" />}
+      {e9b && e9c && (
+        <Grid>
+          <SweepCard r={e9c} title="Every policy on the pool, Mooncake tool-agent (E9c)" subtitle="Tokens per second; one run per cell" metric="output_tokens_per_s" seriesKey="target.policy" />
+          <SweepCard r={e9b} title="Every policy on the pool, agent sessions (E9b)" subtitle="Tokens per second; one run per cell" metric="output_tokens_per_s" seriesKey="target.policy" />
+        </Grid>
+      )}
       {sim ? (
         <Grid>
           <BarCard r={sim} title="Goodput at SLO (E3)" subtitle="Requests per second meeting TTFT and E2E targets" metric="goodput_rps" by={profile} />

@@ -172,6 +172,24 @@
       "finished_at": "2026-10-06T16:44:55+00:00"
     },
     {
+      "name": "e9b-hetero-policies-agent",
+      "page": "routing",
+      "run_id": "20261006T141122Z-e9b-hetero-policies-agent-sweep-imported",
+      "file": "e9b-hetero-policies-agent.json",
+      "git_commit": "unknown",
+      "git_dirty": false,
+      "finished_at": "2026-10-06T14:57:32+00:00"
+    },
+    {
+      "name": "e9c-hetero-policies-mooncake",
+      "page": "routing",
+      "run_id": "20261006T143937Z-e9c-hetero-policies-mooncake-sweep-imported",
+      "file": "e9c-hetero-policies-mooncake.json",
+      "git_commit": "unknown",
+      "git_dirty": false,
+      "finished_at": "2026-10-06T15:01:18+00:00"
+    },
+    {
       "name": "k10a-copilot-reuse-routing",
       "page": "reuse",
       "run_id": "20261009T200216Z-k10a-copilot-reuse-routing",
@@ -179,6 +197,15 @@
       "git_commit": "bf4e24655bdc66c5f639665196e7d6b4877a4469",
       "git_dirty": true,
       "finished_at": "2026-10-09T20:02:20+00:00"
+    },
+    {
+      "name": "k10b-copilot-reuse-tiers",
+      "page": "reuse",
+      "run_id": "20261009T202315Z-k10b-copilot-reuse-tiers",
+      "file": "k10b-copilot-reuse-tiers.json",
+      "git_commit": "88481471681eccd7966c9a51a2ef4f6f866f457c",
+      "git_dirty": false,
+      "finished_at": "2026-10-09T20:23:18+00:00"
     },
     {
       "name": "k11-engine-kv-check",
