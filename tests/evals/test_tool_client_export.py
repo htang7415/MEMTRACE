@@ -89,7 +89,7 @@ def _bundle(root: Path, run_id: str, name: str, done: int, planned: int | None, 
     out = root / run_id
     out.mkdir(parents=True)
     result = {
-        "schema_version": "maxionbench-harness-result-v1",
+        "schema_version": "memtrace-result-v1",
         "run_id": run_id,
         "name": name,
         "description": "",

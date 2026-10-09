@@ -8,7 +8,7 @@ from typing import Any, Mapping
 
 import yaml
 
-SPEC_SCHEMA_VERSION = "maxionbench-experiment-v1"
+SPEC_SCHEMA_VERSION = "memtrace-experiment-v1"
 SEED_STRATEGIES = ("per_repeat", "fixed")
 
 

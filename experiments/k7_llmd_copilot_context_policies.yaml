@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvlive-v1
+schema_version: memtrace-kvlive-v1
 name: k7-llmd-copilot-context-policies
 description: >
   K7 (v0.4 Step 4, live check of K6): the K6 Copilot policy traces replayed live (open loop, 32 active
@@ -23,7 +23,7 @@ replay: {concurrency: 32, horizon_s: 720, warmup_s: 120, time_scale: 4, tokens_p
 target:
   replicas: 4
   base_port: 8300
-  image: maxionbench/llm-d-inference-sim:v0.11.4-cpukv
+  image: memtrace/llm-d-inference-sim:v0.11.4-cpukv
   gpu_kv_blocks: 8000
   sim_args: [--block-size, "16", --max-num-seqs, "32", --prefill-time-per-token, 50us, --inter-token-latency, 25ms,
              --time-factor-under-load, "1.0", --max-model-len, "100000"]

@@ -1,4 +1,4 @@
-schema_version: maxionbench-e5-v1
+schema_version: memtrace-e5-v1
 name: e5-qwen3-4b
 description: >
   E5 local side (GPU window): Qwen3-4B Q8_0 on vllm-metal (Mac GPU), thinking disabled, hermes tool

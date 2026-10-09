@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass, fields, is_dataclass
 import math
 from typing import Any, Literal, Mapping, Sequence, get_args, get_origin, get_type_hints
 
-RESULT_SCHEMA_VERSION = "maxionbench-harness-result-v1"
+RESULT_SCHEMA_VERSION = "memtrace-result-v1"
 
 # Two-sided 95% Student-t critical values by degrees of freedom (1..30); normal beyond.
 _T95 = (

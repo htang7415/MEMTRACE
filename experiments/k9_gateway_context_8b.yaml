@@ -1,4 +1,4 @@
-schema_version: maxionbench-gwreplay-v1
+schema_version: memtrace-gwreplay-v1
 name: k9-gateway-context-qwen3-8b
 description: >
   K9 (v0.5 Step 2): the gateway's cache-aware context management measured on a real engine. Copilot

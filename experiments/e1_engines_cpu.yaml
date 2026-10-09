@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e1-engines-cpu
 description: >
   E1 (CPU lane): llama.cpp CPU-only on the same Qwen3-0.6B Q8_0 file and workload as e1-engines-gpu, at

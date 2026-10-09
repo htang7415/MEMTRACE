@@ -1,4 +1,4 @@
-module github.com/htang7415/MaxionBench/gateway
+module github.com/htang7415/MEMTRACE/gateway
 
 go 1.27.1
 

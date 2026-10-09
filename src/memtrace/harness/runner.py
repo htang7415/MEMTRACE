@@ -398,7 +398,8 @@ ENGINE_IMAGE_HINTS = ("vllm", "llama", "sglang", "inference-sim", "text-generati
 
 
 def foreign_engine_containers(docker_ps: str | None = None) -> list[str]:
-    """Running inference-server containers not started by this harness (names prefixed `maxionbench-`).
+    """Running inference-server containers not started by this harness (names prefixed `memtrace-harness-`).
+    The kind stack's other `memtrace-*` containers count as foreign.
 
     Containerized engines are invisible to `ps` on macOS (they show up only as the Docker VM process).
     """
@@ -413,7 +414,7 @@ def foreign_engine_containers(docker_ps: str | None = None) -> list[str]:
     found = []
     for line in docker_ps.splitlines():
         name, _, image = line.partition("\t")
-        if name.startswith("maxionbench-") or not image:
+        if name.startswith("memtrace-harness-") or not image:
             continue
         if any(hint in image.lower() for hint in ENGINE_IMAGE_HINTS):
             found.append(name)

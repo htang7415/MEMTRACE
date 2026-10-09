@@ -1,4 +1,4 @@
-// Command maxion-gateway runs the MaxionBench AI gateway.
+// Command memtrace-gateway runs the MEMTRACE AI gateway.
 package main
 
 import (
@@ -15,10 +15,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
-	"github.com/htang7415/MaxionBench/gateway/internal/budget"
-	"github.com/htang7415/MaxionBench/gateway/internal/config"
-	"github.com/htang7415/MaxionBench/gateway/internal/proxy"
-	"github.com/htang7415/MaxionBench/gateway/internal/telemetry"
+	"github.com/htang7415/MEMTRACE/gateway/internal/budget"
+	"github.com/htang7415/MEMTRACE/gateway/internal/config"
+	"github.com/htang7415/MEMTRACE/gateway/internal/proxy"
+	"github.com/htang7415/MEMTRACE/gateway/internal/telemetry"
 )
 
 func main() {
@@ -43,7 +43,7 @@ func main() {
 			os.Exit(2)
 		}
 	}
-	shutdownTracing, err := telemetry.Setup(context.Background(), "maxion-gateway")
+	shutdownTracing, err := telemetry.Setup(context.Background(), "memtrace-gateway")
 	if err != nil {
 		log.Error("tracing", "err", err.Error())
 		os.Exit(2)

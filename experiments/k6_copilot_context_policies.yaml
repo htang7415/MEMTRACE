@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvsim-v1
+schema_version: memtrace-kvsim-v1
 name: k6-copilot-context-policies
 description: >
   K6 (v0.4 Step 4): serving cost of context policies on production agent traffic. 600 sessions of the

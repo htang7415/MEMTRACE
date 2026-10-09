@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvlive-v1
+schema_version: memtrace-kvlive-v1
 name: k8-vllm-metal-copilot-context-policies
 description: >
   K8 (v0.4 Step 4, real-engine check of K6): the K6 Copilot policy traces replayed live through llm-d EPP

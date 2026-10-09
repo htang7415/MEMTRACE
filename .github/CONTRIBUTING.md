@@ -5,8 +5,8 @@
 Python 3.12 is required (the hash-locked dependencies pin numpy 2.5).
 
 ```bash
-python3.12 -m venv ~/.venvs/maxionbench
-. ~/.venvs/maxionbench/bin/activate
+python3.12 -m venv .venv
+. .venv/bin/activate
 python -m pip install --require-hashes -r requirements-dev.lock
 python -m pip install --no-deps --no-build-isolation -e .
 python -m pip install -e ".[agents]"       # MCP agent server and BM25 search
@@ -37,7 +37,7 @@ python -m memtrace.datasets.sources verify
 These mirror the `v03-ci` workflow:
 
 ```bash
-python -m ruff check maxionbench tests
+python -m ruff check memtrace tests
 python -m memtrace.harness schema --check
 python -m pytest -q
 (cd gateway && gofmt -l . && go vet ./... && go test -race ./...)

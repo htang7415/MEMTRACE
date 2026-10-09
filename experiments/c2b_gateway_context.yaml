@@ -1,4 +1,4 @@
-schema_version: maxionbench-context-v1
+schema_version: memtrace-context-v1
 name: c2b-gateway-context
 description: >
   Step 3b: 50 new BrowseComp-Plus tasks (none of C1's), full vs the Go gateway's window+cache arm, same agent

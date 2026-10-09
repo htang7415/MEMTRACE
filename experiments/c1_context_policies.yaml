@@ -1,4 +1,4 @@
-schema_version: maxionbench-context-v1
+schema_version: memtrace-context-v1
 name: c1-context-policies
 description: >
   Context policies on agentic BrowseComp-Plus (pool of 10 queries' pages per task, search returns the top

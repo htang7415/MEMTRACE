@@ -1,6 +1,6 @@
 # Architecture
 
-MaxionBench is a Python package plus a Go gateway and a TypeScript dashboard. The earlier
+MEMTRACE is a Python package plus a Go gateway and a TypeScript dashboard. The earlier
 vector-database benchmark lives at the `v0.1` and `v0.2` tags.
 
 ## v0.3 serving harness
@@ -39,38 +39,38 @@ experiments/*.yaml
 
 ## Datasets and evaluation
 
-- `maxionbench/datasets/sources.py` downloads and derives the datasets into `dataset/v03/`, and
-  `maxionbench/datasets/manifests/v03.yaml` pins every file by SHA-256, in groups that `fetch --group`
+- `memtrace/datasets/sources.py` downloads and derives the datasets into `dataset/v03/`, and
+  `memtrace/datasets/manifests/v03.yaml` pins every file by SHA-256, in groups that `fetch --group`
   selects: `crag` (CRAG-500), `beir` (SciFact/FiQA), `sharegpt`, `azure_trace` (Azure LLM trace 2024),
   `bfcl` (BFCL v3), `agentx` (agent KV traces), `copilot` (GitHub Copilot coding-agent traces, June 1–7
   2026), `copilot_traces` (those sessions rendered under each context policy), and `browsecomp_plus`.
   Loaders verify a file before reading it.
-- `maxionbench/eval/e5.py` runs one model on QA with provided context (CRAG search snippets; HotpotQA
+- `memtrace/eval/e5.py` runs one model on QA with provided context (CRAG search snippets; HotpotQA
   gold paragraphs plus distractors), BFCL v3 single-turn tool calls, and agentic HotpotQA. Requests run
   at concurrency 1; items are split into seeded shards that act as repeats in the result schema.
-- `maxionbench/eval/e6.py` compares Gemini implicit caching, explicit `cachedContents`, and the inline
+- `memtrace/eval/e6.py` compares Gemini implicit caching, explicit `cachedContents`, and the inline
   Batch API on one shared-document workload.
-- Graders (`maxionbench/graders/`): BFCL AST checker; EM/F1 and CRAG's three-way score; agent task
+- Graders (`memtrace/graders/`): BFCL AST checker; EM/F1 and CRAG's three-way score; agent task
   success; an LLM judge whose rubric is calibrated against `graders/calibration/qa_judge_v1.jsonl`.
-- Agents (`maxionbench/agents/`): an MCP stdio server exposing `search`/`read` over the HotpotQA
+- Agents (`memtrace/agents/`): an MCP stdio server exposing `search`/`read` over the HotpotQA
   corpus, a BrowseComp-Plus environment (BM25 search returning whole pages), and an agent loop that
   replays the model's own assistant message each turn (Gemini 3 thought signatures must come back
   unchanged).
 
 ## Agent context policies (v0.4)
 
-- `maxionbench/agents/context.py`: what the agent sends each step — `full`, `truncate`, `window`,
+- `memtrace/agents/context.py`: what the agent sends each step — `full`, `truncate`, `window`,
   `mask`, `summarize`, and `CacheAware` (`<policy>+cache`): an append-only view re-rendered by the base
   policy only past a token budget, with `min_growth` before the next trim. Property-tested: the task is
   kept, tool calls stay paired with their results, cache-aware views only append between edits.
-- `maxionbench/eval/copilot_characterize.py` characterizes the Copilot traces (prompt sizes, tool-output
+- `memtrace/eval/copilot_characterize.py` characterizes the Copilot traces (prompt sizes, tool-output
   share, context cuts, cache hits against pause length).
-- `maxionbench/eval/context_eval.py` runs every policy on every BrowseComp-Plus task with a Gemini agent
+- `memtrace/eval/context_eval.py` runs every policy on every BrowseComp-Plus task with a Gemini agent
   (task-major, so a budget stop leaves complete pairs; resumable per (task, policy)); cost is what
   Gemini bills, correctness comes from the calibrated judge. `context_regrade.py` adds strict grading and
   Holm-corrected exact McNemar tests. Results hold task ids and numbers only; answers stay in a local
   `answers.jsonl` (BrowseComp-Plus text must not be published).
-- `maxionbench/kvsim/`: an offline KV-cache simulator over prefix-chained 64-token blocks (`sim.py`;
+- `memtrace/kvsim/`: an offline KV-cache simulator over prefix-chained 64-token blocks (`sim.py`;
   retention, CPU tier, routing; AgentX traces via `traces.py`, Copilot sessions under a policy via
   `copilot.py`), and `live.py`, which replays the same sessions in wall-clock time through llm-d over
   inference-sim or vllm-metal workers.
@@ -83,7 +83,7 @@ experiments/*.yaml
   until it passes `budget_tokens` (then the base policy re-renders it), or the history is new or
   rewritten; `pause_s` optionally trims after an idle gap. A Python-generated fixture keeps Go and
   `agents/context.py` identical.
-- `maxionbench/kvsim/gateway_replay.py` (K9) replays Copilot sessions as full chat histories (filler
+- `memtrace/kvsim/gateway_replay.py` (K9) replays Copilot sessions as full chat histories (filler
   text at a set scale) through the gateway onto a real engine and reads prefix-cache hits and TTFT from it.
 - In `context_eval`, a policy with a `gateway:` block runs the agent through the gateway (`remote_only`
   to Gemini); `pair_with` and `exclude_tasks_from` pair a new arm with an earlier run's tasks or draw new
@@ -99,7 +99,7 @@ experiments/*.yaml
   flock), so one hard cap holds across languages; actual usage, including thinking tokens, is
   committed from the response.
 - The gateway process is the only holder of the provider key; it is redacted from forwarded errors and
-  never appears in metrics or traces. `X-Maxionbench-Backend` attributes each response.
+  never appears in metrics or traces. `X-Memtrace-Backend` attributes each response.
 - Optional context management (`context:`; see v0.5 above) rewrites agent requests before routing and
   reports each decision in a response header, Prometheus counters, and span attributes. Fields the
   provider rejects (engine-only fields and `prompt_cache_key`) are stripped before remote calls.

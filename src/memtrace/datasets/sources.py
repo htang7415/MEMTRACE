@@ -28,8 +28,8 @@ from memtrace.datasets.cache_integrity import sha256_file, verify_file_sha256
 
 DATASET_ROOT = Path("dataset/v03")
 MANIFEST_PATH = Path(__file__).resolve().parent / "manifests" / "v03.yaml"
-MANIFEST_SCHEMA = "maxionbench-datasets-v03"
-DEFAULT_HTTP_HEADERS = {"User-Agent": "MaxionBench/0.1"}
+MANIFEST_SCHEMA = "memtrace-datasets-v03"
+DEFAULT_HTTP_HEADERS = {"User-Agent": "MEMTRACE/0.1"}
 
 
 def download_file(*, url: str, dest: Path, timeout_s: float = 60.0, force: bool = False) -> dict[str, str]:

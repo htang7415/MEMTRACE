@@ -1,4 +1,4 @@
-schema_version: maxionbench-e5-v1
+schema_version: memtrace-e5-v1
 name: e5-gemini
 description: >
   E5 Gemini side: gemini-3.5-flash-lite (reasoning minimal) on QA with provided context (CRAG-500 search

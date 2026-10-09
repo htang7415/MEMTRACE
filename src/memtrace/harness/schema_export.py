@@ -22,7 +22,7 @@ def result_json_schema() -> dict[str, Any]:
     root = defs.pop(ExperimentResult.__name__)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": f"https://maxionbench.local/schemas/{RESULT_SCHEMA_VERSION}.json",
+        "$id": f"https://memtrace.local/schemas/{RESULT_SCHEMA_VERSION}.json",
         "title": "ExperimentResult",
         **root,
         "$defs": defs,

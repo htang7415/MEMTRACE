@@ -23,15 +23,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/htang7415/MaxionBench/gateway/internal/budget"
-	"github.com/htang7415/MaxionBench/gateway/internal/config"
-	"github.com/htang7415/MaxionBench/gateway/internal/ctxmgr"
+	"github.com/htang7415/MEMTRACE/gateway/internal/budget"
+	"github.com/htang7415/MEMTRACE/gateway/internal/config"
+	"github.com/htang7415/MEMTRACE/gateway/internal/ctxmgr"
 )
 
 const (
-	BackendHeader  = "X-Maxionbench-Backend"
-	ContextHeader  = "X-Maxionbench-Context"
-	ReasonHeader   = "X-Maxionbench-Route-Reason"
+	BackendHeader  = "X-Memtrace-Backend"
+	ContextHeader  = "X-Memtrace-Context"
+	ReasonHeader   = "X-Memtrace-Route-Reason"
 	maxBodyBytes   = 8 << 20
 	defaultMaxToks = 256
 	redacted       = "[REDACTED]"
@@ -55,27 +55,27 @@ type metrics struct {
 func newMetrics(reg prometheus.Registerer) *metrics {
 	m := &metrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "maxion_gateway_requests_total", Help: "Requests by backend and HTTP status."}, []string{"backend", "code"}),
+			Name: "memtrace_gateway_requests_total", Help: "Requests by backend and HTTP status."}, []string{"backend", "code"}),
 		routes: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "maxion_gateway_route_decisions_total", Help: "Routing decisions by backend and reason."}, []string{"backend", "reason"}),
+			Name: "memtrace_gateway_route_decisions_total", Help: "Routing decisions by backend and reason."}, []string{"backend", "reason"}),
 		inflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "maxion_gateway_inflight", Help: "In-flight requests by backend."}, []string{"backend"}),
+			Name: "memtrace_gateway_inflight", Help: "In-flight requests by backend."}, []string{"backend"}),
 		ttfb: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name: "maxion_gateway_upstream_ttfb_seconds", Help: "Time to first upstream body byte.",
+			Name: "memtrace_gateway_upstream_ttfb_seconds", Help: "Time to first upstream body byte.",
 			Buckets: prometheus.ExponentialBuckets(0.01, 2, 14)}, []string{"backend"}),
 		spend: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "maxion_gateway_remote_spend_usd_total", Help: "Committed remote spend in USD."}),
+			Name: "memtrace_gateway_remote_spend_usd_total", Help: "Committed remote spend in USD."}),
 		remaining: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "maxion_gateway_budget_remaining_usd", Help: "Remaining remote budget (cap - spend - holds)."}),
+			Name: "memtrace_gateway_budget_remaining_usd", Help: "Remaining remote budget (cap - spend - holds)."}),
 		predicted: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "maxion_gateway_predicted_local_wait_seconds", Help: "Last predicted local wait (local_first_slo)."}),
+			Name: "memtrace_gateway_predicted_local_wait_seconds", Help: "Last predicted local wait (local_first_slo)."}),
 		ctxReqs: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "maxion_gateway_context_requests_total", Help: "Context-managed requests by action."}, []string{"action"}),
+			Name: "memtrace_gateway_context_requests_total", Help: "Context-managed requests by action."}, []string{"action"}),
 		ctxToks: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "maxion_gateway_context_tokens_total", Help: "Estimated prompt tokens received from clients (in) and sent upstream (out)."},
+			Name: "memtrace_gateway_context_tokens_total", Help: "Estimated prompt tokens received from clients (in) and sent upstream (out)."},
 			[]string{"direction"}),
 		sessions: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "maxion_gateway_context_sessions", Help: "Agent sessions tracked by the context manager."}),
+			Name: "memtrace_gateway_context_sessions", Help: "Agent sessions tracked by the context manager."}),
 	}
 	reg.MustRegister(m.requests, m.routes, m.inflight, m.ttfb, m.spend, m.remaining, m.predicted, m.ctxReqs, m.ctxToks,
 		m.sessions)
@@ -183,8 +183,8 @@ func (g *Gateway) manageContext(ctx context.Context, w http.ResponseWriter, body
 	g.m.ctxToks.WithLabelValues("out").Add(float64(res.TokensOut))
 	g.m.sessions.Set(float64(g.ctx.Sessions()))
 	w.Header().Set(ContextHeader, res.Action)
-	trace.SpanFromContext(ctx).SetAttributes(attribute.String("maxion.context_action", res.Action),
-		attribute.Int("maxion.context_tokens_in", res.TokensIn), attribute.Int("maxion.context_tokens_out", res.TokensOut))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("memtrace.context_action", res.Action),
+		attribute.Int("memtrace.context_tokens_in", res.TokensIn), attribute.Int("memtrace.context_tokens_out", res.TokensOut))
 }
 
 // overflowReason returns why a new request should go remote, or "" to serve it locally.
@@ -202,7 +202,7 @@ func (g *Gateway) overflowReason(ctx context.Context, now time.Time) string {
 	}
 	wait := float64(inflight) * perReq
 	g.m.predicted.Set(wait)
-	trace.SpanFromContext(ctx).SetAttributes(attribute.Float64("maxion.predicted_local_wait_s", wait))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.Float64("memtrace.predicted_local_wait_s", wait))
 	if wait > g.cfg.Local.SLOTTFTS {
 		return "slo_predicted"
 	}
@@ -355,8 +355,8 @@ func (g *Gateway) serveRemote(ctx context.Context, w http.ResponseWriter, body m
 
 // routeSpan tags the request's server span with the routing decision (never headers or bodies).
 func routeSpan(ctx context.Context, backend, reason string) {
-	trace.SpanFromContext(ctx).SetAttributes(attribute.String("maxion.backend", backend),
-		attribute.String("maxion.route_reason", reason))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("memtrace.backend", backend),
+		attribute.String("memtrace.route_reason", reason))
 }
 
 func (g *Gateway) refreshRemaining() {

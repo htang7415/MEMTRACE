@@ -21,7 +21,7 @@ from memtrace.harness.targets import StaticEndpoints
 
 def _spec(**overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "schema_version": "maxionbench-experiment-v1",
+        "schema_version": "memtrace-experiment-v1",
         "name": "unit",
         "seed": 7,
         "repeats": 2,
@@ -130,7 +130,7 @@ def test_run_experiment_writes_valid_bundle_with_cis(tmp_path: Path, fake_urls: 
     assert {p.name for p in out_dir.iterdir()} >= {"spec.yaml", "results.json", "requests.jsonl"}
     reloaded = load_result(out_dir)
     assert reloaded == from_dict(ExperimentResult, result.to_dict())
-    assert reloaded.schema_version == "maxionbench-harness-result-v1"
+    assert reloaded.schema_version == "memtrace-result-v1"
     assert len(reloaded.trials) == 4 and all(t.status == "ok" for t in reloaded.trials)
     assert reloaded.provenance.git_commit and len(reloaded.provenance.spec_fingerprint) == 64
     for cell in reloaded.cells:
@@ -205,8 +205,8 @@ def test_foreign_engine_containers_ignore_own_and_non_engines() -> None:
     ps = "\n".join(
         [
             "memtrace-vllm-cpu\tvllm/vllm-openai-cpu:latest-arm64",
-            "maxionbench-sim-8300\tghcr.io/llm-d/llm-d-inference-sim:v0.11.4",
-            "maxionbench-llmd-envoy-1\tdocker.io/envoyproxy/envoy:distroless-v1.33.2",
+            "memtrace-harness-sim-8300\tghcr.io/llm-d/llm-d-inference-sim:v0.11.4",
+            "memtrace-harness-llmd-envoy-1\tdocker.io/envoyproxy/envoy:distroless-v1.33.2",
             "postgres\tpgvector/pgvector:0.8.2-pg16-trixie",
             "other-sim\tghcr.io/llm-d/llm-d-inference-sim:v0.9.0",
         ]

@@ -1,9 +1,9 @@
-# llm-d-inference-sim v0.11.4 plus MaxionBench's CPU KV tier patch (cpu-kv-tier.patch):
+# llm-d-inference-sim v0.11.4 plus MEMTRACE's CPU KV tier patch (cpu-kv-tier.patch):
 # --cpu-kv-cache-size blocks of host-memory KV, written through when computed (like vLLM's
 # OffloadingConnector), loaded back on a GPU miss after --cpu-kv-load-time-per-token each, announced
 # with CPU-tier KV events, and counted in vllm:external_prefix_cache_hits_total. GPU eviction is O(1).
 #   COPYFILE_DISABLE=1 tar -c --format ustar --no-mac-metadata --exclude "._*" -C deploy/inference-sim . \
-#     | docker build -t maxionbench/llm-d-inference-sim:v0.11.4-cpukv -
+#     | docker build -t memtrace/llm-d-inference-sim:v0.11.4-cpukv -
 FROM golang:1.26.6 AS builder
 ARG TARGETOS
 ARG TARGETARCH

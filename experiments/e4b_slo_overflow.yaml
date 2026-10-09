@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e4b-slo-overflow
 description: >
   E4b (Phase 4h): E4's fleet and workload, comparing the fixed overflow threshold (local_first:

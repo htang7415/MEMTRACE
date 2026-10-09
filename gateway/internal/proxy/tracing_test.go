@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/htang7415/MaxionBench/gateway/internal/config"
+	"github.com/htang7415/MEMTRACE/gateway/internal/config"
 )
 
 func TestTraceContextReachesUpstreamAndRouteIsRecorded(t *testing.T) {
@@ -72,7 +72,7 @@ func TestTraceContextReachesUpstreamAndRouteIsRecorded(t *testing.T) {
 	for _, kv := range server.Attributes() {
 		attrs[string(kv.Key)] = kv.Value.Emit()
 	}
-	if attrs["maxion.backend"] != "local" || attrs["maxion.route_reason"] != "capacity" {
+	if attrs["memtrace.backend"] != "local" || attrs["memtrace.route_reason"] != "capacity" {
 		t.Fatalf("route attributes missing: %v", attrs)
 	}
 	for k, v := range attrs {

@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: ci-smoke-sim
 description: >
   CI performance smoke (GPU-free): 2 llm-d-inference-sim replicas with a fixed latency model

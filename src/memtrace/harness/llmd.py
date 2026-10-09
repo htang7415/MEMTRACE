@@ -137,7 +137,7 @@ class _SimWorkers:
     ) -> None:
         self.replicas, self.base_port, self.model, self.args = replicas, base_port, model, args
         self.image, self.pod_ip = image, pod_ip
-        self.names = [f"maxionbench-sim-{base_port + i}" for i in range(replicas)]
+        self.names = [f"memtrace-harness-sim-{base_port + i}" for i in range(replicas)]
         self.base_urls = [f"http://127.0.0.1:{base_port + i}" for i in range(replicas)]
 
     def __enter__(self) -> "_SimWorkers":

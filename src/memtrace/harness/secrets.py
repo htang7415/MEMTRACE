@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Mapping
 
 GEMINI_ENV = "GEMINI_API_KEY"
-GEMINI_FILE_ENV = "MAXIONBENCH_GEMINI_KEY_FILE"
+GEMINI_FILE_ENV = "MEMTRACE_GEMINI_KEY_FILE"
 DEFAULT_GEMINI_KEY_FILE = Path("docs/gemini_api.txt")
 REDACTED = "[REDACTED]"
 

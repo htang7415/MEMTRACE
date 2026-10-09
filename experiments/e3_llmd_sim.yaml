@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e3-llmd-sim
 description: >
   E3 (mode A): llm-d EPP v0.11.0 scorer profiles over 8 llm-d-inference-sim workers with a small

@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e4-hybrid-gateway
 description: >
   E4: Go AI gateway policies in front of a self-hosted fleet (real llm-d EPP over 4 inference-sim

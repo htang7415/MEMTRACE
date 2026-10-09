@@ -14,7 +14,7 @@ from memtrace.agents.hotpot_env import DEFAULT_DATASET, HotpotCorpus
 
 
 def build_server(corpus: HotpotCorpus) -> FastMCP:
-    server = FastMCP("maxionbench-hotpotqa", log_level="WARNING")
+    server = FastMCP("memtrace-hotpotqa", log_level="WARNING")
 
     @server.tool()
     def search(query: str, k: int = 5) -> str:

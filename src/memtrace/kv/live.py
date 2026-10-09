@@ -39,7 +39,7 @@ from memtrace.harness.results import RESULT_SCHEMA_VERSION, ExperimentResult, Tr
 from memtrace.kv.agentx import TRACE_FILE, Request, Session, load_sessions
 from memtrace.harness.stamps import utc_now_iso
 
-SPEC_SCHEMA = "maxionbench-kvlive-v1"
+SPEC_SCHEMA = "memtrace-kvlive-v1"
 VOCAB = 150_000  # token ids stay inside a Qwen-sized vocabulary
 _MIX = np.uint64(0x9E3779B97F4A7C15)
 

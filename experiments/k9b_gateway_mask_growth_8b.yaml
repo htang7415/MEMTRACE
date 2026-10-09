@@ -1,4 +1,4 @@
-schema_version: maxionbench-gwreplay-v1
+schema_version: memtrace-gwreplay-v1
 name: k9b-gateway-mask-min-growth-qwen3-8b
 description: >
   K9b (v0.5 Step 2): K9's mask arms again after two fixes found in K9 repeat 1, on the same session

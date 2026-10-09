@@ -17,9 +17,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/htang7415/MaxionBench/gateway/internal/budget"
-	"github.com/htang7415/MaxionBench/gateway/internal/config"
-	"github.com/htang7415/MaxionBench/gateway/internal/ctxmgr"
+	"github.com/htang7415/MEMTRACE/gateway/internal/budget"
+	"github.com/htang7415/MEMTRACE/gateway/internal/config"
+	"github.com/htang7415/MEMTRACE/gateway/internal/ctxmgr"
 )
 
 const fakeKey = "FAKE-key-0123456789abcdefghijklmnop"
@@ -209,7 +209,7 @@ func TestProviderErrorIsRedactedAndNotBilled(t *testing.T) {
 	}
 	m, _ := http.Get(h.srv.URL + "/metrics")
 	mb, _ := io.ReadAll(m.Body)
-	if strings.Contains(string(mb), fakeKey) || !strings.Contains(string(mb), "maxion_gateway_route_decisions_total") {
+	if strings.Contains(string(mb), fakeKey) || !strings.Contains(string(mb), "memtrace_gateway_route_decisions_total") {
 		t.Fatal("metrics leaked key or missing route counters")
 	}
 }
@@ -265,7 +265,7 @@ func TestSLOPolicyRoutesRemoteEndToEnd(t *testing.T) {
 	}
 	m, _ := http.Get(h.srv.URL + "/metrics")
 	mb, _ := io.ReadAll(m.Body)
-	if !strings.Contains(string(mb), "maxion_gateway_predicted_local_wait_seconds 10") {
+	if !strings.Contains(string(mb), "memtrace_gateway_predicted_local_wait_seconds 10") {
 		t.Fatal("predicted wait gauge missing")
 	}
 }

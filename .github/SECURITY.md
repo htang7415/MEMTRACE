@@ -9,7 +9,7 @@ Include the affected version, reproduction steps, impact, and any known mitigati
 ## Secrets and paid APIs
 
 - API keys are supplied at runtime only: `GEMINI_API_KEY`, or a local key file (default
-  `docs/gemini_api.txt`, override with `MAXIONBENCH_GEMINI_KEY_FILE`). Key files are excluded by
+  `docs/gemini_api.txt`, override with `MEMTRACE_GEMINI_KEY_FILE`). Key files are excluded by
   explicit `.gitignore` rules (`**/gemini_api.txt`, `*.key`, `.env*`); the only image built here
   (`deploy/inference-sim/`) uses that directory as its build context, so no key can enter it.
 - Keys are wrapped so `repr`, `str`, JSON, and pickle never reveal them. Error text bound for logs or

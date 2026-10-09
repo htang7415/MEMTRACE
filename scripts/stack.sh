@@ -7,7 +7,7 @@
 #   scripts/stack.sh policy NAME         # EPP config deploy/kind/epp/NAME.yaml; cold-restarts EPP and pool
 #   scripts/stack.sh autoscaling         # Prometheus + KEDA; ScaledObject on in-flight requests
 #   scripts/stack.sh observability       # Prometheus + scrapes + alert rules (deploy/kind/observability)
-#   scripts/stack.sh wait_gpu_free       # block until no other vllm-metal / MaxionBench run uses the GPU
+#   scripts/stack.sh wait_gpu_free       # block until no other vllm-metal / MEMTRACE run uses the GPU
 #   scripts/stack.sh hetero              # pool = host vllm-metal (GPU, via relay pod) + CPU-calibrated simulator
 #   scripts/stack.sh calibrate           # measure each real replica alone; writes the GPU/CPU weight
 #   scripts/stack.sh capacity_epp        # switch the EPP to the custom image (scripts/build_epp.sh); required

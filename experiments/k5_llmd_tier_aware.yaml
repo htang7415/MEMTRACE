@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvlive-v1
+schema_version: memtrace-kvlive-v1
 name: k5-llmd-tier-aware
 description: >
   K5: K4 on the real llm-d router. AgentX agent sessions replayed live (open loop, 64 active
@@ -18,7 +18,7 @@ replay: {concurrency: 64, horizon_s: 720, warmup_s: 120, time_scale: 4, tokens_p
 target:
   replicas: 4
   base_port: 8300
-  image: maxionbench/llm-d-inference-sim:v0.11.4-cpukv
+  image: memtrace/llm-d-inference-sim:v0.11.4-cpukv
   gpu_kv_blocks: 31250
   sim_args: [--block-size, "16", --max-num-seqs, "32", --prefill-time-per-token, 50us, --inter-token-latency, 25ms,
              --cpu-kv-load-time-per-token, 10us, --time-factor-under-load, "1.0", --max-model-len, "100000"]

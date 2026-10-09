@@ -190,7 +190,7 @@ def test_run_stops_on_refused_credits_and_resume_finishes_only_missing_tasks(
         context_eval, "bound_send", lambda target, send: tools if send.__name__ == "chat_tools" else None
     )
     budget_dir = tmp_path.parent / f"{tmp_path.name}-budget"
-    monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(budget_dir))
+    monkeypatch.setenv("MEMTRACE_BUDGET_DIR", str(budget_dir))
     monkeypatch.setattr(context_eval, "run_calls", judge)
     spec = {
         "schema_version": context_eval.SCHEMA,
@@ -287,7 +287,7 @@ class _FakeGemini(BaseHTTPRequestHandler):
 @pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain not installed")
 def test_gateway_arm_trims_in_the_gateway_and_bills_the_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "FAKE-context-eval-key-abcdefghijkl")
-    monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(tmp_path / "budget"))
+    monkeypatch.setenv("MEMTRACE_BUDGET_DIR", str(tmp_path / "budget"))
     remote = ThreadingHTTPServer(("127.0.0.1", 0), _FakeGemini)
     threading.Thread(target=remote.serve_forever, daemon=True).start()
     _FakeGemini.bodies = []
@@ -339,7 +339,7 @@ def test_gateway_arm_trims_in_the_gateway_and_bills_the_ledger(tmp_path: Path, m
 
 
 def test_run_stops_when_the_shared_cap_refuses_a_reservation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(tmp_path.parent / f"{tmp_path.name}-budget"))
+    monkeypatch.setenv("MEMTRACE_BUDGET_DIR", str(tmp_path.parent / f"{tmp_path.name}-budget"))
     calls: list[int] = []
 
     def tools(base_url: str, messages: Any, *, max_tokens: int, timeout_s: float, tools: Any) -> CompletionResult:

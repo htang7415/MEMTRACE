@@ -15,7 +15,7 @@ from memtrace.datasets.cache_integrity import (
 
 def test_sha256_file_and_verify_file_sha256(tmp_path: Path) -> None:
     path = tmp_path / "sample.bin"
-    payload = b"maxionbench-cache-check"
+    payload = b"memtrace-cache-check"
     path.write_bytes(payload)
     expected = hashlib.sha256(payload).hexdigest()
 

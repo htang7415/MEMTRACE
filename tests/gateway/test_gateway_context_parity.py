@@ -1,5 +1,5 @@
 """The Go gateway's context manager (gateway/internal/ctxmgr) must trim exactly like agents/context.py.
-This test pins the Python behavior in a fixture the Go tests replay; set MAXIONBENCH_REGEN_PARITY=1 to
+This test pins the Python behavior in a fixture the Go tests replay; set MEMTRACE_REGEN_PARITY=1 to
 rewrite it after an intended change to the policies."""
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def build() -> dict[str, Any]:
 
 def test_parity_fixture_matches_python() -> None:
     data = build()
-    if os.environ.get("MAXIONBENCH_REGEN_PARITY") == "1":
+    if os.environ.get("MEMTRACE_REGEN_PARITY") == "1":
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
         FIXTURE.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
     assert json.loads(FIXTURE.read_text(encoding="utf-8")) == data

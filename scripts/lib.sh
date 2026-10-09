@@ -38,7 +38,7 @@ GPU_ENGINE_ARGS="$GPU_MODEL_ARGS --host 127.0.0.1 --port $GPU_PORT --max-model-l
 served_model() { echo "$SERVED_MODEL"; }
 
 wait_gpu_free() {
-  # Another project's GPU run invalidates both measurements. Wait until no MaxionBench harness runs
+  # Another project's GPU run invalidates both measurements. Wait until no MEMTRACE harness runs
   # and nothing has listened on vllm-metal's usual port 8200 for two minutes in a row.
   local quiet=0
   while [ "$quiet" -lt 120 ]; do

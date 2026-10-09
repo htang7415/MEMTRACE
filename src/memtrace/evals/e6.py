@@ -213,7 +213,7 @@ def run_batch(
     job = _rest(
         "POST",
         f"models/{MODEL}:batchGenerateContent",
-        {"batch": {"display_name": "maxionbench-e6", "input_config": {"requests": {"requests": requests}}}},
+        {"batch": {"display_name": "memtrace-e6", "input_config": {"requests": {"requests": requests}}}},
     )
     name = job["name"]
     while not job.get("done"):

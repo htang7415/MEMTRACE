@@ -2,7 +2,7 @@
 
 A run must `reserve` its estimated cost before sending any request; the ledger refuses if committed
 spend + open reservations + estimate would exceed the cap. Actual cost is committed from provider
-usage afterwards. The ledger lives outside the repo (default ~/.maxionbench/budget) so cleaning
+usage afterwards. The ledger lives outside the repo (default ~/.memtrace/budget) so cleaning
 artifacts never resets spend.
 """
 
@@ -23,7 +23,7 @@ import yaml
 from memtrace.harness.stamps import utc_now_iso
 
 DEFAULT_PRICING_PATH = Path("configs/pricing/gemini.yaml")
-BUDGET_DIR_ENV = "MAXIONBENCH_BUDGET_DIR"
+BUDGET_DIR_ENV = "MEMTRACE_BUDGET_DIR"
 
 
 class BudgetExceededError(RuntimeError):
@@ -95,7 +95,7 @@ class BudgetLedger:
     def __init__(self, cap_usd: float, path: Path | None = None) -> None:
         if cap_usd <= 0:
             raise ValueError("cap_usd must be > 0")
-        default_dir = Path(os.environ.get(BUDGET_DIR_ENV) or Path.home() / ".maxionbench" / "budget")
+        default_dir = Path(os.environ.get(BUDGET_DIR_ENV) or Path.home() / ".memtrace" / "budget")
         self.path = Path(path) if path else default_dir / "gemini_ledger.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.touch(exist_ok=True)

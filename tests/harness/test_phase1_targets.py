@@ -90,7 +90,7 @@ def test_closed_loop_holds_concurrency_and_reports_tpot(recorder: str) -> None:
 def test_spec_variants_drive_target_kind_and_params() -> None:
     spec = parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "engines",
             "repeats": 1,
             "target": {"kind": "static_endpoints", "params": {"urls": ["http://x"]}},
@@ -181,7 +181,7 @@ class _PaidFake(StaticEndpoints):
 def _paid_spec(url: str, requests: int) -> Any:
     return parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "paid",
             "repeats": 1,
             "target": {"kind": "static_endpoints", "params": {"urls": [url]}},
@@ -229,7 +229,7 @@ def test_paid_trial_over_cap_sends_nothing(recorder: str, tmp_path: Path) -> Non
 def test_warmup_requests_run_before_measurement_and_are_excluded(recorder: str, tmp_path: Path) -> None:
     spec = parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "warm",
             "repeats": 1,
             "target": {"kind": "static_endpoints", "params": {"urls": [recorder]}},
@@ -279,7 +279,7 @@ class _CountingTarget(StaticEndpoints):
 def _reuse_spec(url: str, reuse: bool) -> Any:
     return parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "reuse",
             "repeats": 2,
             "reuse_targets": reuse,

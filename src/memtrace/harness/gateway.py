@@ -21,7 +21,7 @@ from memtrace.harness.pickers import PICKERS, EndpointPicker
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATEWAY_DIR = REPO_ROOT / "gateway"
-DEFAULT_BINARY = GATEWAY_DIR / "bin" / "maxion-gateway"
+DEFAULT_BINARY = GATEWAY_DIR / "bin" / "memtrace-gateway"
 
 
 def ensure_binary(path: Path = DEFAULT_BINARY) -> Path:
@@ -30,7 +30,7 @@ def ensure_binary(path: Path = DEFAULT_BINARY) -> Path:
     newest = max(p.stat().st_mtime for p in sources if p.exists())
     if not path.exists() or path.stat().st_mtime < newest:
         out = subprocess.run(
-            ["go", "build", "-o", str(path), "./cmd/maxion-gateway"],
+            ["go", "build", "-o", str(path), "./cmd/memtrace-gateway"],
             cwd=GATEWAY_DIR,
             capture_output=True,
             text=True,
@@ -53,11 +53,11 @@ def scrape_gateway_metrics(base_url: str) -> dict[str, Any]:
     routes: dict[str, float] = {}
     spend = 0.0
     for line in text.splitlines():
-        if line.startswith("maxion_gateway_route_decisions_total{"):
+        if line.startswith("memtrace_gateway_route_decisions_total{"):
             labels, value = line.rsplit(" ", 1)
             parts = dict(kv.split("=", 1) for kv in labels[labels.index("{") + 1 : -1].split(","))
             routes[f"{parts['backend'].strip(chr(34))}:{parts['reason'].strip(chr(34))}"] = float(value)
-        elif line.startswith("maxion_gateway_remote_spend_usd_total "):
+        elif line.startswith("memtrace_gateway_remote_spend_usd_total "):
             spend = float(line.rsplit(" ", 1)[1])
     return {"route_decisions": routes, "remote_spend_usd": round(spend, 6)}
 
@@ -105,7 +105,7 @@ class AIGateway(Target):
         self.proc: subprocess.Popen[bytes] | None = None
 
     def render_config(self) -> dict[str, Any]:
-        ledger_dir = Path(os.environ.get(BUDGET_DIR_ENV) or Path.home() / ".maxionbench" / "budget")
+        ledger_dir = Path(os.environ.get(BUDGET_DIR_ENV) or Path.home() / ".memtrace" / "budget")
         remote_enabled = bool(self.remote.get("enabled", False))
         cfg: dict[str, Any] = {
             "listen": f"127.0.0.1:{self.port}",
@@ -188,7 +188,7 @@ class AIGateway(Target):
         cfg["remote"].pop("key_file", None)  # the path is harmless, but keep provenance about behaviour only
         return {
             "kind": self.kind,
-            "engine": "maxion-gateway",
+            "engine": "memtrace-gateway",
             "config": cfg,
             "local": self.inner.describe() if self.inner else None,
         }

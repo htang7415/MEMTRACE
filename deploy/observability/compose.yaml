@@ -3,9 +3,9 @@
 # project (EPP); all are scraped through host.docker.internal. Every port binds to 127.0.0.1.
 #
 #   docker compose -f deploy/observability/compose.yaml up -d
-#   gateway: OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 maxion-gateway -config ...
+#   gateway: OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 memtrace-gateway -config ...
 #   Grafana http://127.0.0.1:3000 (anonymous viewer), Jaeger http://127.0.0.1:16686, Prometheus :9091
-name: maxionbench-observability
+name: memtrace-observability
 
 services:
   otel-collector:

@@ -27,7 +27,7 @@ from memtrace.kv.sim import SimParams, simulate
 from memtrace.kv.agentx import TRACE_FILE, Session, load_sessions
 from memtrace.harness.stamps import utc_now_iso
 
-SPEC_SCHEMA = "maxionbench-kvsim-v1"
+SPEC_SCHEMA = "memtrace-kvsim-v1"
 _SESSIONS: dict[str, list[Session]] = {}  # per trace, loaded once in the parent, shared with forked workers
 
 

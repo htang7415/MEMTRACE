@@ -1,6 +1,6 @@
 {
- "uid": "maxionbench-serving",
- "title": "MaxionBench serving",
+ "uid": "memtrace-serving",
+ "title": "MEMTRACE serving",
  "schemaVersion": 41,
  "version": 1,
  "time": {
@@ -9,7 +9,7 @@
  },
  "refresh": "5s",
  "tags": [
-  "maxionbench"
+  "memtrace"
  ],
  "panels": [
   {
@@ -35,7 +35,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "sum by (backend) (rate(maxion_gateway_requests_total[30s]))",
+     "expr": "sum by (backend) (rate(memtrace_gateway_requests_total[30s]))",
      "legendFormat": "{{backend}}"
     }
    ]
@@ -63,7 +63,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "sum by (backend, reason) (rate(maxion_gateway_route_decisions_total[30s]))",
+     "expr": "sum by (backend, reason) (rate(memtrace_gateway_route_decisions_total[30s]))",
      "legendFormat": "{{backend}}:{{reason}}"
     }
    ]
@@ -91,7 +91,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "maxion_gateway_predicted_local_wait_seconds",
+     "expr": "memtrace_gateway_predicted_local_wait_seconds",
      "legendFormat": "predicted wait"
     }
    ]
@@ -119,7 +119,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "maxion_gateway_inflight",
+     "expr": "memtrace_gateway_inflight",
      "legendFormat": "{{backend}}"
     }
    ]
@@ -147,12 +147,12 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "histogram_quantile(0.5, sum by (le, backend) (rate(maxion_gateway_upstream_ttfb_seconds_bucket[1m])))",
+     "expr": "histogram_quantile(0.5, sum by (le, backend) (rate(memtrace_gateway_upstream_ttfb_seconds_bucket[1m])))",
      "legendFormat": "p50 {{backend}}"
     },
     {
      "refId": "B",
-     "expr": "histogram_quantile(0.95, sum by (le, backend) (rate(maxion_gateway_upstream_ttfb_seconds_bucket[1m])))",
+     "expr": "histogram_quantile(0.95, sum by (le, backend) (rate(memtrace_gateway_upstream_ttfb_seconds_bucket[1m])))",
      "legendFormat": "p95 {{backend}}"
     }
    ]
@@ -180,12 +180,12 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "maxion_gateway_remote_spend_usd_total",
+     "expr": "memtrace_gateway_remote_spend_usd_total",
      "legendFormat": "spend"
     },
     {
      "refId": "B",
-     "expr": "maxion_gateway_budget_remaining_usd",
+     "expr": "memtrace_gateway_budget_remaining_usd",
      "legendFormat": "remaining"
     }
    ]

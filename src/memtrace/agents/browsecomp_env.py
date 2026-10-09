@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--docs", type=Path, required=True, help="JSON object docid -> text (see write_docs)")
     args = parser.parse_args(argv)
     corpus = DocCorpus(json.loads(args.docs.read_text(encoding="utf-8")))
-    server = FastMCP("maxionbench-browsecomp", log_level="WARNING")
+    server = FastMCP("memtrace-browsecomp", log_level="WARNING")
 
     @server.tool()
     def search(query: str, k: int = 3) -> str:

@@ -312,7 +312,7 @@ class VllmMetal(ManagedServers):
                 [
                     str(Path(self.vllm).with_name("python")),
                     "-c",
-                    "import vllm, vllm_metal; print('MAXIONBENCH_VERSIONS', vllm.__version__, "
+                    "import vllm, vllm_metal; print('MEMTRACE_VERSIONS', vllm.__version__, "
                     "getattr(vllm_metal, '__version__', '?'))",
                 ],
                 capture_output=True,
@@ -322,7 +322,7 @@ class VllmMetal(ManagedServers):
         except OSError:  # vllm-metal not installed here: versions stay unknown
             stdout = ""
         # vLLM may log to stdout on import, so read only the marked line.
-        marked = [ln for ln in stdout.splitlines() if ln.startswith("MAXIONBENCH_VERSIONS")]
+        marked = [ln for ln in stdout.splitlines() if ln.startswith("MEMTRACE_VERSIONS")]
         parts = marked[-1].split()[1:] if marked else []
         return {
             "kind": self.kind,

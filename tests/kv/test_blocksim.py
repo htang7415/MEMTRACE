@@ -129,7 +129,7 @@ def test_kvsim_spec_plan(tmp_path):
     spec.write_text(
         json.dumps(
             {
-                "schema_version": "maxionbench-kvsim-v1",
+                "schema_version": "memtrace-kvsim-v1",
                 "name": "k",
                 "seed": 2,
                 "repeats": 2,
@@ -146,7 +146,7 @@ def test_kvsim_spec_plan(tmp_path):
         ("eviction=oracle", 1, 2001),
     ]
     bad = tmp_path / "bad.yaml"
-    bad.write_text(json.dumps({"schema_version": "maxionbench-kvsim-v1", "name": "b", "matrix": {"nope": [1]}}))
+    bad.write_text(json.dumps({"schema_version": "memtrace-kvsim-v1", "name": "b", "matrix": {"nope": [1]}}))
     with pytest.raises(ValueError):
         load_spec(bad)
 

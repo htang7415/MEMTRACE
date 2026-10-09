@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/htang7415/MaxionBench/gateway/internal/budget"
-	"github.com/htang7415/MaxionBench/gateway/internal/ctxmgr"
+	"github.com/htang7415/MEMTRACE/gateway/internal/budget"
+	"github.com/htang7415/MEMTRACE/gateway/internal/ctxmgr"
 )
 
 // Policy values.
@@ -80,7 +80,7 @@ func Load(path string) (*Config, error) {
 		Local:  Local{MaxInflight: 8, TimeoutS: 300, WindowS: 10, MinSamples: 8},
 		Remote: Remote{ChatPath: "/chat/completions", TimeoutS: 120,
 			StripFields: []string{"chat_template_kwargs", "ignore_eos", "cache_prompt", "prompt_cache_key"}},
-		Budget: Budget{LedgerPath: "~/.maxionbench/budget/gemini_ledger.jsonl"},
+		Budget: Budget{LedgerPath: "~/.memtrace/budget/gemini_ledger.jsonl"},
 	}
 	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
 	dec.KnownFields(true)

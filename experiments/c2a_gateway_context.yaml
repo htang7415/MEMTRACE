@@ -1,4 +1,4 @@
-schema_version: maxionbench-context-v1
+schema_version: memtrace-context-v1
 name: c2a-gateway-context
 description: >
   Step 3a: the C1 tasks (same seed, pool and agent) with one new arm, the Go gateway's window+cache context

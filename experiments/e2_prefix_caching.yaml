@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e2-prefix-caching
 description: >
   E2: effect of prefix caching on multi-turn RAG sessions (3 turns share a 5-paragraph HotpotQA

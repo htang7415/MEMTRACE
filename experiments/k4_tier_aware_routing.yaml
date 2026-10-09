@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvsim-v1
+schema_version: memtrace-kvsim-v1
 name: k4-tier-aware-routing
 description: >
   K4: K3 showed that with a CPU KV tier most remaining avoidable misses are routing misses: the

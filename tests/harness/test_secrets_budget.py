@@ -31,8 +31,8 @@ def test_key_loading_prefers_env_then_file(tmp_path: Path) -> None:
     key_file = tmp_path / "k.txt"
     key_file.write_text(f"  {FAKE_KEY}\n", encoding="utf-8")
     assert load_gemini_key({"GEMINI_API_KEY": "env-key"}).reveal() == "env-key"
-    assert load_gemini_key({"MAXIONBENCH_GEMINI_KEY_FILE": str(key_file)}).reveal() == FAKE_KEY
-    missing = {"MAXIONBENCH_GEMINI_KEY_FILE": str(tmp_path / "nope.txt")}
+    assert load_gemini_key({"MEMTRACE_GEMINI_KEY_FILE": str(key_file)}).reveal() == FAKE_KEY
+    missing = {"MEMTRACE_GEMINI_KEY_FILE": str(tmp_path / "nope.txt")}
     with pytest.raises(MissingSecretError):
         load_gemini_key(missing)
     assert gemini_key_present(missing) is False
@@ -79,7 +79,7 @@ def test_key_never_reaches_result_bundle_or_logs(tmp_path: Path, monkeypatch: py
 
     spec = parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "leak",
             "repeats": 2,
             "target": {"kind": "static_endpoints", "params": {"urls": [url]}},

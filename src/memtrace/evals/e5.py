@@ -39,7 +39,7 @@ from memtrace.harness.targets import GeminiTarget, Target, make_target
 from memtrace.harness.latency import latency_summary
 from memtrace.harness.stamps import utc_now_iso
 
-E5_SCHEMA = "maxionbench-e5-v1"
+E5_SCHEMA = "memtrace-e5-v1"
 SUITES = ("rag_crag", "rag_hotpot", "bfcl", "agent")
 
 

@@ -4,7 +4,7 @@
 # so they can stay bound to 127.0.0.1. All published ports bind to 127.0.0.1 only.
 #
 # LLMD_RUN_DIR must contain epp/config.yaml, epp/endpoints.yaml (rendered per trial by the harness).
-name: maxionbench-llmd
+name: memtrace-harness-llmd
 
 services:
   epp:

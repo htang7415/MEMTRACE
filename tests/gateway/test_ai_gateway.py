@@ -87,11 +87,11 @@ def test_gateway_overflow_end_to_end_with_shared_ledger(
 ) -> None:
     local_url, remote_url = servers
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(tmp_path / "budget"))
+    monkeypatch.setenv("MEMTRACE_BUDGET_DIR", str(tmp_path / "budget"))
     _FakeGemini.auth = []
     spec = parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "gateway-e2e",
             "repeats": 1,
             "target": {
@@ -133,10 +133,10 @@ def test_gateway_slo_overflow_end_to_end(
 ) -> None:
     local_url, remote_url = servers
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
-    monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(tmp_path / "budget"))
+    monkeypatch.setenv("MEMTRACE_BUDGET_DIR", str(tmp_path / "budget"))
     spec = parse_spec(
         {
-            "schema_version": "maxionbench-experiment-v1",
+            "schema_version": "memtrace-experiment-v1",
             "name": "gateway-slo",
             "repeats": 1,
             "target": {

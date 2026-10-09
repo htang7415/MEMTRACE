@@ -1,7 +1,7 @@
 # v0.3 datasets: every file a loader reads, pinned by SHA-256. Fetch/verify with
 #   python -m memtrace.datasets.sources fetch|verify
 # Files land under dataset/v03/ (git-ignored). BFCL is pinned to a Hugging Face revision.
-schema_version: maxionbench-datasets-v03
+schema_version: memtrace-datasets-v03
 files:
   crag/crag_task_1_and_2_dev_v4.jsonl.bz2:
     group: crag

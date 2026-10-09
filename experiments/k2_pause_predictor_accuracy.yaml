@@ -1,4 +1,4 @@
-schema_version: maxionbench-kvsim-v1
+schema_version: memtrace-kvsim-v1
 name: k2-pause-predictor-accuracy
 description: >
   K2: how accurate must a pause-length predictor be? Same replay as K1 (AgentX traces, 4 replicas,

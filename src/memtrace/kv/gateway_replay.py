@@ -41,8 +41,8 @@ from memtrace.kv.policy_traces import _end_s, calls_of, history, sample_ids
 from memtrace.kv.live import Outcome, schedule, trial_metrics
 from memtrace.harness.stamps import utc_now_iso
 
-SPEC_SCHEMA = "maxionbench-gwreplay-v1"
-CONTEXT_HEADER = "X-Maxionbench-Context"
+SPEC_SCHEMA = "memtrace-gwreplay-v1"
+CONTEXT_HEADER = "X-Memtrace-Context"
 # Common three-letter words: " the" etc. are one token each in the Qwen3 tokenizer, so text has ~1 token
 # per word and ~4 characters per token, which is also what the gateway's estimator assumes.
 WORDS = (

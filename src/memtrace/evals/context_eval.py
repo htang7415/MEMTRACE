@@ -53,7 +53,7 @@ from memtrace.harness.targets import GeminiTarget
 from memtrace.serving.client import CompletionResult, chat_completion
 from memtrace.harness.stamps import utc_now_iso
 
-SCHEMA = "maxionbench-context-v1"
+SCHEMA = "memtrace-context-v1"
 SUMMARY_MAX_TOKENS = 1024
 SUMMARIZE_PROMPT = (
     "You are condensing an agent's earlier work on a research question so it can continue with less context. "
@@ -468,9 +468,9 @@ def scrape_context_metrics(base_url: str) -> dict[str, float]:
     with urllib.request.urlopen(base_url + "/metrics", timeout=5) as resp:
         lines = resp.read().decode("utf-8", "replace").splitlines()
     return {
-        line.rsplit(" ", 1)[0].removeprefix("maxion_gateway_"): float(line.rsplit(" ", 1)[1])
+        line.rsplit(" ", 1)[0].removeprefix("memtrace_gateway_"): float(line.rsplit(" ", 1)[1])
         for line in lines
-        if line.startswith("maxion_gateway_context_")
+        if line.startswith("memtrace_gateway_context_")
     }
 
 

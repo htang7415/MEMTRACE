@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e3-llmd-metal
 description: >
   E3 (mode C): real llm-d EPP v0.11.0 + Envoy (Docker) routing to two native vllm-metal replicas of

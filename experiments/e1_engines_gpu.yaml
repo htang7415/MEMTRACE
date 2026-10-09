@@ -1,4 +1,4 @@
-schema_version: maxionbench-experiment-v1
+schema_version: memtrace-experiment-v1
 name: e1-engines-gpu
 description: >
   E1: vLLM (vllm-metal) vs llama.cpp on the Apple M4 GPU, same Qwen3-0.6B Q8_0 GGUF file, closed-loop
