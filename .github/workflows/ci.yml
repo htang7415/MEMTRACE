@@ -26,7 +26,7 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -65,7 +65,7 @@ jobs:
       run:
         working-directory: gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: gateway/go.mod
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fetch llm-d-router v0.11.0
         run: git clone -q --depth 1 --branch v0.11.0 https://github.com/llm-d/llm-d-router.git llm-d-router
       - uses: actions/setup-go@v7
@@ -100,7 +100,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Shellcheck
         run: shellcheck -x -P SCRIPTDIR -S warning scripts/*.sh
 
@@ -111,7 +111,7 @@ jobs:
       run:
         working-directory: dashboard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -130,7 +130,7 @@ jobs:
     env:
       MEMTRACE_ROOT: /tmp/memtrace-regression-ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -162,7 +162,7 @@ jobs:
       MODEL_URL: https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf
       MODEL_SHA256: 9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -218,7 +218,7 @@ jobs:
       MEMTRACE_ROOT: /tmp/memtrace-canary-ci
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
