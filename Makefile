@@ -6,7 +6,7 @@
 #   make bench             # rerun the headline routing comparison (Copilot replay, experiments/e11)
 #   make down              # stop the GPU engine and delete the cluster
 #   make data              # download the public datasets (pinned, SHA-256 checked)
-#   make results           # rebuild the dashboard data, results tables, and benchmark report from local outputs
+#   make results           # rebuild the dashboard data (from data/runs/), the results page, and the benchmark report
 #
 # Requires Docker Desktop, kind, kubectl, helm, envsubst, and vllm-metal in ~/.venv-vllm-metal (see README).
 
@@ -39,6 +39,6 @@ data:
 	.venv/bin/memtrace data fetch
 
 results:
-	.venv/bin/python scripts/results_page.py
 	.venv/bin/memtrace report dashboard
+	.venv/bin/python scripts/results_page.py
 	.venv/bin/python results/benchmark/build.py

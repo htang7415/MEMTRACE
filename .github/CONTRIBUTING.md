@@ -57,9 +57,11 @@ After changing dependencies, regenerate the locks with Python 3.12:
 ```bash
 python -m piptools compile --extra dev --extra agents --allow-unsafe --generate-hashes --strip-extras \
   --output-file requirements/dev.lock pyproject.toml
-python -m piptools compile --extra gemini --extra retrieval --allow-unsafe --generate-hashes --strip-extras \
+python -m piptools compile --extra gemini --extra retrieval --allow-unsafe --strip-extras \
   --output-file requirements/canary.lock pyproject.toml
 ```
+
+The canary lock pins versions without hashes: hashing every torch wheel downloads about 16 GB.
 
 ## CI
 
