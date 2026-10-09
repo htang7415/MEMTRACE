@@ -11,7 +11,7 @@ seed_strategy: per_repeat
 reuse_targets: false
 target:
   kind: vllm_metal
-  params: {model: ~/models/Qwen3-0.6B-Q8_0.gguf}
+  params: {model: models/gguf/Qwen3-0.6B-Q8_0.gguf}
 target_variants:
   llmd_optimized_baseline:
     kind: llmd
@@ -20,7 +20,7 @@ target_variants:
       model: qwen3-0.6b
       scorer_profile: optimized-baseline
       worker_params: &workers
-        model: ~/models/Qwen3-0.6B-Q8_0.gguf
+        model: models/gguf/Qwen3-0.6B-Q8_0.gguf
         tokenizer: Qwen/Qwen3-0.6B
         replicas: 2
         base_port: 8210

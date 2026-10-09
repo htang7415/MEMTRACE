@@ -9,7 +9,7 @@ shards: 5
 model:
   kind: vllm_metal
   params:
-    model: ~/models/Qwen3-4B-Q8_0.gguf
+    model: models/gguf/Qwen3-4B-Q8_0.gguf
     tokenizer: Qwen/Qwen3-4B
     max_model_len: 16384
     gpu_memory_utilization: 0.45

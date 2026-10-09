@@ -10,7 +10,7 @@ reuse_targets: true
 target:
   kind: llamacpp_replicas
   params:
-    model: ~/models/Qwen3-0.6B-Q8_0.gguf
+    model: models/gguf/Qwen3-0.6B-Q8_0.gguf
     device: cpu
     replicas: 1
     threads: 4

@@ -3,7 +3,7 @@ name: e7b-engines-mooncake
 description: >
   E7b: E7's three engines on the first 100 Mooncake tool-agent records instead of ShareGPT (prefix blocks
   rendered as 32 words, at most 100 blocks; up to 128 output tokens), closed-loop concurrency 1-8, a fresh
-  engine per trial. Was MEMTRACE's Phase 1 engine baseline (scripts/run_engine_baselines.sh).
+  engine per trial. Was MEMTRACE's Phase 1 engine baseline (recorded with the engine bench).
 seed: 0
 repeats: 3
 target:

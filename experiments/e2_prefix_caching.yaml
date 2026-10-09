@@ -10,12 +10,12 @@ seed_strategy: per_repeat
 reuse_targets: false
 target:
   kind: vllm_metal
-  params: {model: ~/models/Qwen3-0.6B-Q8_0.gguf}
+  params: {model: models/gguf/Qwen3-0.6B-Q8_0.gguf}
 target_variants:
   vllm_apc_on:
     kind: vllm_metal
     params: &vllm
-      model: ~/models/Qwen3-0.6B-Q8_0.gguf
+      model: models/gguf/Qwen3-0.6B-Q8_0.gguf
       tokenizer: Qwen/Qwen3-0.6B
       max_model_len: 2048
       gpu_memory_utilization: 0.35
@@ -30,7 +30,7 @@ target_variants:
   llamacpp_cache_on:
     kind: llamacpp_replicas
     params: &llama
-      model: ~/models/Qwen3-0.6B-Q8_0.gguf
+      model: models/gguf/Qwen3-0.6B-Q8_0.gguf
       device: metal
       replicas: 1
       threads: 4
