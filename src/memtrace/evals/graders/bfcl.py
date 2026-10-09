@@ -18,7 +18,7 @@ from memtrace.datasets.loaders.public import BfclCase
 
 Call = dict[str, dict[str, Any]]  # {function_name: {param: value}}
 
-_TYPES = {"dict": "object", "float": "number", "tuple": "array", "any": "string"}
+_TYPES = {"dict": "object", "float": "number", "tuple": "array"}
 _STRIP = re.compile(r"[ ,./\-_*^]")
 
 
@@ -53,7 +53,9 @@ def _schema(node: Any) -> Any:
     if not isinstance(node, Mapping):
         return node
     out = {k: _schema(v) for k, v in node.items() if k != "optional"}
-    if isinstance(node.get("type"), str):
+    if node.get("type") == "any":  # any JSON value: leave the type open
+        del out["type"]
+    elif isinstance(node.get("type"), str):
         out["type"] = _TYPES.get(node["type"], node["type"])
     return out
 
