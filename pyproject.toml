@@ -3,7 +3,7 @@ name = "memtrace"
 version = "0.6.0"
 description = "Serving LLM agents efficiently on one Apple Silicon Mac: engines, routing, gateway, agent context, and KV-cache memory"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
   "matplotlib>=3.8",
@@ -59,7 +59,7 @@ norecursedirs = [".git", ".venv*", "data", "artifacts", "results", "dashboard", 
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 extend-exclude = ["data", "artifacts", "_import"]
 
 [tool.ruff.lint]
@@ -85,7 +85,7 @@ files = [
   "scripts/analyze_autoscale.py",
   "scripts/results_page.py",
 ]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 
 [[tool.mypy.overrides]]

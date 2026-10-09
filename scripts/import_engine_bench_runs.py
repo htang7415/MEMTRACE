@@ -100,7 +100,10 @@ BATCHES: list[Batch] = [
         "e11b_copilot_replay_4b",
         "runs",
         "copilot-4b*/rep*/hetero-*/copilot-agent/open",
-        lambda p: ({"target.policy": _policy(p), "workload.sessions": 32 if p.parts[1].endswith("-s32") else 16}, _rep(p)),
+        lambda p: (
+            {"target.policy": _policy(p), "workload.sessions": 32 if p.parts[1].endswith("-s32") else 16},
+            _rep(p),
+        ),
     ),
     (
         "e11c_copilot_precise_index",

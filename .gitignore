@@ -21,6 +21,7 @@ venv/
 .cache/
 .claude/
 .agents/
+.codex
 .vscode/
 .idea/
 
@@ -34,17 +35,19 @@ venv/
 .DS_Store
 ._*
 
-# Benchmark data and generated experiment outputs
+# Datasets, result bundles (data/runs/), and other local outputs
 /data/
 /artifacts/
 /figures/
 /archived_runs/
+/logs/
 /docs
 # Secrets (never commit; also enforced by a local pre-commit/pre-push hook)
-gemini_api.txt
+**/gemini_api.txt
 *_api.txt
 *.key
 /secrets/
+!.env.docker.example
 
 # Go gateway build output
 gateway/bin/

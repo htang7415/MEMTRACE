@@ -1,126 +1,121 @@
 # Architecture
 
-MEMTRACE is a Python package plus a Go gateway and a TypeScript dashboard. The earlier
-vector-database benchmark lives at the `v0.1` and `v0.2` tags.
+MEMTRACE is one Python package (`src/memtrace`) plus a Go gateway, Go scheduling plugins for llm-d, and a
+TypeScript dashboard. Every measurement is an experiment spec in `experiments/`; every result is a bundle in
+`data/runs/` (git-ignored) in one format; the dashboard publishes them.
 
-## v0.3 serving harness
+## Experiment harness (`memtrace/harness`)
 
 ```text
 experiments/*.yaml
- └─ harness.spec ─► harness.planner ─► harness.runner
-                                         ├─ harness.targets    (system under test: lifecycle, endpoints, picker)
-                                         ├─ harness.workloads  (request streams + load-generation settings)
-                                         ├─ rag.loadgen        (open loop: Poisson or explicit arrivals; closed loop)
-                                         ├─ harness.budget     (reserve/commit ledger for paid APIs)
-                                         └─ harness.provenance (git state, host, tool versions, key redaction)
-                                       ─► results.json (+ requests.jsonl, spec.yaml, logs/)
-                                       ─► harness.compare / harness.perf_gate / harness.dashboard_export
+ └─ spec ─► planner ─► runner
+                        ├─ targets    (system under test: lifecycle, endpoints, picker)
+                        ├─ workloads  (request streams and load settings)
+                        ├─ loadgen    (open loop: Poisson or explicit arrivals; closed loop; agent session replay)
+                        ├─ budget     (reserve/commit ledger for paid APIs)
+                        └─ provenance (git state, host, tool versions, key redaction)
+                      ─► data/runs/<run_id>/{results.json, requests.jsonl, spec.yaml, logs/}
+                      ─► compare / perf_gate / dashboard_export
 ```
 
-- **Targets** own lifecycle and expose OpenAI-compatible endpoints; they never define workload or SLO
-  policy. Kinds: `vllm_metal`, `llamacpp_replicas` (Metal or CPU), `llmd` (EPP + Envoy without
-  Kubernetes over vllm-metal or inference-sim workers), `sim_replicas` (inference-sim with client-side
-  routing), `static_endpoints`, `gemini`, and `ai_gateway` (wraps any local target).
-- **Workloads** produce request streams and never know which engine serves them: `rag_sessions`
-  (multi-turn HotpotQA sessions sharing a context), `synthetic_chat`, and `trace_replay` (Azure LLM
-  inference trace 2024 arrivals and token lengths, scaled in rate and size).
-- **Latency** is measured from the scheduled arrival time, so queueing delay is never hidden; rejected
-  and failed requests stay in the denominator.
-- **Repeats and CIs**: each cell's metrics are means over repeats with a 95% Student-t interval.
-  Trials record whether the host was quiet (load and foreign inference processes) before they ran.
+`memtrace run experiment SPEC [--set key=value]` runs a spec.
+
+- **Targets** own lifecycle and expose OpenAI-compatible endpoints; they never define workload or SLO policy.
+  `vllm_metal`, `llamacpp_replicas` (Metal or CPU), `engine` (vllm-metal, mlx_lm.server, vLLM CPU in Docker via
+  `scripts/engines.sh`), `llmd` (llm-d EPP + Envoy in Docker Compose over vllm-metal or inference-sim workers),
+  `llmd_kind` (llm-d on kind via `scripts/stack.sh`: simulated replicas or the GPU + CPU pool, an EPP policy per
+  trial, hosted overflow, the precise prefix index), `sim_replicas`, `static_endpoints`, `gemini`, and
+  `ai_gateway` (wraps any local target).
+- **Workloads** produce request streams and never know which engine serves them: `rag_sessions` (multi-turn
+  HotpotQA sharing a context), `synthetic_chat`, `trace_replay` (Azure LLM trace 2024 arrivals and lengths),
+  `sharegpt`, `mooncake` (prefix blocks rendered as shared text), `agent_sessions` (each session re-sends its
+  growing history), and `copilot_agent` (GitHub Copilot sessions replayed with their recorded gaps and cached
+  prefixes; each session's calls run in order).
+- **Latency** is measured from the scheduled arrival (open loop) or the send (closed loop, session replay), so
+  queueing delay is not hidden; rejected and failed requests stay in the denominator. The SLO bounds TTFT,
+  end-to-end time, and optionally time per output token.
+- **Repeats and CIs**: each cell's metrics are means over repeats with a 95% Student-t interval. Trials record
+  whether the host was quiet before they ran (load, foreign engine processes and containers) and how much it
+  paged during the run.
 - `harness/result.schema.json` is generated from the result dataclasses and is the dashboard contract;
   `python -m memtrace.harness schema --check` fails when it is stale.
-- **Spend**: every paid request reserves its worst-case cost in a JSONL ledger outside the repo before
-  it is sent, then commits provider-reported usage. Runners that share the cap with the Go gateway at the
-  same time (`eval.context_eval`) reserve per request, as the gateway does, never for a whole run. Billed output is visible plus thinking tokens
-  (Gemini's OpenAI-compatible usage reports thinking only in `total_tokens`). HTTP error responses
-  are not billed; timeouts are charged their estimate.
-- **Keys** are loaded only at runtime via `harness.secrets`; results record key presence, not value.
+- **Spend**: every paid request reserves its worst-case cost in a JSONL ledger outside the repository
+  (`~/.memtrace/budget`) before it is sent, then commits provider-reported usage. The Go gateway shares the
+  ledger (exclusive flock), so one hard cap holds across languages. The kind cluster's hosted adapter pod
+  enforces its own cap (`HOSTED_BUDGET_USD`).
+- **Keys** are loaded only at runtime (`memtrace.harness.secrets`); results record key presence, not value.
 
-## Datasets and evaluation
+## Datasets (`memtrace/datasets`)
 
-- `memtrace/datasets/sources.py` downloads and derives the datasets into `dataset/v03/`, and
-  `memtrace/datasets/manifests/v03.yaml` pins every file by SHA-256, in groups that `fetch --group`
-  selects: `crag` (CRAG-500), `beir` (SciFact/FiQA), `sharegpt`, `azure_trace` (Azure LLM trace 2024),
-  `bfcl` (BFCL v3), `agentx` (agent KV traces), `copilot` (GitHub Copilot coding-agent traces, June 1–7
-  2026), `copilot_traces` (those sessions rendered under each context policy), and `browsecomp_plus`.
-  Loaders verify a file before reading it.
-- `memtrace/eval/e5.py` runs one model on QA with provided context (CRAG search snippets; HotpotQA
-  gold paragraphs plus distractors), BFCL v3 single-turn tool calls, and agentic HotpotQA. Requests run
-  at concurrency 1; items are split into seeded shards that act as repeats in the result schema.
-- `memtrace/eval/e6.py` compares Gemini implicit caching, explicit `cachedContents`, and the inline
-  Batch API on one shared-document workload.
-- Graders (`memtrace/graders/`): BFCL AST checker; EM/F1 and CRAG's three-way score; agent task
-  success; an LLM judge whose rubric is calibrated against `graders/calibration/qa_judge_v1.jsonl`.
-- Agents (`memtrace/agents/`): an MCP stdio server exposing `search`/`read` over the HotpotQA
-  corpus, a BrowseComp-Plus environment (BM25 search returning whole pages), and an agent loop that
-  replays the model's own assistant message each turn (Gemini 3 thought signatures must come back
-  unchanged).
+`datasets/manifest.yaml` pins every file a loader reads by SHA-256, in groups `memtrace data fetch --group`
+selects: CRAG, BEIR, ShareGPT, Azure LLM traces (2023, 2024), Mooncake, BFCL, AgentX, the GitHub Copilot
+coding-agent traces (June 1–7 2026) and those sessions rendered under each context policy, and BrowseComp-Plus.
+Files land in `data/public/`; loaders verify a file before reading it. `loaders/copilot.py` streams the Copilot
+daily archives as raw records or typed sessions.
 
-## Agent context policies (v0.4)
+## Serving platform on kind (`deploy/kind`, `epp-plugins/`, `scripts/stack.sh`)
 
-- `memtrace/agents/context.py`: what the agent sends each step — `full`, `truncate`, `window`,
-  `mask`, `summarize`, and `CacheAware` (`<policy>+cache`): an append-only view re-rendered by the base
-  policy only past a token budget, with `min_growth` before the next trim. Property-tested: the task is
-  kept, tool calls stay paired with their results, cache-aware views only append between edits.
-- `memtrace/eval/copilot_characterize.py` characterizes the Copilot traces (prompt sizes, tool-output
-  share, context cuts, cache hits against pause length).
-- `memtrace/eval/context_eval.py` runs every policy on every BrowseComp-Plus task with a Gemini agent
-  (task-major, so a budget stop leaves complete pairs; resumable per (task, policy)); cost is what
-  Gemini bills, correctness comes from the calibrated judge. `context_regrade.py` adds strict grading and
-  Holm-corrected exact McNemar tests. Results hold task ids and numbers only; answers stay in a local
+llm-d's own kind environment (pinned v0.11.0) with an InferencePool over the host's vllm-metal (containers on
+macOS cannot reach the Metal GPU, so a relay pod fronts it), a CPU-tier llm-d-inference-sim calibrated to an
+11× slower engine, and optionally Gemini Flash-Lite through the hosted adapter pod
+(`serving/adapters/hosted.py`), which exports vLLM-style metrics so the EPP can score it. `epp-plugins/` adds
+capacity-aware scorers (load per unit of capacity, cache-discounted capacity, overflow filter) built into a
+custom EPP image. `make up` brings the stack up; experiments switch policies per trial; `scripts/drills.sh`
+holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are in `deploy/kind/`.
+
+## Agent context policies (`memtrace/agents`, `memtrace/evals`)
+
+- `agents/context.py`: what an agent sends each step: `full`, `truncate`, `window`, `mask`, `summarize`, and
+  `CacheAware` (`<policy>+cache`): an append-only view re-rendered by the base policy only past a token budget,
+  with `min_growth` before the next trim. Property-tested: the task is kept, tool calls stay paired with their
+  results, cache-aware views only append between edits.
+- `evals/copilot_characterize.py` characterizes the Copilot traces (prompt sizes, tool-output share, context
+  cuts, cache hits against pause length).
+- `evals/context_eval.py` runs every policy on BrowseComp-Plus tasks with a Gemini agent; cost is what Gemini
+  bills, correctness comes from an LLM judge calibrated against `evals/graders/calibration/`.
+  `context_regrade.py` adds strict grading and Holm-corrected exact McNemar tests. Answers stay in a local
   `answers.jsonl` (BrowseComp-Plus text must not be published).
-- `memtrace/kvsim/`: an offline KV-cache simulator over prefix-chained 64-token blocks (`sim.py`;
-  retention, CPU tier, routing; AgentX traces via `traces.py`, Copilot sessions under a policy via
-  `copilot.py`), and `live.py`, which replays the same sessions in wall-clock time through llm-d over
-  inference-sim or vllm-metal workers.
+- `evals/e5.py` (QA with given context, BFCL tool calls, agentic HotpotQA) and `evals/e6.py` (Gemini implicit vs
+  explicit caching vs the Batch API). `serving/quality.py` gates engine changes on BFCL with the same grader.
 
-## Gateway context management (v0.5)
+## KV memory (`memtrace/kv`)
 
-- `gateway/internal/ctxmgr` (Go) applies `window+cache` or `mask+cache` in the request path. A session
-  is keyed by `prompt_cache_key`, else the system prompt and task; sessions that share a key keep
-  separate state, and a request continues the one whose history it extends. The view stays append-only
-  until it passes `budget_tokens` (then the base policy re-renders it), or the history is new or
-  rewritten; `pause_s` optionally trims after an idle gap. A Python-generated fixture keeps Go and
-  `agents/context.py` identical.
-- `memtrace/kvsim/gateway_replay.py` (K9) replays Copilot sessions as full chat histories (filler
-  text at a set scale) through the gateway onto a real engine and reads prefix-cache hits and TTFT from it.
-- In `context_eval`, a policy with a `gateway:` block runs the agent through the gateway (`remote_only`
-  to Gemini); `pair_with` and `exclude_tasks_from` pair a new arm with an earlier run's tasks or draw new
-  ones. `eval/gateway_accuracy.py` combines the runs into paired accuracy, cost, and token comparisons.
+- `kv/retention.py`: how the provider's prompt cache behaved across the gaps of the Copilot week, why reusable
+  tokens were recomputed, and what a fixed cache lifetime would keep and hold (`memtrace report retention`).
+- `kv/sim.py`: an offline KV-cache simulator over prefix-chained blocks: replicas with a GPU tier and optional
+  CPU and SSD tiers, eviction (LRU, pause-aware, turn-aware) and cache lifetimes, placement (round robin,
+  least-loaded, session hash, sticky, KV-aware, llm-d-style prefix+load), and steady-state or trace-timed
+  arrivals. Sessions come from the AgentX traces, from Copilot sessions built from token counts (append-only
+  prompts), or from Copilot sessions rendered under a context policy (`kv/policy_traces.py`).
+  `memtrace run kv-sim SPEC` runs a spec.
+- `kv/validate.py` replays a real engine's run through the simulator and compares prefix-cache hits per gap
+  (K11); `kv/live.py` and `kv/gateway_replay.py` replay the same sessions in wall-clock time through llm-d or the
+  gateway onto real engines.
 
 ## AI gateway (`gateway/`, Go)
 
 - OpenAI-compatible proxy in front of a local fleet (vLLM replicas or an llm-d gateway) with policies
-  `local_only`, `local_first` (overflow beyond an in-flight threshold), `local_first_slo` (overflow
-  when in-flight × recent time per completed request exceeds `slo_ttft_s`), and `remote_only`.
-  Failover retries a local connection error or 5xx on the remote before any byte reaches the client.
-- Paid requests reserve worst-case cost in the same JSONL ledger the Python harness uses (exclusive
-  flock), so one hard cap holds across languages; actual usage, including thinking tokens, is
-  committed from the response.
-- The gateway process is the only holder of the provider key; it is redacted from forwarded errors and
-  never appears in metrics or traces. `X-Memtrace-Backend` attributes each response.
-- Optional context management (`context:`; see v0.5 above) rewrites agent requests before routing and
-  reports each decision in a response header, Prometheus counters, and span attributes. Fields the
-  provider rejects (engine-only fields and `prompt_cache_key`) are stripped before remote calls.
-- Prometheus metrics (requests, route decisions, in-flight, time to first byte, spend, budget,
-  predicted local wait) and OpenTelemetry tracing: W3C `traceparent` is always propagated to the
-  fleet and the remote; spans are exported over OTLP only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+  `local_only`, `local_first` (overflow beyond an in-flight threshold), `local_first_slo` (overflow when
+  in-flight × recent time per request exceeds `slo_ttft_s`), and `remote_only`. Failover retries a local
+  connection error or 5xx on the remote before any byte reaches the client.
+- Context management (`gateway/internal/ctxmgr`) applies `window+cache` or `mask+cache` in the request path; a
+  Python-generated fixture keeps Go and `agents/context.py` identical. Decisions are reported in a response
+  header (`X-Memtrace-Context`), Prometheus counters, and span attributes.
+- The gateway process is the only holder of the provider key; it is redacted from forwarded errors and never
+  appears in metrics or traces. Prometheus metrics (`memtrace_gateway_*`) and OpenTelemetry tracing (W3C
+  `traceparent` always propagated; spans exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
+
+## Memory-risk benchmark (`memtrace/memrisk`)
+
+Follows a poisoned document through an agent's persistent memory (planner, writer, retrieval, memory store) to
+find where an attack breaks; configs in `configs/memrisk/`, a deterministic regression gate in CI, and its own
+report in `results/benchmark/`.
 
 ## Observability and dashboard
 
-- `deploy/observability/`: OpenTelemetry collector → Jaeger, Prometheus scraping the gateway, the
-  llm-d EPP, vLLM, and llama.cpp, and Grafana with a provisioned serving dashboard. Every port binds
-  to 127.0.0.1.
-- `dashboard/`: a static Vite + React + Recharts site with pages for engines, caching, llm-d
-  scheduling, hybrid serving, quality, agent context policies (v0.4), gateway context management (v0.5),
-  and run provenance. `npm run data` exports the latest complete run of each published experiment
-  (harness, kvsim, and context-eval bundles, validated against the result model); TypeScript types are
-  generated from the result JSON Schema, so schema drift fails the build.
-
-## Generated state
-
-`artifacts/`, `results/`, `release/`, and `dataset/` (except the small frozen
-`experiments/data/hotpot_portable/` fixture) contain local or generated state.
-`dashboard/public/data/` is the exception: the exported result snapshot is committed, and the `pages`
-workflow publishes the dashboard built from it to GitHub Pages. Source, tests, configs, experiment specs, and public documentation remain in Git.
+- `deploy/observability/`: OpenTelemetry collector → Jaeger, Prometheus scraping the gateway, the llm-d EPP,
+  vLLM and llama.cpp, and Grafana with a provisioned serving dashboard (Compose; every port on 127.0.0.1).
+- `dashboard/`: a static Vite + React + Recharts site. `memtrace report dashboard` exports the latest complete
+  run of each published experiment from `data/runs/` (validated against the result model), plus aggregates of
+  the analyses that are not harness runs; TypeScript types are generated from the result JSON Schema, so schema
+  drift fails the build.
