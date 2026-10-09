@@ -1,0 +1,21 @@
+schema_version: memtrace-kvsim-v1
+name: k10c-copilot-reuse-retention
+description: >
+  K10c: does the retention policy matter on a real day of agent traffic? K10a's setting with sticky
+  placement and the GPU tier only, under LRU and turn-aware eviction (KV of sessions waiting for their user
+  goes first), each without a lifetime and with a 5-minute or 1-hour one (unreferenced KV dropped).
+copilot_day: "2026-06-03"
+seed: 0
+repeats: 1
+params:
+  replicas: 64
+  concurrency: 0
+  arrivals: trace
+  warmup_s: 0.0
+  block_tokens: 1024
+  max_inflight: 8
+  routing: sticky
+matrix:
+  capacity_tokens: [868055, 1736111, 3472222]  # 128 / 256 / 512 GB
+  eviction: [lru, turn]
+  ttl_s: [null, 300, 3600]

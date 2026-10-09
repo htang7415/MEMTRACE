@@ -1,61 +1,60 @@
 # MEMTRACE
 
-**[View the report →](https://htang7415.github.io/MEMTRACE/results/report/)** · [Full results](results/README.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
+**[View the results dashboard →](https://htang7415.github.io/MEMTRACE/)** · [Full results](results/README.md) · [Architecture](ARCHITECTURE.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
 
-MEMTRACE studies how to serve LLM agents efficiently on a single Apple Silicon Mac: how to route requests across
-GPU, CPU, and hosted tiers, and how much KV cache an agent session needs, for how long, and where.
-
-## Overview
-
-- **Serving platform.** An llm-d control plane on Kubernetes (kind) routes requests across vLLM on the Apple Silicon
-  GPU, a simulated vLLM CPU tier, and optional Gemini Flash-Lite overflow, with custom scheduling plugins,
-  Prometheus alerts, and a one-command setup.
-- **Agent-session KV memory.** A week of real GitHub Copilot agent traffic (301k sessions), a trace-driven KV-cache
-  simulator, and a check of that simulator against a real engine.
-- **Memory-risk benchmark.** Follows a poisoned document through an agent's persistent memory to find where the
-  attack breaks. This is where the project started; it has its own report (linked above).
-
-Every result says what was measured on real engines and what was simulated.
+MEMTRACE studies how to serve LLM agents efficiently on one Apple Silicon Mac. Agents re-send a growing history
+every step, and engines are fast only when that history is already in the KV cache. MEMTRACE measures that
+trade-off with real engines (vLLM on the Apple GPU via `vllm-metal`, llama.cpp, mlx_lm), llm-d request
+scheduling, a Go AI gateway in front of a local fleet and the Gemini API, a week of GitHub Copilot agent
+traffic, and a KV-cache simulator checked against a real engine. Every result reports what was measured on
+real engines and what was simulated, with 95% confidence intervals where runs were repeated.
 
 ## Results
 
 | Question | Finding |
 | --- | --- |
-| Which engine serves the GPU tier? | `vllm-metal`: 455 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server`; tool-call accuracy unchanged (81.0–81.5% on BFCL) across engines and batch sizes |
-| Does cache-aware routing pay? | 1.8–2.3× the throughput of random routing on agent sessions (simulated replicas calibrated to the real engine) |
-| How should a GPU + CPU pool be routed? | A capacity-aware scorer gives 1.6–2.3× the default's throughput where the GPU is not cache-bound and removes the timeouts caused by the 11× slower tier |
-| Does hosted overflow help? | An overloaded local pool goes from 1.77 to 5.1–5.7 req/s and TTFT p95 from 13.5 s to ~5 s, at $0.27–0.30 per 1k requests |
-| Which policy for real agent traffic? | On replayed Copilot sessions, capacity scorers finish 11–13% sooner but double TTFT p95; with a 4B model they win both |
-| How long should agent KV be kept? | The provider recomputed 8–12% of reusable prompt tokens. With every call routed to its cache, a 5 min / 1 h / 24 h lifetime serves 96 / 99.4 / 100% of the reusable prefix for about 1× / 4× / 28× the memory |
-| What buys the most cache reuse? | In simulation: routing each call back to its cache first, then a larger GPU cache, then host RAM (97–99% with 256 GB per replica); retention policy matters least |
-| Is the simulator right? | Within 1.6 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache |
+| Which engine serves the GPU tier? | `vllm-metal`: 455 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server`; tool-call accuracy unchanged (81.0–81.5% on BFCL) across engines and batch sizes (E7) |
+| Does cache-aware routing pay? | 1.8–2.3× the throughput of random routing on agent sessions (llm-d over simulated replicas calibrated to the real engine, E8) |
+| How should a GPU + CPU pool be routed? | A capacity-aware scorer gives 1.6–2.3× the default's throughput where the GPU is not cache-bound and removes the timeouts caused by the 11× slower tier (E9) |
+| Does hosted overflow help? | An overloaded local pool goes from 1.77 to 5.1–5.7 req/s and TTFT p95 from 13.5 s to ~5 s, at $0.27–0.30 per 1k requests (Gemini Flash-Lite in the llm-d pool, E10) |
+| Which policy for real agent traffic? | On replayed Copilot sessions, capacity scorers finish 11–14% sooner but double TTFT p95; with Qwen3-4B they win both (E11) |
+| What do production agents send? | A 57k-token median prompt across 9.1M Copilot calls; tool output is 48% of prompt tokens |
+| Should agents trim their context? | Naive trimming makes the engine recompute up to 2.6× more prefill; trimming only past a token budget keeps the prompt append-only (K6–K8, C1) |
+| Can the gateway do it for every client? | −14% to −39% prefill recompute in all 4 paired runs of Copilot traffic on Qwen3-8B, and 17% → 92% of requests under 5 s to first token on the overloaded run (K9); in front of Gemini, −50% prompt tokens with no accuracy loss (C2) |
+| How long should agent KV be kept? | The provider recomputed 8–12% of reusable prompt tokens. With every call routed to its cache, a 5 min / 1 h / 24 h lifetime serves 96 / 99.4 / 100% of the reusable prefix for about 1× / 4× / 30× the memory |
+| What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache); retention policy matters least (a 1 h lifetime keeps as much as none) (K10) |
+| Is the simulator right? | Within 0.7 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache (K11) |
 
-Details, definitions, and every run: [full results](results/README.md).
+Details, definitions, and every run: [full results](results/README.md) and the [dashboard](https://htang7415.github.io/MEMTRACE/).
 
 ## Getting started
 
-Requirements: an Apple Silicon Mac, Docker Desktop (8 GB VM), `kind`, `kubectl`, `helm`, and
-[`vllm-metal`](https://github.com/vllm-project/vllm-metal).
+Requires Python 3.12+, Go, and Node 24. The serving platform also needs Docker Desktop (8 GB VM), `kind`,
+`kubectl`, `helm`, and [`vllm-metal`](https://github.com/vllm-project/vllm-metal).
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install --require-hashes -r requirements/dev.lock && pip install --no-deps -e .
 
-make data          # download the public datasets (pinned and checksummed)
-make up            # start the serving stack (about 3 minutes)
-make bench         # replay Copilot agent traffic through three routing policies
-make down          # stop everything
+memtrace data fetch                                   # public datasets, pinned and SHA-256 checked
+memtrace run experiment experiments/e2_prefix_caching.yaml   # any spec in experiments/; results in data/runs/
+memtrace run kv-sim experiments/k10a_copilot_reuse_routing.yaml
+cd dashboard && npm ci && npm run data && npm run dev # view the results
 ```
 
-Analyze and simulate agent KV memory:
+The serving platform on kind:
 
 ```bash
-memtrace report retention --by-day               # provider cache behavior on the Copilot traces
-memtrace report kv-sim --day 2026-06-03 --replicas 64 --out sweep.jsonl
-memtrace report kv-validate --help               # compare the simulator with a real engine run
+make up            # llm-d on kind with the GPU + CPU pool (about 3 minutes)
+make bench         # replay Copilot agent traffic through three routing policies (E11)
+make down
 ```
 
-Run the memory-risk benchmark and its regression gate:
+Paid-API runs read the key only at runtime (`GEMINI_API_KEY`) and reserve each request's worst-case cost against
+a hard cap before sending it (`configs/pricing/gemini.yaml`).
+
+The memory-risk benchmark, where the project started, follows a poisoned document through an agent's persistent
+memory to find where the attack breaks:
 
 ```bash
 memtrace assets build
@@ -63,13 +62,27 @@ memtrace run pilot --help
 memtrace evaluate gate --help
 ```
 
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `src/memtrace/harness` | Experiment specs, targets (engines, llm-d, the gateway, Gemini), workloads, load generation, 95% CIs, provenance |
+| `src/memtrace/kv` | Provider-cache retention analysis, KV-cache simulator, live replays onto real engines |
+| `src/memtrace/agents`, `evals` | Agent loops and context policies; accuracy and cost studies with a calibrated LLM judge |
+| `src/memtrace/datasets`, `serving` | Pinned datasets and loaders; prompt generators, BFCL engine gate, hosted adapter |
+| `src/memtrace/memrisk` | The memory-risk benchmark |
+| `gateway/`, `epp-plugins/` | Go AI gateway; custom llm-d scorers |
+| `deploy/`, `scripts/` | kind and Docker Compose stacks, observability; stack and drill scripts |
+| `experiments/` | Every study as a spec |
+| `dashboard/` | Results site |
+
 ## Limitations
 
-- One machine: no datacenter GPUs, no multi-node scale; Qwen3-0.6B for most results.
+- One machine: no datacenter GPUs, no multi-node scale; small models (Qwen3-0.6B to 8B).
 - The CPU tier is simulated; the host often paged, so differences under ~15% are not claimed.
 - `vllm-metal` cannot offload KV, so RAM and SSD cache tiers were studied in simulation only.
-- The KV simulator is idealized: one cached prefix per session, no prefixes shared across sessions, simplified
-  routers, no queueing.
+- The KV simulator assumes append-only prompts for the Copilot traces and idealized placement; it is checked
+  against a real engine for one replica's GPU cache.
 
 ## License
 

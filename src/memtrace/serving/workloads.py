@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import dataclass
+from collections.abc import Collection
 from pathlib import Path
 
-from memtrace.kvmem.retention import COMPACTION_SHRINK
-from memtrace.kvmem.traces import read_sessions
+from memtrace.kv.retention import COMPACTION_SHRINK
+from memtrace.datasets.loaders.copilot import read_sessions
 
 # Mooncake traces hash prompts in 512-token blocks. Engines here serve small models with
 # short context windows, so each block is scaled down to `block_tokens` words. Identical
@@ -32,6 +33,7 @@ class Request:
     prompt: str
     max_tokens: int
     truncated_blocks: int = 0
+    session: int | None = None  # agent sessions: which session the request belongs to
 
 
 def sharegpt(
@@ -103,7 +105,7 @@ def agent_sessions(
         rng.shuffle(order)
         for session in order:
             prefix, chunks = sessions[session]
-            requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens))
+            requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens, session=session))
     return requests
 
 
@@ -126,6 +128,7 @@ class AgentSession:
 def copilot_sessions(
     paths: list[Path],
     *,
+    shards: Collection[str] | None = None,
     num_sessions: int,
     seed: int = 0,
     token_scale: float = 1 / 40,
@@ -142,7 +145,7 @@ def copilot_sessions(
     The traces carry token counts but no text. Each call's prompt is synthesized so that its first
     `cached` tokens repeat the session's previous prompt and the rest is new, reproducing the real
     prefix-cache structure; all lengths are scaled by `token_scale` to fit a small model's context.
-    The gap before a call is measured from the previous call's completion (see `memtrace.kvmem.traces`). Gaps are compressed by `gap_scale` and capped at
+    The gap before a call is measured from the previous call's completion (see `memtrace.datasets.loaders.copilot`). Gaps are compressed by `gap_scale` and capped at
     `max_gap_seconds` (the long tail is a user idle between turns, up to 46 minutes after compression,
     which would stretch a replay without adding load), and session start
     times are compressed into `window_seconds` in their real order. Calls without token counts are skipped.
@@ -151,7 +154,7 @@ def copilot_sessions(
     (the prompt shrinks by `COMPACTION_SHRINK` or more), which starts fresh. That is the structure the M2 simulator
     assumes, so an engine replay can be compared with it.
     """
-    raw = [(s.session_id, s.calls[:max_calls]) for s in read_sessions(paths) if len(s.calls) >= 2]
+    raw = [(s.session_id, s.calls[:max_calls]) for s in read_sessions(paths, shards) if len(s.calls) >= 2]
     raw.sort(key=lambda item: item[0])
     chosen = random.Random(seed).sample(raw, min(num_sessions, len(raw)))
     starts = [calls[0].start for _, calls in chosen]

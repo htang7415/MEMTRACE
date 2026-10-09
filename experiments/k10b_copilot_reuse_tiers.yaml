@@ -1,0 +1,25 @@
+schema_version: memtrace-kvsim-v1
+name: k10b-copilot-reuse-tiers
+description: >
+  K10b: what do host-RAM and SSD KV tiers add on a real day of agent traffic? K10a's setting with sticky
+  placement and LRU, plus per-replica lower tiers: none, 256 GB RAM, 1 TB RAM, 1 TB RAM + 4 TB SSD. Loaded
+  tokens cost 0.03 (RAM) and 0.21 (SSD) of a recomputed one: Qwen3-4B KV over 50 GB/s and 7 GB/s against a
+  10k tokens/s prefill (nominal figures, assumptions; loaded shares are reported so other ratios apply).
+copilot_day: "2026-06-03"
+seed: 0
+repeats: 1
+params:
+  replicas: 64
+  concurrency: 0
+  arrivals: trace
+  warmup_s: 0.0
+  block_tokens: 1024
+  max_inflight: 8
+  eviction: lru
+  routing: sticky
+  load_cost: 0.03
+  ssd_load_cost: 0.21
+matrix:
+  capacity_tokens: [868055, 1736111, 3472222]  # 128 / 256 / 512 GB
+  cpu_capacity_tokens: [0, 1736111, 6944444]  # none / 256 GB / 1 TB
+  ssd_capacity_tokens: [0, 27126736]  # none / 4 TB

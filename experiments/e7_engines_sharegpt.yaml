@@ -1,0 +1,24 @@
+schema_version: memtrace-experiment-v1
+name: e7-engines-sharegpt
+description: >
+  E7: which engine serves each tier? vllm-metal (GPU), mlx_lm.server (GPU) and vLLM CPU (Docker) serve
+  Qwen3-0.6B bf16 with a ~2 GiB KV budget (scripts/engines.sh), one engine at a time, on ShareGPT first
+  turns (100 requests, up to 128 output tokens) at closed-loop concurrency 1-8. Each trial starts a fresh
+  engine, so prefix caches start empty. Was MEMTRACE's Phase 1 engine baseline (scripts/run_engine_baselines.sh).
+seed: 0
+repeats: 3
+target:
+  kind: engine
+  params: {engine: vllm-metal}
+target_variants:
+  vllm_metal: {kind: engine, params: {engine: vllm-metal}}
+  mlx_lm: {kind: engine, params: {engine: mlx-lm}}
+  vllm_cpu: {kind: engine, params: {engine: vllm-cpu}}
+workload:
+  kind: sharegpt
+  params: {requests: 100, max_tokens: 128, concurrency: 1, warmup_requests: 2, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.variant: [vllm_metal, mlx_lm, vllm_cpu]
+  workload.concurrency: [1, 2, 4, 8]
+quiet_host: {max_load_1m: 4.0, wait_s: 90, min_available_gb: 3.0}

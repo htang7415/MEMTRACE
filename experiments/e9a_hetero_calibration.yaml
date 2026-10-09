@@ -1,0 +1,16 @@
+schema_version: memtrace-experiment-v1
+name: e9a-hetero-calibration
+description: >
+  Capacity calibration for the GPU + CPU pool (scripts/stack.sh calibrate): each real replica alone, same
+  agent-session workload and concurrency; the GPU/CPU throughput ratio becomes the GPU tier's capacity weight.
+  The calibration points `target.params.urls` at one replica per run.
+seed: 0
+repeats: 1
+target:
+  kind: static_endpoints
+  params: {urls: ["http://127.0.0.1:8210"], extra_body: {model: Qwen/Qwen3-0.6B}}
+workload:
+  kind: agent_sessions
+  params: {sessions: 8, turns: 4, max_tokens: 32, ignore_eos: true, concurrency: 4, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+quiet_host: {max_load_1m: 8.0, wait_s: 0}

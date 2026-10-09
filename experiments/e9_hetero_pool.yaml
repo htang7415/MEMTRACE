@@ -1,0 +1,20 @@
+schema_version: memtrace-experiment-v1
+name: e9-hetero-pool
+description: >
+  E9: how should a GPU + CPU pool be routed? llm-d on kind over the host's vllm-metal (GPU tier, via a relay
+  pod) and a CPU-tier simulator about 11x slower (calibrated by scripts/stack.sh calibrate; capacity weights on
+  the pods), with the custom EPP (epp-plugins/). Policies: combined (llm-d default scorers), capacity (load per
+  unit of capacity), capacity-prefix, cache-cost (capacity discounted by the expected prefix hit). 16 agent sessions x 8 turns, 32 output tokens, concurrency 8; caches
+  emptied before each trial. Was MEMTRACE's Phase 3 heterogeneous-pool comparison (hetero_reps).
+seed: 0
+repeats: 3
+target:
+  kind: llmd_kind
+  params: {pool: hetero, policy: combined}
+workload:
+  kind: agent_sessions
+  params: {sessions: 16, turns: 8, max_tokens: 32, ignore_eos: true, concurrency: 8, warmup_requests: 2, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.policy: [combined, capacity, capacity-prefix, cache-cost]
+quiet_host: {max_load_1m: 6.0, wait_s: 90}

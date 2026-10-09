@@ -8,43 +8,47 @@ import sys
 from pathlib import Path
 
 from memtrace import __version__
-from memtrace.config import Settings, activate
+from memtrace.memrisk.config import Settings, activate
 
 
 _COMMANDS = {
-    ("assets", "corpus"): "memtrace.commands.build_corpus",
-    ("assets", "episodes"): "memtrace.commands.build_episodes",
-    ("assets", "index"): "memtrace.commands.build_index",
-    ("assets", "verify"): "memtrace.commands.verify_retrieval",
-    ("run", "benchmark"): "memtrace.commands.run_experiments",
-    ("run", "pilot"): "memtrace.commands.run_pilot",
-    ("run", "calibration"): "memtrace.commands.run_oracle_memory_calibration",
-    ("run", "stateful-stress"): "memtrace.commands.run_stateful_stress_suite",
-    ("run", "trusted-utility"): "memtrace.commands.run_trusted_utility_suite",
-    ("run", "adversarial-mutation"): "memtrace.commands.run_adversarial_mutation_suite",
-    ("run", "engine-bench"): "memtrace.commands.run_engine_bench",
-    ("evaluate", "score"): "memtrace.evaluation.score",
-    ("evaluate", "recompute"): "memtrace.evaluation.recompute",
-    ("evaluate", "validate"): "memtrace.evaluation.validate",
-    ("evaluate", "gate"): "memtrace.evaluation.gate",
-    ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
-    ("evaluate", "audit"): "memtrace.evaluation.audit_report",
+    ("data", "fetch"): "memtrace.datasets.sources",
+    ("data", "verify"): "memtrace.datasets.sources",
+    ("assets", "corpus"): "memtrace.memrisk.commands.build_corpus",
+    ("assets", "episodes"): "memtrace.memrisk.commands.build_episodes",
+    ("assets", "index"): "memtrace.memrisk.commands.build_index",
+    ("assets", "verify"): "memtrace.memrisk.commands.verify_retrieval",
+    ("run", "benchmark"): "memtrace.memrisk.commands.run_experiments",
+    ("run", "pilot"): "memtrace.memrisk.commands.run_pilot",
+    ("run", "calibration"): "memtrace.memrisk.commands.run_oracle_memory_calibration",
+    ("run", "stateful-stress"): "memtrace.memrisk.commands.run_stateful_stress_suite",
+    ("run", "trusted-utility"): "memtrace.memrisk.commands.run_trusted_utility_suite",
+    ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
+    ("run", "experiment"): "memtrace.harness.__main__",
+    ("run", "kv-sim"): "memtrace.kv.__main__",
+    ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
+    ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
+    ("evaluate", "validate"): "memtrace.memrisk.evaluation.validate",
+    ("evaluate", "gate"): "memtrace.memrisk.evaluation.gate",
+    ("evaluate", "attribute"): "memtrace.memrisk.evaluation.attribute_failures",
+    ("evaluate", "audit"): "memtrace.memrisk.evaluation.audit_report",
     ("evaluate", "bfcl"): "memtrace.serving.quality",
-    ("report", "tables"): "memtrace.evaluation.tables",
-    ("report", "figures"): "memtrace.evaluation.figures",
-    ("report", "explore"): "memtrace.evaluation.trace_explorer",
-    ("report", "engines"): "memtrace.serving.report",
-    ("report", "engine-parity"): "memtrace.serving.parity",
-    ("report", "retention"): "memtrace.kvmem.retention",
-    ("report", "kv-sim"): "memtrace.kvmem.sim.sweep",
-    ("report", "kv-validate"): "memtrace.kvmem.validate",
+    ("report", "tables"): "memtrace.memrisk.evaluation.tables",
+    ("report", "figures"): "memtrace.memrisk.evaluation.figures",
+    ("report", "explore"): "memtrace.memrisk.evaluation.trace_explorer",
+    ("report", "retention"): "memtrace.kv.retention",
+    ("report", "kv-validate"): "memtrace.kv.validate",
+    ("report", "dashboard"): "memtrace.harness.dashboard_export",
 }
 
+# Commands whose module takes a subcommand of its own
+_LEADING_ARGS = {("data", "fetch"): ["fetch"], ("data", "verify"): ["verify"], ("run", "experiment"): ["run"]}
+
 _ASSET_BUILD_ORDER = (
-    "memtrace.commands.build_corpus",
-    "memtrace.commands.build_episodes",
-    "memtrace.commands.build_index",
-    "memtrace.commands.verify_retrieval",
+    "memtrace.memrisk.commands.build_corpus",
+    "memtrace.memrisk.commands.build_episodes",
+    "memtrace.memrisk.commands.build_index",
+    "memtrace.memrisk.commands.verify_retrieval",
 )
 
 
@@ -55,6 +59,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, help="TOML file containing a [memtrace] settings table.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     groups = parser.add_subparsers(dest="group", required=True)
+
+    data = groups.add_parser("data", help="Download and verify the pinned public datasets (data/public/).")
+    data.add_argument("action", choices=("fetch", "verify"))
+    data.add_argument("arguments", nargs=argparse.REMAINDER)
 
     assets = groups.add_parser("assets", help="Build and verify benchmark assets.")
     assets.add_argument("action", choices=("build", "corpus", "episodes", "index", "verify"))
@@ -70,7 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
             "stateful-stress",
             "trusted-utility",
             "adversarial-mutation",
-            "engine-bench",
+            "experiment",
+            "kv-sim",
         ),
     )
     run.add_argument("arguments", nargs=argparse.REMAINDER)
@@ -82,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     report = groups.add_parser("report", help="Generate tables and figures.")
     report.add_argument(
         "action",
-        choices=("tables", "figures", "explore", "engines", "engine-parity", "retention", "kv-sim", "kv-validate"),
+        choices=("tables", "figures", "explore", "retention", "kv-validate", "dashboard"),
     )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
@@ -100,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     module_name = _COMMANDS[(args.group, args.action)]
-    _invoke(module_name, args.arguments)
+    _invoke(module_name, [*_LEADING_ARGS.get((args.group, args.action), []), *args.arguments])
     return 0
 
 

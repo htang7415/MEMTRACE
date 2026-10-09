@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034  # sourced; the variables are used by the scripts that source it
-# Shared settings and helpers for the serving-platform scripts (scripts/stack.sh, scripts/studies/); sourced, not run.
+# Shared settings and helpers for the serving-platform scripts (scripts/stack.sh, scripts/drills.sh); sourced, not run.
 #
 #   MODEL_4B=1 ...      # Phase 4b: Qwen3-4B on the GPU tier, CPU simulator scaled to it (overlay qwen3-4b)
 #   OVERLAY=NAME ...    # pool replicas from deploy/kind/overlays/NAME (default hetero)
@@ -38,11 +38,13 @@ GPU_ENGINE_ARGS="$GPU_MODEL_ARGS --host 127.0.0.1 --port $GPU_PORT --max-model-l
 served_model() { echo "$SERVED_MODEL"; }
 
 wait_gpu_free() {
-  # Another project's GPU run invalidates both measurements. Wait until no MaxionBench harness runs
-  # and nothing has listened on vllm-metal's usual port 8200 for two minutes in a row.
+  # A second GPU run invalidates both measurements. Wait until no other harness run is going (memtrace run
+  # experiment / kv-sim, or python -m memtrace.harness) and nothing has listened on vllm-metal's usual port
+  # 8200 for two minutes in a row.
   local quiet=0
   while [ "$quiet" -lt 120 ]; do
-    if pgrep -f "[m]axionbench" >/dev/null || lsof -nP -iTCP:8200 -sTCP:LISTEN >/dev/null 2>&1; then
+    if pgrep -f "[m]emtrace run (experiment|kv-sim)|[m]emtrace[.]harness" >/dev/null \
+      || lsof -nP -iTCP:8200 -sTCP:LISTEN >/dev/null 2>&1; then
       quiet=0
     else
       quiet=$((quiet + 10))

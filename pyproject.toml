@@ -1,14 +1,18 @@
 [project]
 name = "memtrace"
-version = "0.1.0"
-description = "LLM serving and agent KV-cache research on Apple Silicon, with a memory-risk benchmark for agents"
+version = "0.6.0"
+description = "Serving LLM agents efficiently on one Apple Silicon Mac: engines, routing, gateway, agent context, and KV-cache memory"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
   "matplotlib>=3.8",
   "numpy>=1.26",
+  "pandas>=2.2",
+  "pyarrow>=15.0",
   "pydantic>=2.0",
+  "PyYAML>=6.0",
+  "requests>=2.31",
 ]
 
 [project.scripts]
@@ -20,6 +24,11 @@ dev = [
   "mypy>=1.15",
   "pytest>=8.0",
   "ruff>=0.12",
+  "types-PyYAML>=6.0",
+]
+agents = [
+  "bm25s>=0.2,<1",
+  "mcp>=1.9,<2",
 ]
 inference = [
   "mlx-lm>=0.21",
@@ -46,10 +55,12 @@ packages = ["src/memtrace"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = [".git", ".venv*", "data", "artifacts", "results", "dashboard", "_import"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
+extend-exclude = ["data", "artifacts", "_import"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
@@ -57,21 +68,24 @@ select = ["E4", "E7", "E9", "F"]
 [tool.mypy]
 files = [
   "src/memtrace/cli.py",
-  "src/memtrace/config.py",
-  "src/memtrace/core/schema.py",
-  "src/memtrace/core/pipeline.py",
-  "src/memtrace/backends/store/memory.py",
-  "src/memtrace/backends/store/systems.py",
-  "src/memtrace/backends/models/gemini_runner.py",
-  "src/memtrace/backends/models/openai_runner.py",
+  "src/memtrace/memrisk/config.py",
+  "src/memtrace/memrisk/core/schema.py",
+  "src/memtrace/memrisk/core/pipeline.py",
+  "src/memtrace/memrisk/backends/store/memory.py",
+  "src/memtrace/memrisk/backends/store/systems.py",
+  "src/memtrace/memrisk/backends/models/gemini_runner.py",
+  "src/memtrace/memrisk/backends/models/openai_runner.py",
   "src/memtrace/serving",
-  "src/memtrace/kvmem",
-  "src/memtrace/commands/run_engine_bench.py",
-  "scripts/fetch_public_datasets.py",
+  "src/memtrace/kv/retention.py",
+  "src/memtrace/kv/costs.py",
+  "src/memtrace/kv/validate.py",
+  "src/memtrace/datasets/loaders/copilot.py",
+  "src/memtrace/kv/sessions.py",
+  "src/memtrace/datasets/sources.py",
   "scripts/analyze_autoscale.py",
   "scripts/results_page.py",
 ]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 
 [[tool.mypy.overrides]]

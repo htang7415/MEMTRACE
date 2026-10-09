@@ -3,21 +3,20 @@
 #
 #   make up                # cluster + llm-d control plane + GPU relay + CPU tier + custom EPP, default policy
 #   make up HOSTED=1       # also add Gemini Flash-Lite to the pool (needs docs/gemini_api.txt; spend-capped)
-#   make bench             # rerun the headline routing comparison (Copilot replay, ADR 0007); REPS=3 by default
+#   make bench             # rerun the headline routing comparison (Copilot replay, experiments/e11)
 #   make down              # stop the GPU engine and delete the cluster
 #   make data              # download the public datasets (pinned, SHA-256 checked)
-#   make results           # rebuild the published report, results tables, and benchmark report from local outputs
+#   make results           # rebuild the dashboard data (from data/runs/), the results page, and the benchmark report
 #
 # Requires Docker Desktop, kind, kubectl, helm, envsubst, and vllm-metal in ~/.venv-vllm-metal (see README).
 
 P := scripts/stack.sh
 POLICY ?= combined
-REPS ?= 3
 
 .PHONY: up down bench data results
 
 # The upstream dev environment starts a ~1 GB tokenizer pod (vllm-render); only the precise-prefix study
-# (scripts/studies/precise_study.sh, render_up) needs it, so `up` scales it to zero.
+# (experiments/e11c_copilot_precise_index.yaml, render_up) needs it, so `up` scales it to zero.
 up:
 	mkdir -p data/engine_logs
 	kind get clusters 2>/dev/null | grep -qx memtrace || $(P) up
@@ -29,7 +28,7 @@ up:
 	if [ -n "$(HOSTED)" ]; then $(P) hosted; fi
 
 bench:
-	REPS=$(REPS) scripts/studies/copilot_study.sh
+	.venv/bin/memtrace run experiment experiments/e11_copilot_replay.yaml
 
 down:
 	-$(P) hosted_down
@@ -37,9 +36,9 @@ down:
 	$(P) down
 
 data:
-	python3 scripts/fetch_public_datasets.py
+	.venv/bin/memtrace data fetch
 
 results:
+	.venv/bin/memtrace report dashboard
 	.venv/bin/python scripts/results_page.py
-	.venv/bin/python results/report/build.py
 	.venv/bin/python results/benchmark/build.py

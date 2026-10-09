@@ -2,7 +2,9 @@ import json
 
 import pytest
 
-from memtrace.serving.quality import check_call, load_cases, summarize, to_openai_tools
+from memtrace.datasets.loaders.public import BfclCase
+from memtrace.evals.graders.bfcl import to_openai_tools
+from memtrace.serving.quality import check_call, load_cases, summarize
 
 
 def _call(name, **arguments):
@@ -10,6 +12,18 @@ def _call(name, **arguments):
 
 
 GT = [{"math.hypot": {"x": [3], "y": [4], "z": ["", 0], "unit": ["meters", "m"]}}]
+HYPOT = {
+    "name": "math.hypot",
+    "parameters": {
+        "type": "dict",
+        "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "z": {"type": "integer"}},
+        "required": ["x", "y"],
+    },
+}
+
+
+def _case(ground_truth, functions=()) -> BfclCase:
+    return BfclCase("c", "simple", (), tuple(functions), tuple(ground_truth))
 
 
 @pytest.mark.parametrize(
@@ -26,12 +40,12 @@ GT = [{"math.hypot": {"x": [3], "y": [4], "z": ["", 0], "unit": ["meters", "m"]}
         ([{"function": {"name": "math_hypot", "arguments": "{not json"}}], (False, "unparseable_arguments")),
     ],
 )
-def test_check_call_follows_bfcl_ast_rules(calls, expected) -> None:
-    assert check_call(calls, GT) == expected
+def test_check_call_reports_the_graders_verdict_as_a_reason_code(calls, expected) -> None:
+    assert check_call(calls, _case(GT, [HYPOT])) == expected
 
 
 def test_check_call_matches_ints_for_floats_lists_and_nested_dicts() -> None:
-    gt = [{"f": {"interval": [[1.0, 3.0]], "budget": [{"min": [300], "max": [400]}], "flag": [True]}}]
+    gt = _case([{"f": {"interval": [[1.0, 3.0]], "budget": [{"min": [300], "max": [400]}], "flag": [True]}}])
 
     assert check_call(_call("f", interval=[1, 3], budget={"min": 300, "max": 400}, flag=True), gt) == (True, "correct")
     assert check_call(_call("f", interval=[1, 3], budget={"min": 300}, flag=True), gt)[0] is False
@@ -76,6 +90,6 @@ def test_load_cases_joins_answers_and_summary_reports_accuracy(tmp_path) -> None
         ]
     )
 
-    assert case["ground_truth"] == GT and case["category"] == "simple"
+    assert case.ground_truth == tuple(GT) and case.category == "simple"
     assert summary["overall"]["accuracy"] == 0.5
     assert summary["reasons"] == {"correct": 1, "wrong_value": 1}

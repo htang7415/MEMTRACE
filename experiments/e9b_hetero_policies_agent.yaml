@@ -1,0 +1,20 @@
+schema_version: memtrace-experiment-v1
+name: e9b-hetero-policies-agent
+description: >
+  E9b: every routing policy on the GPU + CPU pool (E9's setup), agent sessions (16 x 8 turns, 32 output tokens)
+  at concurrency 4 and 8: llm-d's random, queue and combined scorers, hardware-weighted random and combined
+  (capacity labels as static weights), and the custom capacity and capacity-prefix scorers. One repeat; where
+  the GPU is not cache-bound a capacity-aware scorer avoids queueing on the 11x slower tier.
+seed: 0
+repeats: 1
+target:
+  kind: llmd_kind
+  params: {pool: hetero, policy: combined}
+workload:
+  kind: agent_sessions
+  params: {sessions: 16, turns: 8, max_tokens: 32, ignore_eos: true, concurrency: 4, warmup_requests: 2, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.policy: [random, queue, combined, hw-weighted-random, hw-combined, capacity, capacity-prefix]
+  workload.concurrency: [4, 8]
+quiet_host: {max_load_1m: 6.0, wait_s: 90}

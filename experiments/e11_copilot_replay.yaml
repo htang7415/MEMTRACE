@@ -1,0 +1,21 @@
+schema_version: memtrace-experiment-v1
+name: e11-copilot-replay
+description: >
+  E11: which policy for real agent traffic? 64 GitHub Copilot coding-agent sessions (day 2026-06-06) replayed
+  open loop on E9's GPU + CPU pool: each session's calls in order with their recorded gaps (x0.1, capped at 30 s),
+  prompts scaled x1/40 with the provider's cached prefixes reproduced, sessions starting over 5 minutes.
+  Policies combined, capacity and cache-cost (capacity discounted by the expected prefix hit). Was MEMTRACE's
+  Phase 4a Copilot replay (copilot).
+seed: 0
+seed_strategy: fixed
+repeats: 3
+target:
+  kind: llmd_kind
+  params: {pool: hetero, policy: combined}
+workload:
+  kind: copilot_agent
+  params: {shards: [date=2026-06-06/shard-0000.jsonl.gz], sessions: 64, max_tokens: 128, ignore_eos: true, warmup_requests: 2}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.policy: [combined, capacity, cache-cost]
+quiet_host: {max_load_1m: 6.0, wait_s: 90}
