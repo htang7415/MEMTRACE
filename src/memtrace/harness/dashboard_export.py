@@ -37,13 +37,7 @@ EXPERIMENTS = {
     "c2a-gateway-context": "gateway",
     "c2b-gateway-context": "gateway",
 }
-SEARCH_DIRS = (
-    Path("artifacts/harness"),
-    Path("artifacts/e5"),
-    Path("artifacts/e6"),
-    Path("artifacts/kvsim"),
-    Path("artifacts/context_eval"),
-)
+SEARCH_DIRS = (Path("data/runs"),)  # every runner writes its bundles here
 
 
 def latest_results(search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[str, Path]:
