@@ -12,8 +12,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from memtrace.kv.prefix_sim.sweep import frontier
-
 DATA = Path("data")
 OUT = Path("results/README.md")
 
@@ -34,6 +32,23 @@ STUDIES = [
     ("Larger model on the GPU tier", "Larger model", ["copilot-4b", "copilot-4b-s32"]),
     ("Precise vs approximate prefix index", "Precise vs approximate prefix index", ["precise"]),
 ]
+
+
+def frontier(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Runs no other run beats: none keeps at least as much of the reusable prefix with no more GPU memory-time
+    and no more lower-tier memory-time (strictly better in at least one). Sorted by GPU memory-time."""
+
+    def cost(row: dict[str, Any]) -> tuple[float, float, float]:
+        lower = sum(v for k, v in row["gb_hours"].items() if k != "gpu")
+        return -row["hit_share_of_reusable"], row["gb_hours"]["gpu"], lower
+
+    costs = [cost(r) for r in rows]
+    kept = [
+        r
+        for r, c in zip(rows, costs)
+        if not any(all(o <= m for o, m in zip(other, c)) and other != c for other in costs)
+    ]
+    return sorted(kept, key=lambda r: (r["gb_hours"]["gpu"], -r["hit_share_of_reusable"]))
 
 
 def pct(x: float | None) -> str:

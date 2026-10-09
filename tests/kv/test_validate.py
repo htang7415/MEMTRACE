@@ -24,9 +24,10 @@ def test_engine_and_sim_hits_are_compared_per_gap_bin() -> None:
         record(0, 0, 0.0, 100, 0),
         record(0, 2, 100.0, 300, 0),  # gap 96 s: engine evicted it
         record(1, 0, 0.0, 50, 0, ok=False),  # failed calls are left out
+        record(2, 0, 50.0, 200, 0),  # another session in session 0's 96 s pause
     ]
     sessions, cached = sessions_from_run(records)
-    assert [len(s.calls) for s in sessions] == [3]
+    assert [len(s.calls) for s in sessions] == [3, 1]
     # Unlimited capacity: the simulator keeps everything; hits rounded down to 16-token blocks.
     result = compare(sessions, cached, kv_tokens=10**9)
     assert result["by_gap"]["<10s"] == {
@@ -38,8 +39,8 @@ def test_engine_and_sim_hits_are_compared_per_gap_bin() -> None:
     assert result["by_gap"]["1-5min"]["sim_hit_share"] == pytest.approx(192 / 200)
     assert result["by_gap"]["1-5min"]["engine_hit_share"] == 0.0
     assert result["within_tolerance"] is False
-    # With 100 tokens of capacity no context (110 or 210 tokens) fits, so the simulator predicts no hits.
-    assert compare(sessions, cached, kv_tokens=100)["by_gap"]["1-5min"]["sim_hit_share"] == 0.0
+    # With 14 blocks of capacity, session 2's call at 50 s (13 prompt blocks + 1 output) evicts session 0's context.
+    assert compare(sessions, cached, kv_tokens=14 * 16)["by_gap"]["1-5min"]["sim_hit_share"] == 0.0
 
 
 def test_provenance_names_the_commit() -> None:

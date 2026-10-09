@@ -1,10 +1,10 @@
-"""Phase 6 M3: does the M2 simulator predict a real engine's prefix-cache hits?
+"""M3: does the KV-cache simulator predict a real engine's prefix-cache hits?
 
 Takes an engine-bench replay run (`requests.jsonl`, best with `--reuse full` so prompts are append-only as the
 simulator assumes), rebuilds it as trace sessions from the measured start times, latencies and token counts, and
-replays those through the simulator with one replica of the engine's KV capacity and LRU eviction. Per gap bin it
-compares the engine's cached prompt tokens with the simulator's hits, both as shares of the reusable prefix.
-Simulator hits are rounded down to whole blocks, as an engine caches only full blocks.
+replays those through the simulator (`memtrace.kv.sim`) in trace time, with one replica of the engine's KV
+capacity, its block size, and LRU eviction. Per gap bin it compares the engine's cached prompt tokens with the
+simulator's hits, both as shares of the reusable prefix.
 
     memtrace report kv-validate --run data/m3/pilot/requests.jsonl --kv-tokens 16384
 """
@@ -20,9 +20,8 @@ from typing import Any
 
 from memtrace.kv.provenance import provenance
 from memtrace.kv.retention import gap_bin, later_calls
-from memtrace.kv.prefix_sim.engine import SimConfig, simulate
-from memtrace.kv.prefix_sim.policies import RETENTION
-from memtrace.kv.prefix_sim.tiers import Tier
+from memtrace.kv.sessions import copilot_session
+from memtrace.kv.sim import SimParams, simulate
 from memtrace.datasets.loaders.copilot import TraceCall, TraceSession
 
 TOLERANCE_POINTS = 5.0
@@ -51,15 +50,23 @@ def sessions_from_run(records: list[dict[str, Any]]) -> tuple[list[TraceSession]
 def compare(
     sessions: list[TraceSession], engine_cached: dict[tuple[int, int], int], kv_tokens: int, block_size: int = 16
 ) -> dict[str, Any]:
-    config = SimConfig(
+    params = SimParams(
         replicas=1,
-        tiers=(Tier("gpu", kv_tokens / 1e9, math.inf),),
-        kv_bytes_per_token=1,
-        retention=RETENTION["lru"],
-        router="kv-aware",
-        max_inflight=10**9,
+        concurrency=0,
+        capacity_tokens=kv_tokens,
+        routing="session",
+        eviction="lru",
+        warmup_s=0.0,
+        block_tokens=block_size,
+        arrivals="trace",
     )
-    sim = simulate(sessions, config, record_calls=True).call_hits
+    hits: dict[tuple[int, int], int] = {}
+    simulate([copilot_session(s, block_size) for s in sessions], params, seed=0, record=hits)
+    sim = {}  # (session, call) -> hit tokens; the simulator numbers a session's requests by start time
+    for s, session in enumerate(sessions):
+        by_start = sorted(range(len(session.calls)), key=lambda c: session.calls[c].start)
+        for r, c in enumerate(by_start):
+            sim[(s, c)] = hits.get((s, r), 0)
     bins: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "reusable": 0, "engine": 0, "sim": 0})
     position = {id(call): (s, c) for s, session in enumerate(sessions) for c, call in enumerate(session.calls)}
     for item in later_calls(sessions):
@@ -71,7 +78,7 @@ def compare(
         b["calls"] += 1
         b["reusable"] += reusable
         b["engine"] += min(engine_cached[key], reusable)
-        b["sim"] += sim.get(key, 0) // block_size * block_size
+        b["sim"] += sim[key]
     rows = {}
     for label, b in bins.items():
         engine, simulated = b["engine"] / b["reusable"], b["sim"] / b["reusable"]

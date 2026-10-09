@@ -1,10 +1,16 @@
-"""Load AgentX-format agent traces into compact sessions for the KV-cache simulator.
+"""Sessions for the KV-cache simulator: AgentX-format traces, and Copilot traces built from token counts.
 
-A trace row is one agent session: main-agent calls plus sub-agent groups, each call with its arrival
+An AgentX trace row is one agent session: main-agent calls plus sub-agent groups, each call with its arrival
 `t`, service time `api_time`, token counts, and the 64-token KV block ids of its prompt (`hash_ids`,
 scoped to the session). Sub-agent groups become extra streams of the same session. Idle gaps longer
 than `idle_cap_s` (a human away from the keyboard) are shortened to `idle_cap_s`, so a replay spends
 its time on active work; the cap is reported with every result.
+
+`copilot_session` builds a session from a Copilot trace session, which carries token counts but no
+content. Prompts are taken as append-only, as in `memtrace.kv.retention`: a call shares its first
+`min(prompt, previous prompt)` tokens with the previous call, unless the model changed or the prompt shrank
+by `COMPACTION_SHRINK` or more (a compaction), which starts a new chain. Calls keep their trace times
+(`Session.start` is the first call's start, epoch seconds) for trace-timed replays.
 """
 
 from __future__ import annotations
@@ -16,6 +22,8 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import numpy as np
+
+from memtrace.datasets.loaders.copilot import TraceSession
 
 BLOCK_TOKENS = 64
 TRACE_FILE = "agentx/cc_traces_256k.jsonl"
@@ -30,6 +38,7 @@ class Request:
     out_tokens: int
     stream: int  # 0 = main agent, k = k-th sub-agent group
     next_t: float  # next arrival in the same stream, math.inf if last
+    turn_end: bool = False  # last call of a turn: the agent waits for its user next
 
 
 @dataclass(frozen=True)
@@ -37,6 +46,7 @@ class Session:
     id: str
     requests: tuple[Request, ...]  # sorted by arrival
     span: float  # end of the last request
+    start: float = 0.0  # absolute start (trace-timed replays); request times are relative to it
 
 
 def _calls(row: dict[str, Any]) -> Iterator[tuple[int, dict[str, Any]]]:
@@ -82,10 +92,49 @@ def build_session(row: dict[str, Any], idle_cap_s: float) -> Session:
 
 
 def load_sessions(path: Path, idle_cap_s: float = 300.0, limit: int | None = None) -> list[Session]:
-    sessions = []
+    sessions: list[Session] = []
     with Path(path).open(encoding="utf-8") as fh:
         for line in fh:
             if limit is not None and len(sessions) >= limit:
                 break
             sessions.append(build_session(json.loads(line), idle_cap_s))
     return sessions
+
+
+def copilot_session(session: TraceSession, block_tokens: int) -> Session:
+    from memtrace.kv.retention import COMPACTION_SHRINK  # retention imports the Copilot loader too
+
+    if not session.calls:
+        return Session(id=session.session_id, requests=(), span=0.0)
+    t0 = min(c.start for c in session.calls)
+    chain: list[int] = []
+    issued = 0
+    previous = None
+    built = []
+    for call in session.calls:  # completion order, as `retention.later_calls` pairs them
+        keep = 0
+        if previous is not None and call.model == previous.model:
+            if call.prompt > (1 - COMPACTION_SHRINK) * previous.prompt:
+                keep = min(call.prompt, previous.prompt) // block_tokens
+        fresh = -(-call.prompt // block_tokens) - keep
+        chain = chain[:keep] + list(range(issued, issued + fresh))
+        issued += fresh
+        built.append((call, np.asarray(chain, dtype=np.int32)))
+        previous = call
+    built.sort(key=lambda item: item[0].start)
+    requests = []
+    for i, (call, blocks) in enumerate(built):
+        nxt = built[i + 1][0].start - t0 if i + 1 < len(built) else math.inf
+        requests.append(
+            Request(
+                t=call.start - t0,
+                dur=max(call.end - call.start, 0.0),
+                blocks=blocks,
+                in_tokens=call.prompt,
+                out_tokens=call.completion,
+                stream=0,
+                next_t=nxt,
+                turn_end=call.turn_end,
+            )
+        )
+    return Session(id=session.session_id, requests=tuple(requests), span=max(r.t + r.dur for r in requests), start=t0)

@@ -81,7 +81,7 @@ files = [
   "src/memtrace/kv/validate.py",
   "src/memtrace/datasets/loaders/copilot.py",
   "src/memtrace/kv/provenance.py",
-  "src/memtrace/kv/prefix_sim",
+  "src/memtrace/kv/sessions.py",
   "src/memtrace/datasets/sources.py",
   "scripts/analyze_autoscale.py",
   "scripts/results_page.py",

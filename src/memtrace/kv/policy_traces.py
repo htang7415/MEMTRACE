@@ -25,7 +25,7 @@ from typing import Any, Iterator
 
 from memtrace.agents.context import Message, estimate_tokens, make_policy
 from memtrace.datasets.loaders.copilot import iter_archive
-from memtrace.kv.agentx import BLOCK_TOKENS
+from memtrace.kv.sessions import BLOCK_TOKENS
 
 SUMMARY_TOKENS = 1_000
 SUMMARY_S = 3.0  # summarizer service time; the call itself starts this much later

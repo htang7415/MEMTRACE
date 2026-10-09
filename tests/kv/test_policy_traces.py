@@ -5,7 +5,7 @@ from typing import Any
 
 from memtrace.agents.context import MASK_TEXT, estimate_tokens
 from memtrace.kv.policy_traces import SUMMARY_TOKENS, BlockIds, session_trace
-from memtrace.kv.agentx import build_session
+from memtrace.kv.sessions import build_session
 
 
 def msg(key: str, tokens: int, role: str = "user") -> dict[str, Any]:

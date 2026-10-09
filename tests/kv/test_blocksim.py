@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from memtrace.kv.sim import FreeBlocks, Replica, SimParams, simulate
-from memtrace.kv.agentx import Request, Session, build_session
+from memtrace.kv.sessions import Request, Session, build_session
 
 
 def _req(t, dur, blocks, stream=0, next_t=math.inf, out=64):

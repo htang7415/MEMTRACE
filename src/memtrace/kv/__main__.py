@@ -1,6 +1,9 @@
-"""Run a KV-cache simulation spec: matrix x repeats over the pinned AgentX traces, in parallel.
+"""Run a KV-cache simulation spec: matrix x repeats over pinned agent traces, in parallel.
 
-    python -m memtrace.kv experiments/k1_agent_kv.yaml [--jobs 6] [--out results]
+    python -m memtrace.kv experiments/k1_agent_kv_retention.yaml [--jobs 6] [--out results]
+
+The trace is AgentX-format (`trace`, or one per arm in `traces`), or one day of the Copilot traces
+(`copilot_day`), built into block sessions at `params.block_tokens` (see `memtrace.kv.sessions`).
 
 Writes results/<run_id>/results.json in the harness result format (cells with 95% CIs, provenance).
 """
@@ -20,11 +23,12 @@ from typing import Any
 
 import yaml
 
+from memtrace.datasets.loaders.copilot import archive_path, read_sessions
 from memtrace.datasets.sources import verified_path
 from memtrace.harness.provenance import make_provenance
 from memtrace.harness.results import RESULT_SCHEMA_VERSION, ExperimentResult, TrialResult, aggregate_cells
 from memtrace.kv.sim import SimParams, simulate
-from memtrace.kv.agentx import TRACE_FILE, Session, load_sessions
+from memtrace.kv.sessions import BLOCK_TOKENS, TRACE_FILE, Session, copilot_session, load_sessions
 from memtrace.harness.stamps import utc_now_iso
 
 SPEC_SCHEMA = "memtrace-kvsim-v1"
@@ -88,13 +92,21 @@ def run(spec_path: Path, jobs: int, out_root: Path) -> Path:
     global _SESSIONS
     spec = load_spec(spec_path)
     started_at = utc_now_iso()
-    traces = spec.get("traces") or {"default": spec.get("trace", TRACE_FILE)}
     _SESSIONS = {}
-    for name, rel in traces.items():
-        _SESSIONS[name] = load_sessions(
-            verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300.0)), limit=spec.get("sessions")
-        )
-        print(f"loaded {len(_SESSIONS[name])} sessions from {rel}", file=sys.stderr)
+    if "copilot_day" in spec:
+        traces = {"default": f"copilot_agent day {spec['copilot_day']}"}
+        block_tokens = int(spec.get("params", {}).get("block_tokens", BLOCK_TOKENS))
+        _SESSIONS["default"] = [
+            copilot_session(s, block_tokens) for s in read_sessions([archive_path(spec["copilot_day"])])
+        ]
+    else:
+        traces = spec.get("traces") or {"default": spec.get("trace", TRACE_FILE)}
+        for name, rel in traces.items():
+            _SESSIONS[name] = load_sessions(
+                verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300.0)), limit=spec.get("sessions")
+            )
+    for name, sessions in _SESSIONS.items():
+        print(f"loaded {len(sessions)} sessions from {traces[name]}", file=sys.stderr)
     trials = plan(spec)
     base = spec.get("params", {})
     with mp.get_context("fork").Pool(jobs) as pool:

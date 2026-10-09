@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from memtrace.kv.live import Outcome, prompt_tokens, schedule, target_params, trial_metrics
-from memtrace.kv.agentx import Request, Session
+from memtrace.kv.sessions import Request, Session
 
 
 def _session(sid, times, span):

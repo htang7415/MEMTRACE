@@ -36,7 +36,7 @@ from memtrace.datasets.sources import verified_path
 from memtrace.harness.llmd import LlmdNoK8s
 from memtrace.harness.provenance import make_provenance
 from memtrace.harness.results import RESULT_SCHEMA_VERSION, ExperimentResult, TrialResult, aggregate_cells
-from memtrace.kv.agentx import TRACE_FILE, Request, Session, load_sessions
+from memtrace.kv.sessions import TRACE_FILE, Request, Session, load_sessions
 from memtrace.harness.stamps import utc_now_iso
 
 SPEC_SCHEMA = "memtrace-kvlive-v1"

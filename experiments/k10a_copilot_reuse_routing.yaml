@@ -1,0 +1,24 @@
+schema_version: memtrace-kvsim-v1
+name: k10a-copilot-reuse-routing
+description: >
+  K10a: how much of the reusable prompt prefix of a real day of agent traffic does each placement policy keep?
+  GitHub Copilot coding-agent day 2026-06-03 (60k sessions) replayed in trace time over 64 replicas serving
+  Qwen3-4B (147,456 KV bytes per token), GPU tier only, LRU. Prompts are append-only, as in the retention
+  analysis (memtrace.kv.retention); 1,024-token blocks. GPU capacity per replica 128 / 256 / 512 GB: below
+  128 GB the in-flight calls of this traffic (66k tokens on average) no longer fit. At most 8 calls per
+  replica; a busy preferred replica spills to the least-loaded one. Redoes MEMTRACE's M2 placement sweep on
+  this simulator, which, unlike M2's, also holds the KV of running calls.
+copilot_day: "2026-06-03"
+seed: 0
+repeats: 1
+params:
+  replicas: 64
+  concurrency: 0
+  arrivals: trace
+  warmup_s: 0.0
+  block_tokens: 1024
+  max_inflight: 8
+  eviction: lru
+matrix:
+  capacity_tokens: [868055, 1736111, 3472222]  # 128 / 256 / 512 GB
+  routing: [least_loaded, session, sticky, kv_aware]

@@ -25,6 +25,7 @@ _COMMANDS = {
     ("run", "trusted-utility"): "memtrace.memrisk.commands.run_trusted_utility_suite",
     ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
     ("run", "engine-bench"): "memtrace.serving.engine_bench",
+    ("run", "kv-sim"): "memtrace.kv.__main__",
     ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
     ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
     ("evaluate", "validate"): "memtrace.memrisk.evaluation.validate",
@@ -38,7 +39,6 @@ _COMMANDS = {
     ("report", "engines"): "memtrace.serving.report",
     ("report", "engine-parity"): "memtrace.serving.parity",
     ("report", "retention"): "memtrace.kv.retention",
-    ("report", "kv-sim"): "memtrace.kv.prefix_sim.sweep",
     ("report", "kv-validate"): "memtrace.kv.validate",
 }
 
@@ -77,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
             "trusted-utility",
             "adversarial-mutation",
             "engine-bench",
+            "kv-sim",
         ),
     )
     run.add_argument("arguments", nargs=argparse.REMAINDER)
@@ -88,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     report = groups.add_parser("report", help="Generate tables and figures.")
     report.add_argument(
         "action",
-        choices=("tables", "figures", "explore", "engines", "engine-parity", "retention", "kv-sim", "kv-validate"),
+        choices=("tables", "figures", "explore", "engines", "engine-parity", "retention", "kv-validate"),
     )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
