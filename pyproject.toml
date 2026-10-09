@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-  "matplotlib>=3.8",
+  "matplotlib>=3.11.2",
   "numpy>=1.26",
   "pandas>=2.2",
   "pyarrow>=15.0",
