@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from memtrace.kv.costs import ANTHROPIC, breakeven_storage, relative_cost
-from memtrace.kv.provenance import provenance
+from memtrace.harness.provenance import code_stamp
 from memtrace.datasets.loaders.copilot import DAYS, TraceCall, TraceSession, archive_path, read_sessions, trace_time
 
 SHORT_GAP = 10.0
@@ -241,7 +241,7 @@ def main() -> None:
     parser.add_argument("--by-day", action="store_true", help="one summary per trace day")
     args = parser.parse_args()
     paths = {day: archive_path(day) for day in args.days}
-    result: dict[str, object] = {"provenance": provenance()}
+    result: dict[str, object] = {"provenance": code_stamp()}
     if args.by_day:
         result["days"] = {day: analyze(read_sessions([path])) for day, path in sorted(paths.items())}
     else:

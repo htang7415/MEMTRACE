@@ -20,6 +20,19 @@ def git(args: list[str]) -> str:
     return out.stdout.strip()
 
 
+def code_stamp() -> dict[str, object]:
+    """Which code produced an analysis output (retention, simulator checks): the commit, whether the package
+    differed from it (`src/memtrace` only; edits to docs or scripts do not count), and when."""
+    commit = git(["rev-parse", "HEAD"])
+    return {
+        "git_commit": commit or None,
+        "git_dirty": bool(git(["status", "--porcelain", "--untracked-files=no", "--", "src/memtrace"]))
+        if commit
+        else None,
+        "generated_utc": utc_now_iso(),
+    }
+
+
 def scrubber() -> tuple[Callable[[str], str], bool]:
     """Redact any configured API key from text bound for logs or result bundles; also report presence."""
     try:

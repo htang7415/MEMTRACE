@@ -44,7 +44,7 @@ def test_engine_and_sim_hits_are_compared_per_gap_bin() -> None:
 
 
 def test_provenance_names_the_commit() -> None:
-    from memtrace.kv.provenance import provenance
+    from memtrace.harness.provenance import code_stamp
 
-    made_by = provenance()
+    made_by = code_stamp()
     assert set(made_by) == {"git_commit", "git_dirty", "generated_utc"}

@@ -18,7 +18,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from memtrace.kv.provenance import provenance
+from memtrace.harness.provenance import code_stamp
 from memtrace.kv.retention import gap_bin, later_calls
 from memtrace.kv.sessions import copilot_session
 from memtrace.kv.sim import SimParams, simulate
@@ -113,7 +113,7 @@ def main() -> None:
     result = {
         **compare(sessions, cached, args.kv_tokens, args.block_size),
         "run": str(args.run),
-        "provenance": provenance(),
+        "provenance": code_stamp(),
     }
     summary = json.dumps(result, indent=2)
     print(summary)

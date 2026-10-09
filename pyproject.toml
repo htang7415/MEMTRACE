@@ -80,7 +80,6 @@ files = [
   "src/memtrace/kv/costs.py",
   "src/memtrace/kv/validate.py",
   "src/memtrace/datasets/loaders/copilot.py",
-  "src/memtrace/kv/provenance.py",
   "src/memtrace/kv/sessions.py",
   "src/memtrace/datasets/sources.py",
   "scripts/analyze_autoscale.py",
