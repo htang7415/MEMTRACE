@@ -6,7 +6,7 @@
 #   make bench             # rerun the headline routing comparison (Copilot replay, ADR 0007); REPS=3 by default
 #   make down              # stop the GPU engine and delete the cluster
 #   make data              # download the public datasets (pinned, SHA-256 checked)
-#   make results           # rebuild the published report, results tables, and benchmark report from local outputs
+#   make results           # rebuild the dashboard data, results tables, and benchmark report from local outputs
 #
 # Requires Docker Desktop, kind, kubectl, helm, envsubst, and vllm-metal in ~/.venv-vllm-metal (see README).
 
@@ -41,5 +41,5 @@ data:
 
 results:
 	.venv/bin/python scripts/results_page.py
-	.venv/bin/python results/report/build.py
+	.venv/bin/python dashboard/export.py
 	.venv/bin/python results/benchmark/build.py

@@ -1,6 +1,6 @@
 # MEMTRACE
 
-**[View the report →](https://htang7415.github.io/MEMTRACE/results/report/)** · [Full results](results/README.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
+**[View the results dashboard →](https://htang7415.github.io/MEMTRACE/)** · [Full results](results/README.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
 
 MEMTRACE studies how to serve LLM agents efficiently on a single Apple Silicon Mac: how to route requests across
 GPU, CPU, and hosted tiers, and how much KV cache an agent session needs, for how long, and where.

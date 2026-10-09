@@ -1,7 +1,7 @@
-"""Rebuild results/report/index.html (serving platform and agent-session KV memory) from the retained outputs under
-data/ (kept locally, not in the repository).
+"""Write the dashboard's data snapshot, dashboard/public/data/results.json (serving platform and agent-session KV
+memory), from the retained outputs under data/ (kept locally, not in the repository). Aggregates only.
 
-Run from the repository root:  python results/report/build.py
+Run from the repository root:  python dashboard/export.py  (or `npm run data` in dashboard/)
 """
 
 import glob
@@ -9,8 +9,8 @@ import json
 import statistics
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-HERE = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "dashboard/public/data/results.json"
 DATA = ROOT / "data"
 WEEKDAYS = ("2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05")
 WEEKEND = ("2026-06-06", "2026-06-07")
@@ -145,15 +145,8 @@ def kv() -> dict:
 
 def main() -> None:
     data = {"engines": engines(), "routing": routing(), "replay": replay(), "kv": kv()}
-    body = (HERE / "template.html").read_text().replace("__DATA__", json.dumps(data))
-    page = (
-        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-        "</head>\n<body>\n" + body + "\n</body>\n</html>\n"
-    )
-    out = HERE / "index.html"
-    out.write_text(page)
-    print(f"wrote {out}")
+    OUT.write_text(json.dumps(data, indent=1) + "\n")
+    print(f"wrote {OUT}")
 
 
 if __name__ == "__main__":
