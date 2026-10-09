@@ -208,6 +208,15 @@
       "finished_at": "2026-10-09T20:23:18+00:00"
     },
     {
+      "name": "k10c-copilot-reuse-retention",
+      "page": "reuse",
+      "run_id": "20261009T211446Z-k10c-copilot-reuse-retention",
+      "file": "k10c-copilot-reuse-retention.json",
+      "git_commit": "db2f953923d405befee98b057d6502d08273dea2",
+      "git_dirty": false,
+      "finished_at": "2026-10-09T21:14:49+00:00"
+    },
+    {
       "name": "k11-engine-kv-check",
       "page": "simulator",
       "run_id": "20261007T231754Z-k11-engine-kv-check-pilot-imported",

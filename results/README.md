@@ -474,6 +474,33 @@ Run `20261009T202315Z-k10b-copilot-reuse-tiers`, `8848147`. Mean [95% CI] over r
 | 3472222 | 6944444 | 0 | 98.9% | 1.1% | 0.0% | 1 |
 | 3472222 | 6944444 | 27126736 | 99.4% | 1.1% | 0.5% | 1 |
 
+### k10c-copilot-reuse-retention
+
+K10c: does the retention policy matter on a real day of agent traffic? K10a's setting with sticky placement and the GPU tier only, under LRU and turn-aware eviction (KV of sessions waiting for their user goes first), each without a lifetime and with a 5-minute or 1-hour one (unreferenced KV dropped).
+
+Run `20261009T211446Z-k10c-copilot-reuse-retention`, `db2f953`. Mean [95% CI] over repeats; n = repeats.
+
+| capacity_tokens | eviction | ttl_s | hit_share_of_reusable | token_hit_rate | n |
+|---|---|---|---|---|---|
+| 868055 | lru | None | 91.3% | 85.8% | 1 |
+| 868055 | lru | 300 | 91.1% | 85.6% | 1 |
+| 868055 | lru | 3600 | 91.3% | 85.8% | 1 |
+| 868055 | turn | None | 90.0% | 84.6% | 1 |
+| 868055 | turn | 300 | 90.8% | 85.4% | 1 |
+| 868055 | turn | 3600 | 90.0% | 84.6% | 1 |
+| 1736111 | lru | None | 95.9% | 90.1% | 1 |
+| 1736111 | lru | 300 | 94.9% | 89.3% | 1 |
+| 1736111 | lru | 3600 | 95.9% | 90.1% | 1 |
+| 1736111 | turn | None | 91.5% | 86.0% | 1 |
+| 1736111 | turn | 300 | 94.7% | 89.0% | 1 |
+| 1736111 | turn | 3600 | 91.7% | 86.2% | 1 |
+| 3472222 | lru | None | 97.7% | 91.9% | 1 |
+| 3472222 | lru | 300 | 95.3% | 89.6% | 1 |
+| 3472222 | lru | 3600 | 97.7% | 91.9% | 1 |
+| 3472222 | turn | None | 91.8% | 86.3% | 1 |
+| 3472222 | turn | 300 | 95.3% | 89.6% | 1 |
+| 3472222 | turn | 3600 | 93.6% | 88.0% | 1 |
+
 ### k11-engine-kv-check
 
 K11: does the KV-cache simulator predict a real engine's prefix-cache hits? One vllm-metal replica of Qwen3-0.6B with its KV cache fixed at 1,024 blocks of 16 tokens, so evictions happen; 120 Copilot sessions (4 shards of 2026-06-06, 10 calls each) replayed append-only (reuse full) with real gaps capped at 10 minutes. Then: memtrace report kv-validate --run <run>/requests.jsonl --kv-tokens 16384. Was MEMTRACE's M3 pilot.

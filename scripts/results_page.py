@@ -64,7 +64,7 @@ TOPICS: list[tuple[str, list[tuple[str, list[str]]]]] = [
         [
             ("k10a-copilot-reuse-routing", ["hit_share_of_reusable", "token_hit_rate", "overflow_rate"]),
             ("k10b-copilot-reuse-tiers", ["hit_share_of_reusable", "cpu_loaded_share", "ssd_loaded_share"]),
-            ("k10c-copilot-reuse-retention", ["hit_share_of_reusable", "gpu_token_hours"]),
+            ("k10c-copilot-reuse-retention", ["hit_share_of_reusable", "token_hit_rate"]),
             ("k11-engine-kv-check", ["prefix_cache_hit_ratio", "duration_s"]),
         ],
     ),

@@ -22,7 +22,7 @@ real engines and what was simulated, with 95% confidence intervals where runs we
 | Should agents trim their context? | Naive trimming makes the engine recompute up to 2.6× more prefill; trimming only past a token budget keeps the prompt append-only (K6–K8, C1) |
 | Can the gateway do it for every client? | −14% to −39% prefill recompute in all 4 paired runs of Copilot traffic on Qwen3-8B, and 17% → 92% of requests under 5 s to first token on the overloaded run (K9); in front of Gemini, −50% prompt tokens with no accuracy loss (C2) |
 | How long should agent KV be kept? | The provider recomputed 8–12% of reusable prompt tokens. With every call routed to its cache, a 5 min / 1 h / 24 h lifetime serves 96 / 99.4 / 100% of the reusable prefix for about 1× / 4× / 30× the memory |
-| What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache) (K10) |
+| What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache); retention policy matters least (a 1 h lifetime keeps as much as none) (K10) |
 | Is the simulator right? | Within 0.7 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache (K11) |
 
 Details, definitions, and every run: [full results](results/README.md) and the [dashboard](https://htang7415.github.io/MEMTRACE/).
