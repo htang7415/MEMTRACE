@@ -35,7 +35,7 @@ jobs:
       - run: |
           mkdir -p dashboard/dist/results/benchmark
           cp results/benchmark/memtrace_results.html dashboard/dist/results/benchmark/
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dashboard/dist
   deploy:
