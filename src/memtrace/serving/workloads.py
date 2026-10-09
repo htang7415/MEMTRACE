@@ -12,8 +12,8 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
-from memtrace.kvmem.retention import COMPACTION_SHRINK
-from memtrace.kvmem.traces import read_sessions
+from memtrace.kv.retention import COMPACTION_SHRINK
+from memtrace.kv.traces import read_sessions
 
 # Mooncake traces hash prompts in 512-token blocks. Engines here serve small models with
 # short context windows, so each block is scaled down to `block_tokens` words. Identical
@@ -142,7 +142,7 @@ def copilot_sessions(
     The traces carry token counts but no text. Each call's prompt is synthesized so that its first
     `cached` tokens repeat the session's previous prompt and the rest is new, reproducing the real
     prefix-cache structure; all lengths are scaled by `token_scale` to fit a small model's context.
-    The gap before a call is measured from the previous call's completion (see `memtrace.kvmem.traces`). Gaps are compressed by `gap_scale` and capped at
+    The gap before a call is measured from the previous call's completion (see `memtrace.kv.traces`). Gaps are compressed by `gap_scale` and capped at
     `max_gap_seconds` (the long tail is a user idle between turns, up to 46 minutes after compression,
     which would stretch a replay without adding load), and session start
     times are compressed into `window_seconds` in their real order. Calls without token counts are skipped.

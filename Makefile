@@ -37,7 +37,7 @@ down:
 	$(P) down
 
 data:
-	python3 scripts/fetch_public_datasets.py
+	python -m memtrace.datasets.public
 
 results:
 	.venv/bin/python scripts/results_page.py

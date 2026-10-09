@@ -1,6 +1,6 @@
 import pytest
 
-from memtrace.commands import run_pilot as run_pilot_module
+from memtrace.memrisk.commands import run_pilot as run_pilot_module
 from memtrace.serving.metrics import summarize_serving
 
 

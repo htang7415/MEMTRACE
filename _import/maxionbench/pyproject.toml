@@ -33,8 +33,8 @@ agents = [
 include = ["maxionbench*"]
 
 [tool.setuptools.package-data]
-"maxionbench.datasets" = ["manifests/*.yaml"]
-"maxionbench.graders" = ["calibration/*.jsonl"]
+"memtrace.datasets" = ["manifests/*.yaml"]
+"memtrace.evals.graders" = ["calibration/*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

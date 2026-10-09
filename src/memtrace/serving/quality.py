@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from memtrace.evaluation.metrics import wilson_ci
+from memtrace.memrisk.evaluation.metrics import wilson_ci
 
 CATEGORIES = ("simple", "multiple")
 _TYPE_MAP = {"dict": "object", "float": "number", "tuple": "array"}

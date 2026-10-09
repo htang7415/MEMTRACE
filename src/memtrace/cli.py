@@ -8,43 +8,43 @@ import sys
 from pathlib import Path
 
 from memtrace import __version__
-from memtrace.config import Settings, activate
+from memtrace.memrisk.config import Settings, activate
 
 
 _COMMANDS = {
-    ("assets", "corpus"): "memtrace.commands.build_corpus",
-    ("assets", "episodes"): "memtrace.commands.build_episodes",
-    ("assets", "index"): "memtrace.commands.build_index",
-    ("assets", "verify"): "memtrace.commands.verify_retrieval",
-    ("run", "benchmark"): "memtrace.commands.run_experiments",
-    ("run", "pilot"): "memtrace.commands.run_pilot",
-    ("run", "calibration"): "memtrace.commands.run_oracle_memory_calibration",
-    ("run", "stateful-stress"): "memtrace.commands.run_stateful_stress_suite",
-    ("run", "trusted-utility"): "memtrace.commands.run_trusted_utility_suite",
-    ("run", "adversarial-mutation"): "memtrace.commands.run_adversarial_mutation_suite",
-    ("run", "engine-bench"): "memtrace.commands.run_engine_bench",
-    ("evaluate", "score"): "memtrace.evaluation.score",
-    ("evaluate", "recompute"): "memtrace.evaluation.recompute",
-    ("evaluate", "validate"): "memtrace.evaluation.validate",
-    ("evaluate", "gate"): "memtrace.evaluation.gate",
-    ("evaluate", "attribute"): "memtrace.evaluation.attribute_failures",
-    ("evaluate", "audit"): "memtrace.evaluation.audit_report",
+    ("assets", "corpus"): "memtrace.memrisk.commands.build_corpus",
+    ("assets", "episodes"): "memtrace.memrisk.commands.build_episodes",
+    ("assets", "index"): "memtrace.memrisk.commands.build_index",
+    ("assets", "verify"): "memtrace.memrisk.commands.verify_retrieval",
+    ("run", "benchmark"): "memtrace.memrisk.commands.run_experiments",
+    ("run", "pilot"): "memtrace.memrisk.commands.run_pilot",
+    ("run", "calibration"): "memtrace.memrisk.commands.run_oracle_memory_calibration",
+    ("run", "stateful-stress"): "memtrace.memrisk.commands.run_stateful_stress_suite",
+    ("run", "trusted-utility"): "memtrace.memrisk.commands.run_trusted_utility_suite",
+    ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
+    ("run", "engine-bench"): "memtrace.serving.engine_bench",
+    ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
+    ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
+    ("evaluate", "validate"): "memtrace.memrisk.evaluation.validate",
+    ("evaluate", "gate"): "memtrace.memrisk.evaluation.gate",
+    ("evaluate", "attribute"): "memtrace.memrisk.evaluation.attribute_failures",
+    ("evaluate", "audit"): "memtrace.memrisk.evaluation.audit_report",
     ("evaluate", "bfcl"): "memtrace.serving.quality",
-    ("report", "tables"): "memtrace.evaluation.tables",
-    ("report", "figures"): "memtrace.evaluation.figures",
-    ("report", "explore"): "memtrace.evaluation.trace_explorer",
+    ("report", "tables"): "memtrace.memrisk.evaluation.tables",
+    ("report", "figures"): "memtrace.memrisk.evaluation.figures",
+    ("report", "explore"): "memtrace.memrisk.evaluation.trace_explorer",
     ("report", "engines"): "memtrace.serving.report",
     ("report", "engine-parity"): "memtrace.serving.parity",
-    ("report", "retention"): "memtrace.kvmem.retention",
-    ("report", "kv-sim"): "memtrace.kvmem.sim.sweep",
-    ("report", "kv-validate"): "memtrace.kvmem.validate",
+    ("report", "retention"): "memtrace.kv.retention",
+    ("report", "kv-sim"): "memtrace.kv.prefix_sim.sweep",
+    ("report", "kv-validate"): "memtrace.kv.validate",
 }
 
 _ASSET_BUILD_ORDER = (
-    "memtrace.commands.build_corpus",
-    "memtrace.commands.build_episodes",
-    "memtrace.commands.build_index",
-    "memtrace.commands.verify_retrieval",
+    "memtrace.memrisk.commands.build_corpus",
+    "memtrace.memrisk.commands.build_episodes",
+    "memtrace.memrisk.commands.build_index",
+    "memtrace.memrisk.commands.verify_retrieval",
 )
 
 

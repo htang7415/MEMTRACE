@@ -47,8 +47,8 @@ python -m pip install --require-hashes -r requirements-dev.lock
 python -m pip install --no-deps --no-build-isolation -e .
 python -m pip install -e ".[agents]"                          # MCP agent server, BM25 search
 
-python -m maxionbench.datasets.sources fetch                    # pinned datasets, SHA-256 verified
-python -m maxionbench.harness run experiments/e2_prefix_caching.yaml
+python -m memtrace.datasets.sources fetch                    # pinned datasets, SHA-256 verified
+python -m memtrace.harness run experiments/e2_prefix_caching.yaml
 cd dashboard && npm ci && npm run data && npm run dev           # view your results
 ```
 

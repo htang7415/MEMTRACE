@@ -45,3 +45,6 @@ gemini_api.txt
 *_api.txt
 *.key
 /secrets/
+
+# Go gateway build output
+gateway/bin/

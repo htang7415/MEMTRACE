@@ -11,7 +11,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from memtrace.backends.models.openai_runner import OpenAICompatibleActorModel
+from memtrace.memrisk.backends.models.openai_runner import OpenAICompatibleActorModel
 from memtrace.serving.workloads import AgentSession, Request
 
 _PREFIX_METRICS = ("vllm:prefix_cache_queries_total", "vllm:prefix_cache_hits_total")

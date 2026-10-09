@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from memtrace.commands import run_engine_bench
+from memtrace.serving import engine_bench as run_engine_bench
 from memtrace.serving.metrics import summarize_requests
 from memtrace.serving import workloads
 

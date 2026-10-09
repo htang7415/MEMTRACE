@@ -39,7 +39,7 @@ jobs:
       - name: Ruff
         run: python -m ruff check maxionbench tests
       - name: Result schema is current
-        run: python -m maxionbench.harness schema --check
+        run: python -m memtrace.harness schema --check
       - name: Pytest
         # dataset-dependent tests skip without dataset/.
         run: python -m pytest -q
@@ -122,10 +122,10 @@ jobs:
       - name: Run smoke experiments
         run: |
           llama-server --version
-          python -m maxionbench.harness run experiments/ci_smoke_sim.yaml --out artifacts/ci
-          python -m maxionbench.harness run experiments/ci_smoke_llamacpp.yaml --out artifacts/ci
+          python -m memtrace.harness run experiments/ci_smoke_sim.yaml --out artifacts/ci
+          python -m memtrace.harness run experiments/ci_smoke_llamacpp.yaml --out artifacts/ci
       - name: Performance gate
-        run: python -m maxionbench.harness.perf_gate ci/perf_baseline.yaml artifacts/ci/*/results.json
+        run: python -m memtrace.harness.perf_gate experiments/perf_baseline.yaml artifacts/ci/*/results.json
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v6

@@ -85,12 +85,12 @@ jobs:
           python -m pip install -e . --no-deps
       - name: Build deterministic assets (profile backend, lexical retrieval)
         run: |
-          memtrace --config configs/profile.toml assets corpus
-          memtrace --config configs/profile.toml assets episodes
-          memtrace --config configs/profile.toml assets verify
+          memtrace --config configs/memrisk/profile.toml assets corpus
+          memtrace --config configs/memrisk/profile.toml assets episodes
+          memtrace --config configs/memrisk/profile.toml assets verify
       - name: Run deterministic pilot slice
         run: |
-          memtrace --config configs/profile.toml run pilot \
+          memtrace --config configs/memrisk/profile.toml run pilot \
             --out-dir "$MEMTRACE_ROOT/pilot" --force
       - name: Gate against frozen regression baseline
         run: |
@@ -99,7 +99,7 @@ jobs:
             --candidate "$MEMTRACE_ROOT/pilot/metrics.json"
 
   canary:
-    # Exercises the dense-retrieval + hosted-model path (configs/gemini.toml) that
+    # Exercises the dense-retrieval + hosted-model path (configs/memrisk/gemini.toml) that
     # regression-gate deliberately never touches (profile/lexical, no external
     # dependency, always-blocking). This job is a signal, not a merge gate: hosted
     # APIs are flaky by nature, so it never blocks PRs -- it only surfaces drift in
@@ -126,12 +126,12 @@ jobs:
       - name: Build assets (dense retrieval)
         if: env.GEMINI_API_KEY != ''
         run: |
-          memtrace --config configs/gemini.toml assets corpus
-          memtrace --config configs/gemini.toml assets episodes
-          memtrace --config configs/gemini.toml assets index
-          memtrace --config configs/gemini.toml assets verify
+          memtrace --config configs/memrisk/gemini.toml assets corpus
+          memtrace --config configs/memrisk/gemini.toml assets episodes
+          memtrace --config configs/memrisk/gemini.toml assets index
+          memtrace --config configs/memrisk/gemini.toml assets verify
       - name: Run small pilot slice against the gemini backend
         if: env.GEMINI_API_KEY != ''
         run: |
-          memtrace --config configs/gemini.toml run pilot \
+          memtrace --config configs/memrisk/gemini.toml run pilot \
             --limit 5 --out-dir "$MEMTRACE_ROOT/pilot" --force

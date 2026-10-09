@@ -1,3 +1,3 @@
-"""MEMTRACE: LLM serving, agent KV-cache memory, and a memory-risk benchmark for agents."""
+"""MEMTRACE: serving LLM agents efficiently: engines, routing, gateway, agent context, KV-cache memory, memory risk."""
 
-__version__ = "0.1.0"
+__version__ = "0.6.0"

@@ -8,7 +8,7 @@ def test_cli_dispatches_evaluate_gate(monkeypatch) -> None:
     result = cli.main(["evaluate", "gate", "--baseline", "a.json", "--candidate", "b.json"])
 
     assert result == 0
-    assert calls == [("memtrace.evaluation.gate", ["--baseline", "a.json", "--candidate", "b.json"])]
+    assert calls == [("memtrace.memrisk.evaluation.gate", ["--baseline", "a.json", "--candidate", "b.json"])]
 
 
 def test_cli_dispatches_report_explore(monkeypatch) -> None:
@@ -18,7 +18,7 @@ def test_cli_dispatches_report_explore(monkeypatch) -> None:
     result = cli.main(["report", "explore", "--system", "S1"])
 
     assert result == 0
-    assert calls == [("memtrace.evaluation.trace_explorer", ["--system", "S1"])]
+    assert calls == [("memtrace.memrisk.evaluation.trace_explorer", ["--system", "S1"])]
 
 
 def test_cli_dispatches_adversarial_mutation_run(monkeypatch) -> None:
@@ -28,7 +28,7 @@ def test_cli_dispatches_adversarial_mutation_run(monkeypatch) -> None:
     result = cli.main(["run", "adversarial-mutation", "--dry-run"])
 
     assert result == 0
-    assert calls == [("memtrace.commands.run_adversarial_mutation_suite", ["--dry-run"])]
+    assert calls == [("memtrace.memrisk.commands.run_adversarial_mutation_suite", ["--dry-run"])]
 
 
 def test_cli_dispatches_run_arguments(monkeypatch) -> None:
@@ -38,7 +38,7 @@ def test_cli_dispatches_run_arguments(monkeypatch) -> None:
     result = cli.main(["run", "pilot", "--dry-run", "--limit", "2"])
 
     assert result == 0
-    assert calls == [("memtrace.commands.run_pilot", ["--dry-run", "--limit", "2"])]
+    assert calls == [("memtrace.memrisk.commands.run_pilot", ["--dry-run", "--limit", "2"])]
 
 
 def test_cli_builds_assets_in_order(monkeypatch) -> None:

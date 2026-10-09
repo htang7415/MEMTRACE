@@ -1,4 +1,4 @@
-// Loads the static result files written by `npm run data` (maxionbench.harness.dashboard_export).
+// Loads the static result files written by `npm run data` (memtrace.harness.dashboard_export).
 import { useEffect, useState } from "react";
 import type { ExperimentResult } from "./types/result";
 

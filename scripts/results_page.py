@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from memtrace.kvmem.sim.sweep import frontier
+from memtrace.kv.prefix_sim.sweep import frontier
 
 DATA = Path("data")
 OUT = Path("results/README.md")
