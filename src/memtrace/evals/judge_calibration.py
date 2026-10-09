@@ -19,7 +19,7 @@ from pathlib import Path
 import random
 from typing import Any
 
-from memtrace.datasets.loaders.v03 import load_crag
+from memtrace.datasets.loaders.public import load_crag
 from memtrace.evals.batch import Call, run_calls
 from memtrace.evals.qa import crag_item, hotpot_items
 from memtrace.evals.graders.judge import RUBRIC_VERSION, agreement, cohen_kappa, judge_messages, parse_label

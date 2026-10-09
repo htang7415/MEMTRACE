@@ -25,7 +25,7 @@ import yaml
 
 from memtrace.agents.hotpot_env import DEFAULT_DATASET, HotpotCorpus, build_tasks
 from memtrace.agents.loop import ChatPolicy, run_tasks
-from memtrace.datasets.loaders.v03 import BFCL_CATEGORIES, load_bfcl, load_crag
+from memtrace.datasets.loaders.public import BFCL_CATEGORIES, load_bfcl, load_crag
 from memtrace.evals.batch import Call, bound_send, metered, retryable, run_calls
 from memtrace.evals.qa import QAItem, crag_item, hotpot_items
 from memtrace.evals.tool_client import chat_tools

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from memtrace.kv.retention import analyze, gap_bin, later_calls, working_set
-from memtrace.kv.traces import TraceCall, TraceSession, read_sessions, trace_time
+from memtrace.datasets.loaders.copilot import TraceCall, TraceSession, read_sessions, trace_time
 
 
 def call(start: float, prompt: int, cached: int, *, model: str = "A", duration: float = 1.0) -> TraceCall:

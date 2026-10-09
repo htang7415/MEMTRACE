@@ -21,7 +21,7 @@ from memtrace.kv.retention import KV_BYTES_PER_TOKEN
 from memtrace.kv.prefix_sim.engine import SimConfig, simulate
 from memtrace.kv.prefix_sim.policies import RETENTION, ROUTERS
 from memtrace.kv.prefix_sim.tiers import Tier
-from memtrace.kv.traces import read_sessions
+from memtrace.datasets.loaders.copilot import archive_path, read_sessions
 
 RAM_GB_PER_S = 50.0
 SSD_GB_PER_S = 7.0
@@ -53,7 +53,6 @@ def frontier(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--day", required=True, help="trace day, e.g. 2026-06-06")
-    parser.add_argument("--root", type=Path, default=Path("data/public/copilot_agent"))
     parser.add_argument("--model", choices=sorted(KV_BYTES_PER_TOKEN), default="Qwen3-4B")
     parser.add_argument("--replicas", type=int, required=True)
     parser.add_argument("--max-inflight", type=int, default=8)
@@ -70,10 +69,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
-    paths = sorted((args.root / f"date={args.day}").glob("shard-*.jsonl.gz"))
-    if not paths:
-        raise SystemExit(f"no shards for {args.day} under {args.root}")
-    sessions = list(read_sessions(paths))
+    sessions = list(read_sessions([archive_path(args.day)]))
     made_by = provenance()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w") as out:

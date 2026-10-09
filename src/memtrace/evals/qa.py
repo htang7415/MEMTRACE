@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import random
 
-from memtrace.datasets.loaders.v03 import CragExample
+from memtrace.datasets.loaders.public import CragExample
 
 SYSTEM_PROMPT = (
     "Answer the question using only the numbered documents. Reply with the shortest possible answer "

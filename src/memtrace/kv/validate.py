@@ -23,7 +23,7 @@ from memtrace.kv.retention import gap_bin, later_calls
 from memtrace.kv.prefix_sim.engine import SimConfig, simulate
 from memtrace.kv.prefix_sim.policies import RETENTION
 from memtrace.kv.prefix_sim.tiers import Tier
-from memtrace.kv.traces import TraceCall, TraceSession
+from memtrace.datasets.loaders.copilot import TraceCall, TraceSession
 
 TOLERANCE_POINTS = 5.0
 

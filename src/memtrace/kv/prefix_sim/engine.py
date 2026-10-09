@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from memtrace.kv.retention import COMPACTION_SHRINK, later_calls, trace_window
 from memtrace.kv.prefix_sim.policies import Retention, session_hash
 from memtrace.kv.prefix_sim.tiers import Entry, Tier, TierStore
-from memtrace.kv.traces import TraceSession
+from memtrace.datasets.loaders.copilot import TraceSession
 
 
 @dataclass(frozen=True)

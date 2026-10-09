@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from memtrace.datasets import sources
+from memtrace.datasets.loaders import copilot
 from memtrace.memrisk.backends.models.openai_runner import OpenAICompatibleActorModel
 from memtrace.serving.metrics import summarize_requests
 from memtrace.serving import workloads
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--copilot-shards",
         default="copilot_agent/date=2026-06-06/shard-0000.jsonl.gz",
-        help="copilot-agent: comma-separated trace shards under --data-dir",
+        help="copilot-agent: comma-separated trace shards, read from their day's archive under --data-dir",
     )
     parser.add_argument("--token-scale", type=float, default=1 / 40, help="copilot-agent: token length scale")
     parser.add_argument("--max-calls", type=int, default=40, help="copilot-agent: first N LLM calls per session")
@@ -78,8 +80,10 @@ def main(argv: list[str] | None = None) -> None:
     sessions: list[workloads.AgentSession] = []
     requests: list[workloads.Request] = []
     if args.workload == "copilot-agent":
+        paths, shards = _copilot_shards(args.data_dir, args.copilot_shards)
         sessions = workloads.copilot_sessions(
-            [args.data_dir / shard for shard in args.copilot_shards.split(",")],
+            paths,
+            shards=shards,
             num_sessions=args.sessions,
             seed=args.seed,
             token_scale=args.token_scale,
@@ -249,13 +253,20 @@ def _prefix_cache_summary(
     return result
 
 
+def _copilot_shards(data_dir: Path, spec: str) -> tuple[list[Path], set[str]]:
+    """Archives and member names for shards given as `copilot_agent/date=<day>/shard-NNNN.jsonl.gz`."""
+    members = {shard.removeprefix("copilot_agent/") for shard in spec.split(",")}
+    days = sorted({member.split("/")[0].removeprefix("date=") for member in members})
+    return [copilot.archive_path(day, data_dir) for day in days], members
+
+
 def _dataset_entry(data_dir: Path, rel: str) -> dict[str, Any]:
-    manifest_path = data_dir / "MANIFEST.json"
-    name, _, file_rel = rel.partition("/")
-    if not manifest_path.exists():
-        return {"path": rel}
-    entry = json.loads(manifest_path.read_text()).get(name, {})
-    return {"path": rel, "license": entry.get("license"), **entry.get("files", {}).get(file_rel, {})}
+    entry = sources.entry(rel)
+    return {
+        "path": rel,
+        "license": entry.get("license"),
+        **{k: entry[k] for k in ("url", "bytes", "sha256") if k in entry},
+    }
 
 
 def _p(latency: dict[str, Any], field: str) -> str:

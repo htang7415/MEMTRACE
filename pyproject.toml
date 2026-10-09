@@ -24,6 +24,7 @@ dev = [
   "mypy>=1.15",
   "pytest>=8.0",
   "ruff>=0.12",
+  "types-PyYAML>=6.0",
 ]
 agents = [
   "bm25s>=0.2,<1",
@@ -78,10 +79,10 @@ files = [
   "src/memtrace/kv/retention.py",
   "src/memtrace/kv/costs.py",
   "src/memtrace/kv/validate.py",
-  "src/memtrace/kv/traces.py",
+  "src/memtrace/datasets/loaders/copilot.py",
   "src/memtrace/kv/provenance.py",
   "src/memtrace/kv/prefix_sim",
-  "src/memtrace/datasets/public.py",
+  "src/memtrace/datasets/sources.py",
   "scripts/analyze_autoscale.py",
   "scripts/results_page.py",
 ]

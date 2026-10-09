@@ -11,8 +11,8 @@ description: >
   prompt tokens and TTFT. Open loop in real trace time (idle gaps capped at 300 s); the first sessions join
   at a random point of their life so the replica holds sessions of mixed ages from the start.
 days:
-  sat: copilot/date.2026-06-06.tar.gz
-  tue: copilot/date.2026-06-02.tar.gz
+  sat: copilot_agent/date.2026-06-06.tar.gz
+  tue: copilot_agent/date.2026-06-02.tar.gz
 sessions: 200
 seed: 0
 idle_cap_s: 300

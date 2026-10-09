@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from memtrace.datasets import sources
-from memtrace.datasets.loaders.v03 import BFCL_CATEGORIES, BfclCase, load_bfcl
+from memtrace.datasets.loaders.public import BFCL_CATEGORIES, BfclCase, load_bfcl
 from memtrace.evals.graders import bfcl
 from memtrace.evals.graders.qa import agent_success, crag_label, crag_score, grade_qa
 

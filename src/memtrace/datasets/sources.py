@@ -1,11 +1,11 @@
-"""Pinned v0.3 dataset sources: download, derive small slices, and verify SHA-256 under ``dataset/v03/``.
+"""Pinned dataset sources: download, derive small slices, and verify SHA-256 under ``data/public/``.
 
-Every file a loader reads is listed in ``manifests/v03.yaml`` with its SHA-256: ``files`` are
+Every file a loader reads is listed in ``manifest.yaml`` with its SHA-256: ``files`` are
 downloaded as-is; ``derived`` files are built deterministically from a downloaded file so loaders
-never parse multi-GB raw dumps. ``dataset/`` is git-ignored, so only the manifest is committed.
+never parse multi-GB raw dumps. ``data/`` is git-ignored, so only the manifest is committed.
 
-    python -m memtrace.datasets.sources fetch [--group bfcl ...]
-    python -m memtrace.datasets.sources verify
+    memtrace data fetch [--group bfcl ...]
+    memtrace data verify
 """
 
 from __future__ import annotations
@@ -18,50 +18,57 @@ from pathlib import Path
 import random
 import shutil
 import sys
-import tempfile
 from typing import Any, Callable, Iterator
-from urllib.request import Request, urlopen
+import urllib.request
 
 import yaml
 
 from memtrace.datasets.cache_integrity import sha256_file, verify_file_sha256
 
-DATASET_ROOT = Path("dataset/v03")
-MANIFEST_PATH = Path(__file__).resolve().parent / "manifests" / "v03.yaml"
-MANIFEST_SCHEMA = "memtrace-datasets-v03"
-DEFAULT_HTTP_HEADERS = {"User-Agent": "MEMTRACE/0.1"}
+DATASET_ROOT = Path("data/public")
+MANIFEST_PATH = Path(__file__).resolve().parent / "manifest.yaml"
+MANIFEST_SCHEMA = "memtrace-datasets-v1"
+DEFAULT_HTTP_HEADERS = {"User-Agent": "MEMTRACE"}
 
 
-def download_file(*, url: str, dest: Path, timeout_s: float = 60.0, force: bool = False) -> dict[str, str]:
+def download_file(
+    *, url: str, dest: Path, timeout_s: float = 60.0, force: bool = False, attempts: int = 8
+) -> dict[str, str]:
+    """Download `url` to `dest`. A dropped connection can end a read early without an error, so the size is
+    checked against Content-Length and the transfer resumes with a Range request, up to `attempts` times."""
     if timeout_s <= 0:
         raise ValueError("timeout_s must be > 0")
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.stat().st_size > 0 and not force:
         return {"url": url, "path": str(dest.resolve()), "source": "cache_hit"}
-
-    tmp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            dir=dest.parent,
-            prefix=f"{dest.name}.",
-            suffix=".part",
-            delete=False,
-        ) as handle:
-            tmp_path = Path(handle.name)
-            request = Request(url, headers=dict(DEFAULT_HTTP_HEADERS))
-            with urlopen(request, timeout=float(timeout_s)) as response:
-                shutil.copyfileobj(response, handle)
-        tmp_path.replace(dest)
-    except Exception:
-        if tmp_path is not None and tmp_path.exists():
-            tmp_path.unlink()
-        raise
+    tmp = dest.with_name(dest.name + ".part")
+    tmp.unlink(missing_ok=True)
+    expected = -1
+    for _ in range(attempts):
+        have = tmp.stat().st_size if tmp.exists() else 0
+        headers = dict(DEFAULT_HTTP_HEADERS, **({"Range": f"bytes={have}-"} if have else {}))
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=float(timeout_s)) as resp:
+                if not have:
+                    expected = int(resp.headers.get("Content-Length") or -1)
+                resumed = have and resp.status == 206
+                with tmp.open("ab" if resumed else "wb") as out:
+                    shutil.copyfileobj(resp, out, 1 << 20)
+        except OSError as error:  # includes failures before any byte arrived: retry those too
+            print(f"retrying {url}: {error}", file=sys.stderr)
+            continue
+        if expected < 0 or tmp.stat().st_size == expected:
+            break
+    else:
+        tmp.unlink(missing_ok=True)
+        raise OSError(f"{url}: download incomplete after {attempts} attempts")
+    tmp.replace(dest)
     return {"url": url, "path": str(dest.resolve()), "source": "download"}
 
 
 @functools.cache
 def manifest() -> dict[str, Any]:
-    payload = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
+    payload: dict[str, Any] = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
     if payload.get("schema_version") != MANIFEST_SCHEMA:
         raise ValueError(f"{MANIFEST_PATH}: schema_version must be {MANIFEST_SCHEMA!r}")
     return payload
@@ -69,7 +76,7 @@ def manifest() -> dict[str, Any]:
 
 def entry(rel: str) -> dict[str, Any]:
     m = manifest()
-    found = m["files"].get(rel) or m["derived"].get(rel)
+    found: dict[str, Any] | None = m["files"].get(rel) or m["derived"].get(rel)
     if found is None:
         raise KeyError(f"{rel!r} is not in {MANIFEST_PATH.name}")
     return found
@@ -84,7 +91,7 @@ def verified_path(rel: str, root: Path = DATASET_ROOT) -> Path:
     """
     path = Path(root) / rel
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run `python -m memtrace.datasets.sources fetch`")
+        raise FileNotFoundError(f"{path} missing; run `memtrace data fetch`")
     expected = entry(rel)["sha256"]
     stat = path.stat()
     stamp = [stat.st_size, stat.st_mtime_ns, expected]

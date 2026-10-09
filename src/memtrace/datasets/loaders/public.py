@@ -1,4 +1,4 @@
-"""Loaders for the v0.3 public datasets (files pinned in manifests/v03.yaml).
+"""Loaders for the public evaluation and workload datasets (files pinned in datasets/manifest.yaml).
 
 Each loader takes its input via `sources.verified_path`, so a missing or modified file fails
 loudly instead of silently changing results. Pass `path=` to load an unpinned file (tests).
@@ -21,7 +21,7 @@ from memtrace.datasets.sources import verified_path
 
 CRAG_SLICE = "crag/crag_task_1_and_2_dev_v4.first_500.jsonl"
 SHAREGPT_SAMPLE = "sharegpt/sharegpt_first_turn.sample_2000.jsonl"
-AZURE_CONV_TRACE = "azure/AzureLLMInferenceTrace_conv_1week.csv"
+AZURE_CONV_TRACE = "azure_llm/AzureLLMInferenceTrace_conv_1week.csv"
 BFCL_CATEGORIES = ("simple", "multiple", "parallel", "parallel_multiple")
 
 

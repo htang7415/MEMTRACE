@@ -8,8 +8,8 @@ description: >
   (2) mask_text "[omitted]": the placeholder is scaled with the message text (the default ~19-token
   placeholder against ~44-token scaled tool results understated what masking removes at full scale).
 days:
-  sat: copilot/date.2026-06-06.tar.gz
-  tue: copilot/date.2026-06-02.tar.gz
+  sat: copilot_agent/date.2026-06-06.tar.gz
+  tue: copilot_agent/date.2026-06-02.tar.gz
 sessions: 200
 seed: 0
 idle_cap_s: 300

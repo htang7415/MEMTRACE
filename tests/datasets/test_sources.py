@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from memtrace.datasets import public as fetch
+from memtrace.datasets import sources
 
 PAYLOAD = b"x" * 1000
 
@@ -37,13 +37,12 @@ def test_download_retries_a_failed_first_connection_and_resumes_a_cut_transfer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(urllib.request, "urlopen", _server([TimeoutError("first connect"), 400, 10_000]))
-    size, sha = fetch._download("https://example.invalid/f", tmp_path / "f")
-    assert (size, sha) == (1000, hashlib.sha256(PAYLOAD).hexdigest())
-    assert (tmp_path / "f").read_bytes() == PAYLOAD
+    sources.download_file(url="https://example.invalid/f", dest=tmp_path / "f")
+    assert hashlib.sha256((tmp_path / "f").read_bytes()).hexdigest() == hashlib.sha256(PAYLOAD).hexdigest()
 
 
 def test_download_gives_up_after_the_last_attempt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(urllib.request, "urlopen", _server([TimeoutError()] * 3))
     with pytest.raises(OSError, match="incomplete after 3 attempts"):
-        fetch._download("https://example.invalid/f", tmp_path / "f", attempts=3)
+        sources.download_file(url="https://example.invalid/f", dest=tmp_path / "f", attempts=3)
     assert not (tmp_path / "f").exists()

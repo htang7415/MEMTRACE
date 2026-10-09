@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from memtrace.datasets import sources
-from memtrace.datasets.loaders import v03
+from memtrace.datasets.loaders import public as v03
 from memtrace.harness.workloads import make_workload
 from memtrace.serving.client import CompletionResult
 from memtrace.harness.loadgen import run_open_loop

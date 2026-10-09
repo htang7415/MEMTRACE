@@ -8,7 +8,7 @@ from memtrace.kv.retention import later_calls
 from memtrace.kv.prefix_sim.engine import SimConfig, simulate
 from memtrace.kv.prefix_sim.policies import RETENTION, Retention
 from memtrace.kv.prefix_sim.tiers import Tier
-from memtrace.kv.traces import TraceCall, TraceSession
+from memtrace.datasets.loaders.copilot import TraceCall, TraceSession
 
 # One token = 1 GB keeps capacities readable: a tier of 1000 GB holds 1000 tokens.
 GB = 10**9

@@ -11,13 +11,13 @@ description: >
   ~480k trace tokens for 8 sessions: K6's tight 512k per 8 sessions). A second replica does not fit
   next to it on this machine. TTFT and SLO are in compressed time. One repeat.
 traces:
-  full: copilot/policy_traces/full.sessions600.jsonl
-  truncate: copilot/policy_traces/truncate.sessions600.jsonl
-  window: copilot/policy_traces/window.sessions600.jsonl
-  mask: copilot/policy_traces/mask.sessions600.jsonl
-  summarize: copilot/policy_traces/summarize.sessions600.jsonl
-  window+cache: copilot/policy_traces/window_cache.sessions600.jsonl
-  mask+cache: copilot/policy_traces/mask_cache.sessions600.jsonl
+  full: copilot_agent/policy_traces/full.sessions600.jsonl
+  truncate: copilot_agent/policy_traces/truncate.sessions600.jsonl
+  window: copilot_agent/policy_traces/window.sessions600.jsonl
+  mask: copilot_agent/policy_traces/mask.sessions600.jsonl
+  summarize: copilot_agent/policy_traces/summarize.sessions600.jsonl
+  window+cache: copilot_agent/policy_traces/window_cache.sessions600.jsonl
+  mask+cache: copilot_agent/policy_traces/mask_cache.sessions600.jsonl
 idle_cap_s: 300
 seed: 7
 repeats: 1

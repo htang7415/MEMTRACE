@@ -8,7 +8,7 @@ import zipfile
 import pytest
 
 from memtrace.datasets import sources
-from memtrace.datasets.loaders import v03
+from memtrace.datasets.loaders import public as v03
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> Path:

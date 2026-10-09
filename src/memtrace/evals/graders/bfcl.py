@@ -14,7 +14,7 @@ import json
 import re
 from typing import Any, Mapping, Sequence
 
-from memtrace.datasets.loaders.v03 import BfclCase
+from memtrace.datasets.loaders.public import BfclCase
 
 Call = dict[str, dict[str, Any]]  # {function_name: {param: value}}
 

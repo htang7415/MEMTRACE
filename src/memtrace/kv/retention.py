@@ -27,7 +27,6 @@ policy: an observed baseline, not ground truth.
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import math
 import statistics
@@ -38,7 +37,7 @@ from pathlib import Path
 
 from memtrace.kv.costs import ANTHROPIC, breakeven_storage, relative_cost
 from memtrace.kv.provenance import provenance
-from memtrace.kv.traces import TraceCall, TraceSession, read_sessions, trace_time
+from memtrace.datasets.loaders.copilot import DAYS, TraceCall, TraceSession, archive_path, read_sessions, trace_time
 
 SHORT_GAP = 10.0
 EXPIRY_GAP = 300.0
@@ -237,23 +236,16 @@ def _lifetime(sessions: list[TraceSession], items: list[LaterCall], lifetime: fl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "paths", nargs="*", help="trace shards (default: every downloaded day under data/public/copilot_agent)"
-    )
+    parser.add_argument("days", nargs="*", default=list(DAYS), help="trace days (default: all seven)")
     parser.add_argument("--out", type=Path, help="write the summary JSON here as well as to stdout")
-    parser.add_argument("--by-day", action="store_true", help="one summary per trace day (shard directory)")
+    parser.add_argument("--by-day", action="store_true", help="one summary per trace day")
     args = parser.parse_args()
-    paths = sorted(Path(p) for p in args.paths or glob.glob("data/public/copilot_agent/date=*/shard-*.jsonl.gz"))
-    if not paths:
-        raise SystemExit("no trace shards found; run python -m memtrace.datasets.public copilot_agent")
+    paths = {day: archive_path(day) for day in args.days}
     result: dict[str, object] = {"provenance": provenance()}
     if args.by_day:
-        days: dict[str, list[Path]] = defaultdict(list)
-        for path in paths:
-            days[path.parent.name.removeprefix("date=")].append(path)
-        result["days"] = {day: analyze(read_sessions(shards)) for day, shards in sorted(days.items())}
+        result["days"] = {day: analyze(read_sessions([path])) for day, path in sorted(paths.items())}
     else:
-        result["summary"] = analyze(read_sessions(paths))
+        result["summary"] = analyze(read_sessions(paths.values()))
     summary = json.dumps(result, indent=2)
     print(summary)
     if args.out:

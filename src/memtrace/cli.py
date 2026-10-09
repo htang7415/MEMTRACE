@@ -12,6 +12,8 @@ from memtrace.memrisk.config import Settings, activate
 
 
 _COMMANDS = {
+    ("data", "fetch"): "memtrace.datasets.sources",
+    ("data", "verify"): "memtrace.datasets.sources",
     ("assets", "corpus"): "memtrace.memrisk.commands.build_corpus",
     ("assets", "episodes"): "memtrace.memrisk.commands.build_episodes",
     ("assets", "index"): "memtrace.memrisk.commands.build_index",
@@ -55,6 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, help="TOML file containing a [memtrace] settings table.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     groups = parser.add_subparsers(dest="group", required=True)
+
+    data = groups.add_parser("data", help="Download and verify the pinned public datasets (data/public/).")
+    data.add_argument("action", choices=("fetch", "verify"))
+    data.add_argument("arguments", nargs=argparse.REMAINDER)
 
     assets = groups.add_parser("assets", help="Build and verify benchmark assets.")
     assets.add_argument("action", choices=("build", "corpus", "episodes", "index", "verify"))
@@ -100,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     module_name = _COMMANDS[(args.group, args.action)]
-    _invoke(module_name, args.arguments)
+    _invoke(module_name, [args.action, *args.arguments] if args.group == "data" else args.arguments)
     return 0
 
 

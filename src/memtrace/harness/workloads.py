@@ -197,7 +197,7 @@ def _trace_replay(params: Mapping[str, Any], seed: int) -> Workload:
     prompt and output lengths, then caps apply. Prompts are filler text of about the target token
     count (the trace has no content), each with a unique header so prefix caching cannot help.
     """
-    from memtrace.datasets.loaders.v03 import load_azure_trace
+    from memtrace.datasets.loaders.public import load_azure_trace
 
     unknown = set(params) - TRACE_KEYS
     if unknown:
