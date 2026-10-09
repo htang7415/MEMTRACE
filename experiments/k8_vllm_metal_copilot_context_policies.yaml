@@ -27,7 +27,7 @@ target:
   workers: vllm_metal
   model: qwen3-0.6b
   worker_params:
-    model: ~/models/Qwen3-0.6B-Q8_0.gguf
+    model: models/gguf/Qwen3-0.6B-Q8_0.gguf
     tokenizer: Qwen/Qwen3-0.6B
     replicas: 1
     base_port: 8210

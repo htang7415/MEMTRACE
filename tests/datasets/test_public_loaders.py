@@ -123,7 +123,7 @@ def test_bfcl_joins_questions_and_answers(tmp_path: Path) -> None:
 _HAVE_DATA = sources.DATASET_ROOT.exists()
 
 
-@pytest.mark.skipif(not _HAVE_DATA, reason="dataset/v03 not fetched")
+@pytest.mark.skipif(not _HAVE_DATA, reason="data/public not fetched")
 def test_real_datasets_match_manifest() -> None:
     assert len(v03.load_crag()) == 500
     assert len(v03.load_sharegpt()) == 2000

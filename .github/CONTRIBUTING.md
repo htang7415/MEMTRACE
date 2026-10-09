@@ -11,7 +11,9 @@ python -m pip install --no-deps -e .
 ```
 
 Experiments on the Mac GPU use vLLM with the `vllm-metal` plugin from a separate environment (default
-`~/.venv-vllm-metal/bin/vllm`). The serving platform on kind needs Docker Desktop, `kind`, `kubectl` and `helm`
+`~/.venv-vllm-metal/bin/vllm`). Model weights belong in the repository's git-ignored `models/` folder, not the user's
+cache: `memtrace` and the scripts set `HF_HOME=models/huggingface` when it is unset, and GGUF files go in
+`models/gguf/` (the specs reference them there). The serving platform on kind needs Docker Desktop, `kind`, `kubectl` and `helm`
 (`make up`).
 
 Keep the virtual environment on an internal disk if you can. On exFAT or other external volumes, macOS writes

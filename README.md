@@ -50,6 +50,10 @@ make bench         # replay Copilot agent traffic through three routing policies
 make down
 ```
 
+Datasets (`data/public/`), result bundles (`data/runs/`) and model weights (`models/`) stay in git-ignored folders of
+the repository. `memtrace` and the scripts point Hugging Face at `models/huggingface` (an explicit `HF_HOME` wins);
+GGUF files go in `models/gguf/`.
+
 Paid-API runs read the key only at runtime (`GEMINI_API_KEY`) and reserve each request's worst-case cost against
 a hard cap before sending it (`configs/pricing/gemini.yaml`).
 

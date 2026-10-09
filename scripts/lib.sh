@@ -11,7 +11,9 @@ CLUSTER=memtrace
 CTX="kind-$CLUSTER"
 ROUTER_TAG=v0.11.0
 ROUTER_DIR="$HOME/.cache/memtrace/llm-d-router"
-MODEL_SNAPSHOT="$HOME/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca"
+# Model weights live in the repository's git-ignored models/ folder, not the user's cache (memtrace sets the same).
+export HF_HOME="${HF_HOME:-$PWD/models/huggingface}"
+MODEL_SNAPSHOT="$HF_HOME/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca"
 EPP=qwen3-0-6b-endpoint-picker
 POOL_SELECTOR="app=qwen3-0-6b-inference-pool"
 GATEWAY=http://localhost:30080/v1

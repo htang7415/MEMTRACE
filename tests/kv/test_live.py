@@ -100,7 +100,7 @@ def test_target_params_supports_native_vllm_metal_workers() -> None:
     target = {
         "workers": "vllm_metal",
         "model": "qwen3-0.6b",
-        "worker_params": {"model": "~/models/Qwen3-0.6B-Q8_0.gguf", "replicas": 2, "max_model_len": 16384},
+        "worker_params": {"model": "models/gguf/Qwen3-0.6B-Q8_0.gguf", "replicas": 2, "max_model_len": 16384},
     }
     params = target_params(target, {"scorer_profile": "optimized-baseline"})
     assert params == {

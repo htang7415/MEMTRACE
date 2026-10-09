@@ -35,8 +35,9 @@ venv/
 .DS_Store
 ._*
 
-# Datasets, result bundles (data/runs/), and other local outputs
+# Datasets, result bundles (data/runs/), model weights (models/), and other local outputs
 /data/
+/models/
 /artifacts/
 /figures/
 /archived_runs/

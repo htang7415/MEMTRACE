@@ -176,17 +176,17 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            ~/models/Qwen3-0.6B-Q8_0.gguf
+            models/gguf/Qwen3-0.6B-Q8_0.gguf
             ~/llama.tar.gz
           key: perf-smoke-${{ env.LLAMA_BUILD }}-${{ env.MODEL_SHA256 }}
       - name: Fetch pinned llama.cpp CPU build and Qwen3-0.6B Q8_0
         run: |
-          mkdir -p ~/models
+          mkdir -p models/gguf
           [ -f ~/llama.tar.gz ] || curl -fsSL -o ~/llama.tar.gz \
             "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_BUILD}/llama-${LLAMA_BUILD}-bin-ubuntu-x64.tar.gz"
           echo "${LLAMA_SHA256}  ${HOME}/llama.tar.gz" | sha256sum -c -
-          [ -f ~/models/Qwen3-0.6B-Q8_0.gguf ] || curl -fsSL -o ~/models/Qwen3-0.6B-Q8_0.gguf "${MODEL_URL}"
-          echo "${MODEL_SHA256}  ${HOME}/models/Qwen3-0.6B-Q8_0.gguf" | sha256sum -c -
+          [ -f models/gguf/Qwen3-0.6B-Q8_0.gguf ] || curl -fsSL -o models/gguf/Qwen3-0.6B-Q8_0.gguf "${MODEL_URL}"
+          echo "${MODEL_SHA256}  models/gguf/Qwen3-0.6B-Q8_0.gguf" | sha256sum -c -
           tar xzf ~/llama.tar.gz -C ~
           echo "${HOME}/llama-${LLAMA_BUILD}" >> "$GITHUB_PATH"
           echo "LD_LIBRARY_PATH=${HOME}/llama-${LLAMA_BUILD}" >> "$GITHUB_ENV"

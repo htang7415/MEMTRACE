@@ -119,3 +119,10 @@ report in `results/benchmark/`.
   run of each published experiment from `data/runs/` (validated against the result model), plus aggregates of
   the analyses that are not harness runs; TypeScript types are generated from the result JSON Schema, so schema
   drift fails the build.
+
+## Local files
+
+Git-ignored, next to the code: `data/public/` (pinned datasets), `data/runs/` (every result bundle), `data/` analyses
+(retention, BFCL gate, drills), and `models/` (model weights: `HF_HOME` is `models/huggingface` when unset, set by
+`memtrace` and the shell scripts; GGUF files in `models/gguf/`). Only the dashboard's exported snapshot, the results
+page, and the benchmark report are published.
