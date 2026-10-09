@@ -1,4 +1,4 @@
-/* Generated from maxionbench/harness/result.schema.json by `npm run types`; do not edit. */
+/* Generated from src/memtrace/harness/result.schema.json by `npm run types`; do not edit. */
 
 export interface ExperimentResult {
   cells: CellSummary[];
@@ -6,7 +6,7 @@ export interface ExperimentResult {
   name: string;
   provenance: Provenance;
   run_id: string;
-  schema_version: "maxionbench-harness-result-v1";
+  schema_version: "memtrace-result-v1";
   spec: {
     [k: string]: unknown;
   };

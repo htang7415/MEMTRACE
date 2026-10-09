@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useData, type Data } from "./data";
-import { Caching, ContextPolicies, Engines, GatewayContext, Hybrid, Overview, Provenance, Quality, Scheduling } from "./pages/pages";
+import {
+  Caching, ContextPolicies, Engines, GatewayContext, Hybrid, Lifetimes, Overview, Provenance, ProviderCache, Quality,
+  Replay, Reuse, Routing, Simulator,
+} from "./pages/pages";
 
-const REPO = "https://github.com/htang7415/MaxionBench";
+const REPO = "https://github.com/htang7415/MEMTRACE";
 
 interface PageDef {
   id: string;
@@ -13,16 +16,31 @@ interface PageDef {
 // Grouped by topic.
 const GROUPS: { label: string | null; pages: PageDef[] }[] = [
   { label: null, pages: [{ id: "overview", title: "Overview", Page: Overview }] },
-  { label: "Gateway", pages: [{ id: "gateway", title: "Gateway context", Page: GatewayContext }] },
-  { label: "Agents", pages: [{ id: "context", title: "Agent context", Page: ContextPolicies }] },
   {
     label: "Serving",
     pages: [
       { id: "engines", title: "Engines", Page: Engines },
       { id: "caching", title: "Caching", Page: Caching },
-      { id: "scheduling", title: "llm-d scheduling", Page: Scheduling },
-      { id: "hybrid", title: "Hybrid serving", Page: Hybrid },
+      { id: "routing", title: "Routing", Page: Routing },
+      { id: "replay", title: "Real agent traffic", Page: Replay },
+      { id: "hybrid", title: "Hosted overflow", Page: Hybrid },
       { id: "quality", title: "Quality and cost", Page: Quality },
+    ],
+  },
+  {
+    label: "Agent context",
+    pages: [
+      { id: "context", title: "Context policies", Page: ContextPolicies },
+      { id: "gateway", title: "Gateway context", Page: GatewayContext },
+    ],
+  },
+  {
+    label: "KV memory",
+    pages: [
+      { id: "provider", title: "Provider cache", Page: ProviderCache },
+      { id: "lifetime", title: "Cache lifetime", Page: Lifetimes },
+      { id: "reuse", title: "Reuse levers", Page: Reuse },
+      { id: "simulator", title: "Simulator check", Page: Simulator },
     ],
   },
   { label: "Data", pages: [{ id: "provenance", title: "Provenance", Page: Provenance }] },
@@ -91,7 +109,7 @@ export default function App() {
       <header className="sticky top-0 z-10 border-b backdrop-blur"
         style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--page) 85%, transparent)" }}>
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
-          <a href="#/overview" className="text-[15px] font-semibold tracking-tight">MaxionBench</a>
+          <a href="#/overview" className="text-[15px] font-semibold tracking-tight">MEMTRACE</a>
           <div className="ml-auto flex items-center gap-3">
             <a href={REPO} className="hidden text-sm sm:inline" style={{ color: "var(--ink-2)" }}>GitHub</a>
             <ThemeSwitch />
@@ -137,6 +155,8 @@ export default function App() {
         <div className="mx-auto flex max-w-7xl flex-wrap gap-x-6 gap-y-1 px-4 py-6 text-xs md:px-8" style={{ color: "var(--muted)" }}>
           <span>Every number comes from a saved result bundle; intervals are 95% CIs.</span>
           {latest && <span>Latest run {latest.slice(0, 10)}</span>}
+          <a href={`${REPO}/blob/main/results/README.md`}>Full results</a>
+          <a href="results/benchmark/memtrace_results.html">Memory-risk benchmark report</a>
           <a href={`${REPO}/blob/main/ARCHITECTURE.md`}>Architecture</a>
           <a href={`${REPO}/blob/main/LICENSE`}>License</a>
         </div>

@@ -40,5 +40,5 @@ data:
 
 results:
 	.venv/bin/python scripts/results_page.py
-	.venv/bin/python dashboard/export.py
+	.venv/bin/memtrace report dashboard
 	.venv/bin/python results/benchmark/build.py

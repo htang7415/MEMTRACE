@@ -5,7 +5,7 @@ description: >
   v0.11 + Envoy over 1 native vllm-metal replica of Qwen3-0.6B Q8 (Apple GPU, prefix caching on). Each
   64-token trace block is 2 token ids (prompts 1/32 of their size: median 1.9k tokens; max_model_len 12,288
   rejects the longest ~0.3%, counted as errors) so the
-  workload fits a 16 GB machine shared with other work; 8 active sessions, trace time compressed 4x,
+  workload fits one machine shared with other work; 8 active sessions, trace time compressed 4x,
   outputs scaled to 5% (max 32 tokens). Server-side prefix-cache hit ratio and TTFT come from the real
   engine; the replica gets 30% of unified memory (vllm-metal reports a 1.67 GB KV budget, ~15k tokens,
   ~480k trace tokens for 8 sessions: K6's tight 512k per 8 sessions). A second replica does not fit

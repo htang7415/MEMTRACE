@@ -2,13 +2,18 @@ import { expect, test } from "@playwright/test";
 
 const PAGES = [
   ["overview", "Serving LLM agents efficiently"],
-  ["engines", "Engines (E1)"],
+  ["engines", "Engines"],
   ["caching", "Caching (E2, E6)"],
-  ["scheduling", "llm-d scheduling (E3)"],
-  ["hybrid", "Hybrid serving and cost (E4)"],
+  ["routing", "Routing"],
+  ["replay", "Real agent traffic"],
+  ["hybrid", "Overflow to a hosted model"],
   ["quality", "Quality and cost (E5)"],
   ["context", "Context policies for agents"],
   ["gateway", "Context management in the gateway"],
+  ["provider", "Provider cache"],
+  ["lifetime", "Cache lifetime"],
+  ["reuse", "What buys the most reuse"],
+  ["simulator", "Simulator vs a real engine"],
   ["provenance", "Run provenance"],
 ] as const;
 

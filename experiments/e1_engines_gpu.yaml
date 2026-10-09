@@ -1,9 +1,9 @@
 schema_version: memtrace-experiment-v1
 name: e1-engines-gpu
 description: >
-  E1: vLLM (vllm-metal) vs llama.cpp on the Apple M4 GPU, same Qwen3-0.6B Q8_0 GGUF file, closed-loop
+  E1: vLLM (vllm-metal) vs llama.cpp on the Apple Silicon GPU, same Qwen3-0.6B Q8_0 GGUF file, closed-loop
   concurrency sweep. Fixed 128 output tokens (ignore_eos), prefix caching off on both engines so trials
-  are independent and servers can be reused within a repeat. Thinking disabled. Qwen3-0.6B so each engine fits the memory left on a shared 16 GB Mac
+  are independent and servers can be reused within a repeat. Thinking disabled. Qwen3-0.6B so each engine fits the memory left on a shared machine
   (another project's kind cluster and desktop apps); larger models are deferred, not dropped.
 seed: 42
 repeats: 3

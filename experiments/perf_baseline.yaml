@@ -6,7 +6,7 @@
 #
 # ci-smoke-llamacpp: real CPU inference on shared runners varies, so the bounds catch a ~2x
 # regression rather than noise. GitHub ubuntu-latest (first run, 2026-10-06): 13.4 tok/s, TTFT p50
-# 1.68 s at concurrency 1 (Apple M4 CPU locally: 15 tok/s, 1.5 s). Sim on the runner: TTFT p50 870 ms.
+# 1.68 s at concurrency 1 (Apple Silicon CPU locally: 15 tok/s, 1.5 s). Sim on the runner: TTFT p50 870 ms.
 experiments:
   ci-smoke-sim:
     - metrics:

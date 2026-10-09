@@ -38,6 +38,7 @@ _COMMANDS = {
     ("report", "explore"): "memtrace.memrisk.evaluation.trace_explorer",
     ("report", "retention"): "memtrace.kv.retention",
     ("report", "kv-validate"): "memtrace.kv.validate",
+    ("report", "dashboard"): "memtrace.harness.dashboard_export",
 }
 
 # Commands whose module takes a subcommand of its own
@@ -90,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     report = groups.add_parser("report", help="Generate tables and figures.")
     report.add_argument(
         "action",
-        choices=("tables", "figures", "explore", "retention", "kv-validate"),
+        choices=("tables", "figures", "explore", "retention", "kv-validate", "dashboard"),
     )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser

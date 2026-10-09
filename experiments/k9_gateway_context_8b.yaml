@@ -4,7 +4,7 @@ description: >
   K9 (v0.5 Step 2): the gateway's cache-aware context management measured on a real engine. Copilot
   coding-agent sessions (a Saturday and a Tuesday, 200 seeded sessions each) replayed as full chat
   histories (message text is deterministic filler at 1/16 of each message's tokens) through the Go gateway
-  onto one vllm-metal replica of Qwen3-8B (MLX 4-bit, Apple M4 GPU, 24.7k-token KV cache, prefix caching
+  onto one vllm-metal replica of Qwen3-8B (MLX 4-bit, Apple Silicon GPU, 24.7k-token KV cache, prefix caching
   on). Arms: context management off (the client's full history), mask+cache (mask tool results older
   than 4 exchanges once the view passes 100k full-scale tokens), window+cache (keep 8 exchanges), and
   mask+cache with the pause trigger (trim at the first call after 120 s idle). The engine reports cached

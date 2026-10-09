@@ -69,14 +69,8 @@ BATCHES: list[Batch] = [
     (
         "e9_hetero_pool",
         "reps",
-        "hetero_reps/rep*/hetero-*/agent-sessions/c8",
-        lambda p: ({"target.policy": _policy(p)}, _rep(p)),
-    ),
-    (
-        "e9_hetero_pool",
-        "reps2",
-        "hetero_reps2/rep*/hetero-*/agent-sessions/c8",
-        lambda p: ({"target.policy": _policy(p)}, _rep(p)),
+        "hetero_reps*/rep*/hetero-*/agent-sessions/c8",  # two batches, same pool and weight: repeats 1-3 and 4-6
+        lambda p: ({"target.policy": _policy(p)}, _rep(p) + (3 if p.parts[1] == "hetero_reps2" else 0)),
     ),
     (
         "e10_hosted_overflow",
@@ -192,7 +186,15 @@ def import_batch(spec_name: str, batch: str, pattern: str, read: Any) -> Path | 
         trials.append(result)
         cells[result.cell_id] = cell
         request_rows += [{"trial_id": result.trial_id, "cell_id": result.cell_id, **asdict(r)} for r in recs]
-    present = {k: sorted({c[k] for c in cells.values()}, key=str) for k in next(iter(cells.values()))}
+    order = {k: [str(v) for v in values] for k, values in spec.matrix.items()}
+
+    def rank(cell: dict[str, Any]) -> tuple[int, ...]:  # the spec's matrix order, as a fresh run plans its cells
+        return tuple(order[k].index(str(v)) if k in order else 0 for k, v in cell.items())
+
+    cells = dict(sorted(cells.items(), key=lambda item: rank(item[1])))
+    present = {
+        k: sorted({c[k] for c in cells.values()}, key=lambda v: rank({k: v})) for k in next(iter(cells.values()))
+    }
     spec_dict["matrix"] = present  # the cells this batch recorded
     starts = sorted(t.started_at for t in trials)
     run_id = f"{starts[0].replace('-', '').replace(':', '')[:15]}Z-{spec.name}-{batch}-imported"
@@ -212,7 +214,7 @@ def import_batch(spec_name: str, batch: str, pattern: str, read: Any) -> Path | 
             tools={"imported_from": pattern, "recorded_by": "MEMTRACE engine bench (before the harness)"},
         ),
         trials=sorted(trials, key=lambda t: (t.repeat, t.cell_id)),
-        cells=aggregate_cells(trials, dict(sorted(cells.items()))),
+        cells=aggregate_cells(trials, cells),
     )
     out = OUT / run_id
     out.mkdir(parents=True, exist_ok=True)
