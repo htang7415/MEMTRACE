@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import subprocess
 from typing import Any
 
@@ -114,3 +115,17 @@ def _run_command(argv: list[str]) -> str | None:
         return None
     output = str(proc.stdout or "").strip()
     return output or None
+
+
+def host_swap_pages() -> dict[str, int] | None:
+    """macOS cumulative swap-in/swap-out page counters (vm_stat), or None elsewhere. Paging during a run,
+    not swap size, is what distorts latency on a memory-tight host."""
+    text = _run_command(["vm_stat"])
+    if text is None:
+        return None
+    counters = {}
+    for key in ("Swapins", "Swapouts"):
+        match = re.search(rf"^{key}:\s+(\d+)", text, re.MULTILINE)
+        if match:
+            counters[key.lower()] = int(match.group(1))
+    return counters or None

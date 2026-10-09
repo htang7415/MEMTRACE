@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shellcheck
-        run: shellcheck -x -P SCRIPTDIR -S warning scripts/*.sh scripts/studies/*.sh
+        run: shellcheck -x -P SCRIPTDIR -S warning scripts/*.sh
 
   epp-plugins:
     # The plugins compile only inside the pinned llm-d-router tree, as in scripts/build_epp.sh.

@@ -1,11 +1,11 @@
 """Run a KV-cache simulation spec: matrix x repeats over pinned agent traces, in parallel.
 
-    python -m memtrace.kv experiments/k1_agent_kv_retention.yaml [--jobs 6] [--out results]
+    memtrace run kv-sim experiments/k1_agent_kv_retention.yaml [--jobs 6] [--out data/runs]
 
 The trace is AgentX-format (`trace`, or one per arm in `traces`), or one day of the Copilot traces
 (`copilot_day`), built into block sessions at `params.block_tokens` (see `memtrace.kv.sessions`).
 
-Writes results/<run_id>/results.json in the harness result format (cells with 95% CIs, provenance).
+Writes data/runs/<run_id>/results.json in the harness result format (cells with 95% CIs, provenance).
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(prog="python -m memtrace.kv", description=__doc__.split("\n\n")[0])
     parser.add_argument("spec", type=Path)
     parser.add_argument("--jobs", type=int, default=4)
-    parser.add_argument("--out", type=Path, default=Path("results"))
+    parser.add_argument("--out", type=Path, default=Path("data/runs"))
     args = parser.parse_args(argv)
     run(args.spec, args.jobs, args.out)
     return 0

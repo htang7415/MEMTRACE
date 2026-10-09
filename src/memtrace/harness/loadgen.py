@@ -31,6 +31,15 @@ class RequestSpec:
 
 
 @dataclass(frozen=True)
+class SessionSpec:
+    """An agent session replayed in order: each call waits `gap` seconds after the previous one finishes."""
+
+    session_id: str
+    start_offset_s: float  # seconds after the replay starts
+    calls: tuple[tuple[RequestSpec, float], ...]  # (request, gap before it)
+
+
+@dataclass(frozen=True)
 class RequestRecord:
     request_id: str
     session_id: str
@@ -159,6 +168,45 @@ def run_closed_loop(
     return [r for r in records if r is not None], time.perf_counter() - t0
 
 
+def run_sessions(
+    sessions: Sequence[SessionSpec],
+    *,
+    base_urls: Sequence[str],
+    picker: EndpointPicker,
+    timeout_s: float,
+    max_tokens: int,
+    send: Callable[..., CompletionResult] = chat_completion,
+    sleep: Callable[[float], None] = time.sleep,
+) -> tuple[list[RequestRecord], float, int]:
+    """Agent replay: each session starts at its offset and issues its calls in order, waiting the recorded gap
+    after each completion, so load is whatever the sessions produce. Latency is measured from send.
+    Returns records (session by session, calls in order), wall time, and the peak number of calls in flight."""
+    lock = threading.Lock()
+    in_flight = peak = 0
+    t0 = time.perf_counter()
+
+    def replay(session: SessionSpec) -> list[RequestRecord]:
+        nonlocal in_flight, peak
+        sleep(max(0.0, session.start_offset_s - (time.perf_counter() - t0)))
+        out = []
+        for spec, gap in session.calls:
+            sleep(gap)
+            with lock:
+                in_flight += 1
+                peak = max(peak, in_flight)
+            try:
+                now = time.perf_counter()
+                out.append(_execute(spec, now - t0, now, base_urls, picker, send, max_tokens, timeout_s))
+            finally:
+                with lock:
+                    in_flight -= 1
+        return out
+
+    with ThreadPoolExecutor(max_workers=max(1, len(sessions))) as pool:
+        per_session = list(pool.map(replay, sessions))
+    return [r for records in per_session for r in records], time.perf_counter() - t0, peak
+
+
 def _execute(
     spec: RequestSpec,
     scheduled_s: float,
@@ -208,12 +256,21 @@ def summarize(
     duration_s: float,
     ttft_slo_s: float,
     e2e_slo_s: float,
+    tpot_slo_s: float | None = None,
 ) -> dict[str, Any]:
     ok = [r for r in records if r.status == "ok"]
     good = [
         r
         for r in ok
-        if r.ttft_s is not None and r.ttft_s <= ttft_slo_s and r.e2e_s is not None and r.e2e_s <= e2e_slo_s
+        if r.ttft_s is not None
+        and r.ttft_s <= ttft_slo_s
+        and r.e2e_s is not None
+        and r.e2e_s <= e2e_slo_s
+        and (
+            tpot_slo_s is None
+            or r.completion_tokens <= 1
+            or (r.e2e_s - r.ttft_s) / (r.completion_tokens - 1) <= tpot_slo_s
+        )
     ]
     statuses: dict[str, int] = {}
     for r in records:

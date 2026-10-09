@@ -1,39 +1,20 @@
 #!/usr/bin/env bash
-# Studies run on the kind platform (frozen: they produced the recorded Phase 2-3 results).
+# Platform drills on the kind cluster: fault injection and autoscaling, with load from the harness
+# (experiments/e12_gateway_load.yaml). Measurement studies are experiment specs (experiments/e8-e11).
 #
-#   scripts/studies/platform_studies.sh study      # every policy x workload x concurrency level, cold start each run
-#   scripts/studies/platform_studies.sh failover   # delete one replica mid-run under load; count failures, time recovery
-#   scripts/studies/platform_studies.sh burst      # low -> high -> low load with autoscaling; replica timeline
-#   scripts/studies/platform_studies.sh hetero_study# policies x workloads x levels on the heterogeneous pool
-#   scripts/studies/platform_studies.sh hosted_study# overflow study: GPU+CPU vs +Gemini at two capacities
-# shellcheck source=../stack.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../stack.sh"
-
-study() {
-  local out="${OUT_DIR:-data/routing_study}" replicas="${REPLICAS:-4}"
-  sims "$replicas"
-  for workload in ${WORKLOADS:-mooncake-toolagent mooncake-conversation}; do
-    for level in ${LEVELS:-8 16 32}; do
-      for name in ${POLICIES:-random queue prefix combined}; do
-        policy "$name"
-        .venv/bin/memtrace run engine-bench --engine "sim$replicas-$name" --base-url "$GATEWAY" \
-          --model Qwen/Qwen3-0.6B --workload "$workload" --num-requests "${NUM_REQUESTS:-500}" \
-          --max-tokens "${MAX_TOKENS:-128}" --sessions "${SESSIONS:-32}" --turns "${TURNS:-8}" \
-          --concurrency "$level" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 \
-          --k8s-context "$CTX" --k8s-pool "$POOL_SELECTOR" --out-dir "$out"
-      done
-    done
-  done
-}
+#   scripts/drills.sh failover   # delete one replica mid-run under load; count failures, time recovery
+#   scripts/drills.sh burst      # low -> high -> low load with autoscaling; replica timeline
+# shellcheck source=stack.sh
+source "$(dirname "${BASH_SOURCE[0]}")/stack.sh"
 
 failover() {
   local out="${OUT_DIR:-data/failover}" name="${POLICY:-combined}" level="${LEVEL:-16}" delay="${KILL_AFTER:-15}"
+  mkdir -p "$out"
   sims "${REPLICAS:-4}"
   policy "$name"
-  .venv/bin/memtrace run engine-bench --engine "failover-${MODE:-crash}-$name" --base-url "$GATEWAY" --model Qwen/Qwen3-0.6B \
-    --workload agent-sessions --sessions "${SESSIONS:-64}" --turns "${TURNS:-8}" --max-tokens 32 --concurrency "$level" \
-    --ignore-eos --no-reset-prefix-cache --idle-seconds 0 --k8s-context "$CTX" --k8s-pool "$POOL_SELECTOR" \
-    --out-dir "$out" &
+  .venv/bin/memtrace run experiment experiments/e12_gateway_load.yaml --out "$out" \
+    --set name="failover-${MODE:-crash}-$name" --set workload.params.sessions="${SESSIONS:-64}" \
+    --set workload.params.turns="${TURNS:-8}" --set workload.params.concurrency="$level" &
   local bench=$!
   sleep "$delay"
   local victim
@@ -102,48 +83,12 @@ burst() {
   local phase=0
   for spec in ${PHASES:-4:96 24:512 4:160}; do  # concurrency:requests
     phase=$((phase + 1))
-    .venv/bin/memtrace run engine-bench --engine "phase$phase" --base-url "$GATEWAY" --model Qwen/Qwen3-0.6B \
-      --workload agent-sessions --sessions $(( ${spec#*:} / 8 )) --turns 8 --seed "$phase" --max-tokens 32 \
-      --concurrency "${spec%%:*}" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 --out-dir "$out"
+    .venv/bin/memtrace run experiment experiments/e12_gateway_load.yaml --out "$out" \
+      --set name="burst-phase$phase" --set seed="$phase" --set workload.params.sessions=$(( ${spec#*:} / 8 )) \
+      --set workload.params.turns=8 --set workload.params.concurrency="${spec%%:*}"
   done
   sleep "${COOLDOWN_WATCH:-120}"  # keep watching while KEDA scales back down
   kill "$watcher"
-}
-
-hetero_study() {
-  local out="${OUT_DIR:-data/hetero}"
-  for workload in ${WORKLOADS:-agent-sessions mooncake-toolagent}; do
-    for level in ${LEVELS:-4 8}; do
-      for name in ${POLICIES:-random queue combined hw-weighted-random hw-combined}; do
-        policy "$name"
-        reset_caches
-        .venv/bin/memtrace run engine-bench --engine "hetero-$name" --base-url "$GATEWAY" --model "$SERVED_MODEL" \
-          --workload "$workload" --num-requests "${NUM_REQUESTS:-128}" --sessions "${SESSIONS:-16}" --turns "${TURNS:-8}" \
-          --max-tokens 32 --concurrency "$level" --ignore-eos --no-reset-prefix-cache --idle-seconds 0 \
-          --k8s-context "$CTX" --k8s-pool "$POOL_SELECTOR" --out-dir "$out"
-      done
-    done
-  done
-}
-
-hosted_study() {
-  # Overflow at a load the GPU alone cannot carry: GPU + CPU, then + Gemini at two capacities.
-  local root="${OUT_ROOT:-data/hosted}" level="${LEVEL:-16}"
-  mkdir -p "$root"
-  for setup in ${SETUPS:-local hosted2 hosted4}; do
-    case "$setup" in
-      local) hosted_down ;;
-      hosted*) hosted "${setup#hosted}" ;;
-    esac
-    for rep in $(seq 1 "${REPS:-3}"); do
-      local out="$root/$setup/rep$rep"
-      mkdir -p "$out"
-      cp "${OUT_DIR:-data/hetero}/gpu_weight.txt" "$out/"
-      OUT_DIR="$out" WORKLOADS=agent-sessions LEVELS="$level" POLICIES="${POLICY:-capacity}" SESSIONS="${SESSIONS:-32}" \
-        hetero_study
-    done
-  done
-  hosted_down
 }
 
 "$@"

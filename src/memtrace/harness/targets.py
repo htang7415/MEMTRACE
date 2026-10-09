@@ -408,6 +408,10 @@ def make_target(kind: str, params: Mapping[str, Any], log_dir: Path) -> Target:
         from memtrace.harness.llmd import SimReplicas
 
         return SimReplicas(params)
+    if kind in ("engine", "llmd_kind"):
+        from memtrace.harness.kind import Engine, KindLlmd  # local import: they build on this module
+
+        return Engine(params) if kind == "engine" else KindLlmd(params)
     if kind == "ai_gateway":
         from memtrace.harness.gateway import AIGateway  # local import: wraps other targets
 

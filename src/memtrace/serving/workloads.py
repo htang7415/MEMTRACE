@@ -33,6 +33,7 @@ class Request:
     prompt: str
     max_tokens: int
     truncated_blocks: int = 0
+    session: int | None = None  # agent sessions: which session the request belongs to
 
 
 def sharegpt(
@@ -104,7 +105,7 @@ def agent_sessions(
         rng.shuffle(order)
         for session in order:
             prefix, chunks = sessions[session]
-            requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens))
+            requests.append(Request(" ".join([prefix, *chunks[: turn + 1]]), max_tokens, session=session))
     return requests
 
 

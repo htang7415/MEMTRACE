@@ -1,7 +1,8 @@
-"""Summarize an autoscaling burst run (`scripts/studies/platform_studies.sh burst`).
+"""Summarize an autoscaling burst run (`scripts/drills.sh burst`).
 
 Reads `<run>/timeline.txt` (epoch, ready replicas, HPA desired replicas, once per second) and the
-per-request records of each load phase, and reports: HPA reaction time and time to full capacity after
+per-request records of each load phase (harness runs `<run>/*-burst-phase<N>/`, or the engine-bench layout
+`<run>/phase<N>/agent-sessions/c*/` of the recorded runs), and reports: HPA reaction time and time to full capacity after
 the burst starts, burst-phase latency, and replica-seconds (the capacity cost of the run).
 
     python scripts/analyze_autoscale.py data/autoscale data/autoscale_fixed1 data/autoscale_fixed4
@@ -25,10 +26,7 @@ def summarize(run: Path) -> dict[str, Any]:
             timeline.append(
                 (float(parts[0]), int(parts[1] or 0), int(parts[2]) if len(parts) > 2 and parts[2] else None)
             )
-    phases: dict[str, list[dict[str, Any]]] = {}
-    for phase_dir in sorted(run.glob("phase*/agent-sessions/c*")):
-        records = [json.loads(line) for line in (phase_dir / "requests.jsonl").read_text().splitlines()]
-        phases[phase_dir.parts[-3]] = records
+    phases = load_phases(run)
     burst = phases["phase2"]
     burst_start = min(r["started_at"] for r in burst)
     burst_end = max(r["started_at"] + (r.get("e2e_seconds") or 0) for r in burst)
@@ -70,6 +68,28 @@ def summarize(run: Path) -> dict[str, Any]:
         "replica_seconds_during_load": sum(load_seconds),
         "replica_seconds_total": sum(seconds),
     }
+
+
+def load_phases(run: Path) -> dict[str, list[dict[str, Any]]]:
+    """Request records per phase, with absolute `started_at` (epoch s), `ttft_seconds`, `e2e_seconds` and `ok`."""
+    phases: dict[str, list[dict[str, Any]]] = {}
+    for phase_dir in sorted(run.glob("phase*/agent-sessions/c*")):  # engine-bench layout
+        records = [json.loads(line) for line in (phase_dir / "requests.jsonl").read_text().splitlines()]
+        phases[phase_dir.parts[-3]] = records
+    for run_dir in sorted(run.glob("*-burst-phase*")):  # harness runs
+        (trial,) = json.loads((run_dir / "results.json").read_text())["trials"]
+        epoch = trial["target"]["load_started_epoch_s"]
+        rows = [json.loads(line) for line in (run_dir / "requests.jsonl").read_text().splitlines()]
+        phases[run_dir.name.rsplit("-burst-", 1)[1]] = [
+            {
+                "started_at": epoch + r["scheduled_s"],
+                "ttft_seconds": r["ttft_s"],
+                "e2e_seconds": r["e2e_s"],
+                "ok": r["status"] == "ok",
+            }
+            for r in rows
+        ]
+    return phases
 
 
 def main() -> None:

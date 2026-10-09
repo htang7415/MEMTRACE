@@ -1,0 +1,35 @@
+schema_version: memtrace-experiment-v1
+name: k11-engine-kv-check
+description: >
+  K11: does the KV-cache simulator predict a real engine's prefix-cache hits? One vllm-metal replica of
+  Qwen3-0.6B with its KV cache fixed at 1,024 blocks of 16 tokens, so evictions happen; 120 Copilot sessions
+  (4 shards of 2026-06-06, 10 calls each) replayed append-only (reuse full) with real gaps capped at 10
+  minutes. Then: memtrace report kv-validate --run <run>/requests.jsonl --kv-tokens 16384. Was MEMTRACE's M3 pilot.
+seed: 0
+seed_strategy: fixed
+repeats: 1
+target:
+  kind: vllm_metal
+  params:
+    model: Qwen/Qwen3-0.6B
+    max_model_len: 4096
+    disable_thinking: false
+    extra_args: [--block-size, "16", --num-gpu-blocks-override, "1024"]
+workload:
+  kind: copilot_agent
+  params:
+    shards:
+      - date=2026-06-06/shard-0000.jsonl.gz
+      - date=2026-06-06/shard-0001.jsonl.gz
+      - date=2026-06-06/shard-0002.jsonl.gz
+      - date=2026-06-06/shard-0003.jsonl.gz
+    sessions: 120
+    max_calls: 10
+    gap_scale: 1.0
+    max_gap_s: 600
+    window_s: 1200
+    reuse: full
+    max_tokens: 128
+    ignore_eos: true
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+quiet_host: {max_load_1m: 4.0, wait_s: 90}

@@ -1,4 +1,4 @@
-# Phase 4c: precise prefix routing (scripts/studies/precise_study.sh).
+# Phase 4c: precise prefix routing (experiments/e11c_copilot_precise_index.yaml).
 resources:
 - ../../base
 patches:

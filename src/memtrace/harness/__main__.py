@@ -1,4 +1,4 @@
-"""CLI: python -m memtrace.harness {run,schema,compare}."""
+"""CLI: python -m memtrace.harness {run,schema,compare} (memtrace run experiment SPEC is `run`)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,12 @@ import json
 from pathlib import Path
 import sys
 
+import yaml
+
 from memtrace.harness.compare import DEFAULT_METRICS, compare, load_result
 from memtrace.harness.runner import run_experiment
 from memtrace.harness.schema_export import SCHEMA_PATH, schema_text
-from memtrace.harness.spec import load_spec
+from memtrace.harness.spec import parse_spec
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,7 +20,14 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run_p = sub.add_parser("run", help="run an experiment spec")
     run_p.add_argument("spec")
-    run_p.add_argument("--out", default="artifacts/harness")
+    run_p.add_argument("--out", default="data/runs")
+    run_p.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="override a spec field by dotted path, e.g. workload.params.concurrency=24 (VALUE is YAML)",
+    )
     schema_p = sub.add_parser("schema", help="print, write, or check the result JSON Schema")
     mode = schema_p.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true")
@@ -30,7 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        out_dir, result = run_experiment(load_spec(Path(args.spec)), Path(args.out))
+        payload = yaml.safe_load(Path(args.spec).read_text(encoding="utf-8"))
+        for item in args.set:
+            key, _, value = item.partition("=")
+            *parents, leaf = key.split(".")
+            node = payload
+            for part in parents:
+                node = node.setdefault(part, {})
+            node[leaf] = yaml.safe_load(value)
+        out_dir, result = run_experiment(parse_spec(payload), Path(args.out))
         failed = sum(1 for t in result.trials if t.status != "ok")
         print(json.dumps({"out_dir": str(out_dir), "trials": len(result.trials), "failed": failed}, indent=2))
         return 1 if failed else 0

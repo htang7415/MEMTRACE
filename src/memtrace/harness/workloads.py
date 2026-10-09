@@ -8,7 +8,7 @@ from pathlib import Path
 import random
 from typing import Any, Mapping
 
-from memtrace.harness.loadgen import RequestSpec
+from memtrace.harness.loadgen import RequestSpec, SessionSpec
 
 LOADGEN_KEYS = {
     "rate_rps",
@@ -32,6 +32,7 @@ class Workload:
     warmup_requests: int = 0  # sent after target start, before measurement; results discarded
     extra_body: dict[str, Any] = field(default_factory=dict)  # workload-level request fields
     arrivals: list[float] | None = None  # explicit open-loop schedule (trace replay), seconds from start
+    sessions: list[SessionSpec] | None = None  # agent replay: calls in order with recorded gaps (specs unused)
 
 
 def warmup_specs(n: int) -> list[RequestSpec]:
@@ -45,10 +46,18 @@ def warmup_specs(n: int) -> list[RequestSpec]:
 def make_workload(kind: str, params: Mapping[str, Any], seed: int) -> Workload:
     if kind == "trace_replay":
         return _trace_replay(params, seed)
+    if kind == "copilot_agent":
+        return _copilot_agent(params, seed)
     if kind == "rag_sessions":
         specs = _rag_sessions(params, seed)
     elif kind == "synthetic_chat":
         specs = _synthetic_chat(params)
+    elif kind == "sharegpt":
+        specs = _sharegpt(params, seed)
+    elif kind == "mooncake":
+        specs = _mooncake(params)
+    elif kind == "agent_sessions":
+        specs = _agent_sessions(params, seed)
     else:
         raise ValueError(f"unknown workload kind {kind!r}")
     return Workload(
@@ -233,6 +242,133 @@ def _trace_replay(params: Mapping[str, Any], seed: int) -> Workload:
         warmup_requests=int(params.get("warmup_requests", 0)),
         extra_body={"ignore_eos": True} if params.get("ignore_eos", True) else {},
         arrivals=[t / rate_scale for t in window.arrival_s.tolist()],
+    )
+
+
+def _user(request_id: str, session_id: str, prompt: str, max_tokens: int | None = None) -> RequestSpec:
+    return RequestSpec(
+        request_id, session_id, session_id, ({"role": "user", "content": prompt},), max_tokens=max_tokens
+    )
+
+
+def _sharegpt(params: Mapping[str, Any], seed: int) -> list[RequestSpec]:
+    """First human turns of sampled ShareGPT conversations (the `vllm bench serve` convention)."""
+    from memtrace.datasets.sources import verified_path
+    from memtrace.serving import workloads as gen
+
+    _check_keys("sharegpt", params, LOADGEN_KEYS | {"requests", "max_prompt_chars"})
+    requests = gen.sharegpt(
+        verified_path("sharegpt/ShareGPT_V3_unfiltered_cleaned_split.json"),
+        num_requests=int(params.get("requests", 100)),
+        max_tokens=int(params.get("max_tokens", 128)),
+        seed=seed,
+        max_prompt_chars=int(params.get("max_prompt_chars", 4000)),
+    )
+    return [_user(f"r{i}", f"r{i}", r.prompt) for i, r in enumerate(requests)]
+
+
+def _mooncake(params: Mapping[str, Any]) -> list[RequestSpec]:
+    """The first records of a Mooncake trace, in order; hash blocks render to shared text (prefix structure kept)."""
+    from memtrace.datasets.sources import verified_path
+    from memtrace.serving import workloads as gen
+
+    _check_keys("mooncake", params, LOADGEN_KEYS | {"trace", "requests", "block_tokens", "max_blocks"})
+    trace = str(params.get("trace", "toolagent"))
+    if trace not in ("toolagent", "conversation"):
+        raise ValueError("mooncake: trace must be toolagent or conversation")
+    requests = gen.mooncake(
+        verified_path(f"mooncake/{trace}_trace.jsonl"),
+        num_requests=int(params.get("requests", 500)),
+        max_tokens=int(params.get("max_tokens", 128)),
+        block_tokens=int(params.get("block_tokens", 32)),
+        max_blocks=int(params.get("max_blocks", 100)),
+    )
+    return [_user(f"r{i}", f"r{i}", r.prompt, r.max_tokens) for i, r in enumerate(requests)]
+
+
+def _agent_sessions(params: Mapping[str, Any], seed: int) -> list[RequestSpec]:
+    """Synthetic agent sessions resending their growing history each turn, interleaved turn by turn."""
+    from memtrace.serving import workloads as gen
+
+    _check_keys("agent_sessions", params, LOADGEN_KEYS | {"sessions", "turns", "prefix_words", "turn_words"})
+    sessions, turns = int(params.get("sessions", 32)), int(params.get("turns", 8))
+    requests = gen.agent_sessions(
+        num_sessions=sessions,
+        turns=turns,
+        max_tokens=int(params.get("max_tokens", 128)),
+        prefix_words=int(params.get("prefix_words", 600)),
+        turn_words=int(params.get("turn_words", 150)),
+        seed=seed,
+    )
+    return [_user(f"r{i}", f"s{r.session}", r.prompt) for i, r in enumerate(requests)]
+
+
+COPILOT_KEYS = {
+    "shards",
+    "sessions",
+    "token_scale",
+    "max_calls",
+    "gap_scale",
+    "max_gap_s",
+    "window_s",
+    "reuse",
+    "max_prompt_tokens",
+    "max_tokens",
+    "timeout_s",
+    "warmup_requests",
+    "ignore_eos",
+}
+
+
+def _copilot_agent(params: Mapping[str, Any], seed: int) -> Workload:
+    """Replay GitHub Copilot agent sessions (see `memtrace.serving.workloads.copilot_sessions`): real prefix
+    structure and timing, scaled; each session's calls run in order with their recorded gaps."""
+    from memtrace.datasets.loaders.copilot import archive_path
+    from memtrace.serving import workloads as gen
+
+    unknown = set(params) - COPILOT_KEYS
+    if unknown:
+        raise ValueError(f"copilot_agent: unknown params {sorted(unknown)}")
+    shards = [
+        str(s).removeprefix("copilot_agent/") for s in params.get("shards", ["date=2026-06-06/shard-0000.jsonl.gz"])
+    ]
+    days = sorted({s.split("/")[0].removeprefix("date=") for s in shards})
+    max_tokens = int(params.get("max_tokens", 128))
+    sessions = gen.copilot_sessions(
+        [archive_path(day) for day in days],
+        shards=set(shards),
+        num_sessions=int(params.get("sessions", 64)),
+        seed=seed,
+        token_scale=float(params.get("token_scale", 1 / 40)),
+        max_prompt_tokens=int(params.get("max_prompt_tokens", 3500)),
+        max_calls=int(params.get("max_calls", 40)),
+        gap_scale=float(params.get("gap_scale", 0.1)),
+        max_gap_seconds=float(params.get("max_gap_s", 30.0)),
+        window_seconds=float(params.get("window_s", 300.0)),
+        output_range=(4, max_tokens),
+        reuse=str(params.get("reuse", "observed")),
+    )
+    replay = [
+        SessionSpec(
+            f"s{i}",
+            s.start_offset,
+            tuple(
+                (_user(f"s{i}-c{c}", f"s{i}", call.prompt, call.max_tokens), call.gap_before)
+                for c, call in enumerate(s.calls)
+            ),
+        )
+        for i, s in enumerate(sessions)
+    ]
+    return Workload(
+        specs=[spec for s in replay for spec, _ in s.calls],
+        rate_rps=None,
+        concurrency=None,
+        max_in_flight=len(replay),
+        timeout_s=float(params.get("timeout_s", 300.0)),
+        max_tokens=max_tokens,
+        warmup_requests=int(params.get("warmup_requests", 0)),
+        extra_body={"ignore_eos": True} if params.get("ignore_eos") else {},
+        sessions=replay,
     )
 
 

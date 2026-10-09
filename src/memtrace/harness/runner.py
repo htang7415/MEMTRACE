@@ -31,7 +31,15 @@ from memtrace.harness.spec import ExperimentSpec, QuietHost
 from memtrace.harness.targets import Target, make_target
 from memtrace.harness.workloads import Workload, make_workload, warmup_specs
 from memtrace.serving.client import chat_completion
-from memtrace.harness.loadgen import RequestRecord, RequestSpec, run_closed_loop, run_open_loop, summarize
+from memtrace.harness.loadgen import (
+    RequestRecord,
+    RequestSpec,
+    run_closed_loop,
+    run_open_loop,
+    run_sessions,
+    summarize,
+)
+from memtrace.harness.system_info import host_swap_pages
 from memtrace.harness.stamps import utc_now_iso
 
 TargetFactory = Callable[[str, dict[str, Any], Path], Target]
@@ -117,8 +125,13 @@ def _run_trial(
                 for spec_ in warmup_specs(workload.warmup_requests):
                     send(target.base_urls[0], spec_.messages, max_tokens=8, timeout_s=workload.timeout_s)
             started_requests = True
-            records, duration = _drive(workload, target, send, trial.seed)
+            swap_before = host_swap_pages()
+            target_desc["load_started_epoch_s"] = time.time()  # requests' scheduled_s count from here
+            records, duration, peak = _drive(workload, target, send, trial.seed)
+            swap_after = host_swap_pages()
             target_desc = {**target_desc, "collected": target.collect()}
+            if swap_before and swap_after:  # host paging during the trial distorts its latency
+                target_desc["host_swap_pages"] = {k: swap_after[k] - swap_before[k] for k in swap_after}
             pool.release()
         except BaseException:
             pool.close()  # never reuse a target after a failed trial
@@ -132,7 +145,13 @@ def _run_trial(
             actual, usage = actual_cost_usd(records, workload, pricing[1])
             ledger.commit(reservation, actual, usage)
             target_desc = {**target_desc, "spend_usd": round(actual, 6), "usage": usage}
-        summary = summarize(records, duration_s=duration, ttft_slo_s=spec.slo.ttft_s, e2e_slo_s=spec.slo.e2e_s)
+        summary = summarize(
+            records,
+            duration_s=duration,
+            ttft_slo_s=spec.slo.ttft_s,
+            e2e_slo_s=spec.slo.e2e_s,
+            tpot_slo_s=spec.slo.tpot_s,
+        )
         for r in records:
             row = {"trial_id": trial.trial_id, "cell_id": trial.cell_id, **asdict(r)}
             req_fh.write(scrub(json.dumps(row)) + "\n")
@@ -146,7 +165,7 @@ def _run_trial(
             duration_s=round(time.perf_counter() - t0, 3),
             host_load_1m_before=load_before,
             quiet_host_ok=quiet_ok,
-            metrics=flatten_summary(summary),
+            metrics={**flatten_summary(summary), **({"peak_in_flight": float(peak)} if peak is not None else {})},
             requests_per_endpoint=[sum(1 for r in records if r.endpoint == i) for i in range(len(target.base_urls))],
             target=target_desc,
             error=None,
@@ -243,9 +262,19 @@ class _TargetPool:
 
 def _drive(
     workload: Workload, target: Target, send: Callable[..., Any], seed: int
-) -> tuple[list[RequestRecord], float]:
+) -> tuple[list[RequestRecord], float, int | None]:
+    """Records, wall time, and (agent replays only) the peak number of calls in flight."""
+    if workload.sessions is not None:
+        return run_sessions(
+            workload.sessions,
+            base_urls=target.base_urls,
+            picker=target.picker(),
+            timeout_s=workload.timeout_s,
+            max_tokens=workload.max_tokens,
+            send=send,
+        )
     if workload.concurrency is not None:
-        return run_closed_loop(
+        records, duration = run_closed_loop(
             workload.specs,
             base_urls=target.base_urls,
             picker=target.picker(),
@@ -254,7 +283,8 @@ def _drive(
             max_tokens=workload.max_tokens,
             send=send,
         )
-    return run_open_loop(
+        return records, duration, None
+    records, duration = run_open_loop(
         workload.specs,
         base_urls=target.base_urls,
         picker=target.picker(),
@@ -266,6 +296,7 @@ def _drive(
         send=send,
         arrivals=workload.arrivals,
     )
+    return records, duration, None
 
 
 def estimated_tokens(spec: RequestSpec) -> int:

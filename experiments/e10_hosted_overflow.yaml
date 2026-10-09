@@ -1,0 +1,23 @@
+schema_version: memtrace-experiment-v1
+name: e10-hosted-overflow
+description: >
+  E10: does hosted overflow help an overloaded local pool? E9's GPU + CPU pool under the capacity policy at
+  concurrency 16 (more than the GPU alone carries), alone and with Gemini 2.5 Flash-Lite in the pool through
+  the hosted adapter pod at capacity 2 or 4. Paid: the adapter enforces its own spend cap (HOSTED_BUDGET_USD,
+  default 2 USD) and reports spend per pod. Was MEMTRACE's Phase 3 overflow study (hosted).
+seed: 0
+repeats: 3
+target:
+  kind: llmd_kind
+  params: {pool: hetero, policy: capacity}
+target_variants:
+  local: {kind: llmd_kind, params: {pool: hetero, policy: capacity, hosted: 0}}
+  hosted2: {kind: llmd_kind, params: {pool: hetero, policy: capacity, hosted: 2}}
+  hosted4: {kind: llmd_kind, params: {pool: hetero, policy: capacity, hosted: 4}}
+workload:
+  kind: agent_sessions
+  params: {sessions: 32, turns: 8, max_tokens: 32, ignore_eos: true, concurrency: 16, warmup_requests: 2, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.variant: [local, hosted2, hosted4]
+quiet_host: {max_load_1m: 6.0, wait_s: 90}

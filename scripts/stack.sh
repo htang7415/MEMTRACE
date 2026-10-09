@@ -108,26 +108,28 @@ hetero() {
 }
 
 calibrate() {
-  # Each real replica alone, same workload and concurrency; the throughput ratio becomes the GPU weight.
+  # Each real replica alone, same workload and concurrency (experiments/e9a_hetero_calibration.yaml); the
+  # throughput ratio becomes the GPU weight.
   local out="${OUT_DIR:-data/hetero}"
-  mkdir -p "$out"
+  mkdir -p "$out/calibration"
   reset_caches  # restarts the CPU simulator, so it must come before the port-forward attaches to a pod
   k port-forward deploy/vllm-cpu-sim 18000:8000 >/dev/null 2>&1 &
   local forward=$!
   sleep 3
-  for target in "gpu-alone http://127.0.0.1:$GPU_PORT/v1" "cpu-sim-alone http://127.0.0.1:18000/v1"; do
+  for target in "gpu-alone http://127.0.0.1:$GPU_PORT" "cpu-sim-alone http://127.0.0.1:18000"; do
     set -- $target
-    .venv/bin/memtrace run engine-bench --engine "$1" --base-url "$2" --model "$SERVED_MODEL" \
-      --workload agent-sessions --sessions 8 --turns 4 --max-tokens 32 --concurrency 4 \
-      --ignore-eos --idle-seconds 0 --out-dir "$out/calibration"
+    .venv/bin/memtrace run experiment experiments/e9a_hetero_calibration.yaml --out "$out/calibration/$1" \
+      --set "target.params.urls=[$2]" --set "target.params.extra_body.model=$SERVED_MODEL"
   done
   kill "$forward" 2>/dev/null || true  # port-forward may already have exited
   python3 -c '
-import json, sys
-tps = {e: json.load(open(f"{sys.argv[1]}/calibration/{e}/agent-sessions/c4/summary.json"))["output_tokens_per_second"]
-       for e in ("gpu-alone", "cpu-sim-alone")}
-weight = max(1, round(tps["gpu-alone"] / tps["cpu-sim-alone"]))
-gpu, cpu = tps["gpu-alone"], tps["cpu-sim-alone"]
+import glob, json, sys
+def tps(name):
+    (path,) = glob.glob(f"{sys.argv[1]}/calibration/{name}/*/results.json")
+    (cell,) = json.load(open(path))["cells"]
+    return cell["metrics"]["output_tokens_per_s"]["mean"]
+gpu, cpu = tps("gpu-alone"), tps("cpu-sim-alone")
+weight = max(1, round(gpu / cpu))
 print(f"gpu {gpu:.1f} tok/s, cpu {cpu:.1f} tok/s -> GPU weight {weight}")
 open(f"{sys.argv[1]}/gpu_weight.txt", "w").write(str(weight))' "$out" | tee "$out/calibration.txt"
   k patch deploy/vllm-gpu-relay -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"memtrace/capacity\":\"$(cat "$out/gpu_weight.txt")\"}}}}}"
@@ -238,7 +240,7 @@ gpu_down() {
 
 down() { kind delete cluster --name "$CLUSTER"; }
 
-# Run a command only when executed; sourcing (scripts/studies/) just defines the functions.
+# Run a command only when executed; sourcing (scripts/drills.sh) just defines the functions.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   "$@"
 fi

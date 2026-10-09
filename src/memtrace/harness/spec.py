@@ -22,6 +22,7 @@ class ComponentSpec:
 class SLOPolicy:
     ttft_s: float
     e2e_s: float
+    tpot_s: float | None = None  # also bound time per output token after the first (seconds)
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,11 @@ class ExperimentSpec:
             "seed_strategy": self.seed_strategy,
             "target": {"kind": self.target.kind, "params": dict(self.target.params)},
             "workload": {"kind": self.workload.kind, "params": dict(self.workload.params)},
-            "slo": {"ttft_s": self.slo.ttft_s, "e2e_s": self.slo.e2e_s},
+            "slo": {
+                "ttft_s": self.slo.ttft_s,
+                "e2e_s": self.slo.e2e_s,
+                **({"tpot_s": self.slo.tpot_s} if self.slo.tpot_s is not None else {}),
+            },
             "matrix": {k: list(v) for k, v in self.matrix.items()},
             "quiet_host": {
                 "max_load_1m": self.quiet_host.max_load_1m,
@@ -110,8 +115,14 @@ def parse_spec(payload: Mapping[str, Any]) -> ExperimentSpec:
     target = _component(payload, "target")
     workload = _component(payload, "workload")
     slo_raw = payload.get("slo") or {}
-    slo = SLOPolicy(ttft_s=float(slo_raw["ttft_s"]), e2e_s=float(slo_raw["e2e_s"]))
-    if slo.ttft_s <= 0 or slo.e2e_s <= 0:
+    unknown_slo = set(slo_raw) - {"ttft_s", "e2e_s", "tpot_s"}
+    if unknown_slo:
+        raise ValueError(f"unknown slo keys: {sorted(unknown_slo)}")
+    tpot = slo_raw.get("tpot_s")
+    slo = SLOPolicy(
+        ttft_s=float(slo_raw["ttft_s"]), e2e_s=float(slo_raw["e2e_s"]), tpot_s=None if tpot is None else float(tpot)
+    )
+    if slo.ttft_s <= 0 or slo.e2e_s <= 0 or (slo.tpot_s is not None and slo.tpot_s <= 0):
         raise ValueError("slo thresholds must be > 0")
     variants_raw = payload.get("target_variants") or {}
     if not isinstance(variants_raw, Mapping):

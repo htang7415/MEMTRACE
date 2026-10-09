@@ -24,7 +24,7 @@ _COMMANDS = {
     ("run", "stateful-stress"): "memtrace.memrisk.commands.run_stateful_stress_suite",
     ("run", "trusted-utility"): "memtrace.memrisk.commands.run_trusted_utility_suite",
     ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
-    ("run", "engine-bench"): "memtrace.serving.engine_bench",
+    ("run", "experiment"): "memtrace.harness.__main__",
     ("run", "kv-sim"): "memtrace.kv.__main__",
     ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
     ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
@@ -36,11 +36,12 @@ _COMMANDS = {
     ("report", "tables"): "memtrace.memrisk.evaluation.tables",
     ("report", "figures"): "memtrace.memrisk.evaluation.figures",
     ("report", "explore"): "memtrace.memrisk.evaluation.trace_explorer",
-    ("report", "engines"): "memtrace.serving.report",
-    ("report", "engine-parity"): "memtrace.serving.parity",
     ("report", "retention"): "memtrace.kv.retention",
     ("report", "kv-validate"): "memtrace.kv.validate",
 }
+
+# Commands whose module takes a subcommand of its own
+_LEADING_ARGS = {("data", "fetch"): ["fetch"], ("data", "verify"): ["verify"], ("run", "experiment"): ["run"]}
 
 _ASSET_BUILD_ORDER = (
     "memtrace.memrisk.commands.build_corpus",
@@ -76,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
             "stateful-stress",
             "trusted-utility",
             "adversarial-mutation",
-            "engine-bench",
+            "experiment",
             "kv-sim",
         ),
     )
@@ -89,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     report = groups.add_parser("report", help="Generate tables and figures.")
     report.add_argument(
         "action",
-        choices=("tables", "figures", "explore", "engines", "engine-parity", "retention", "kv-validate"),
+        choices=("tables", "figures", "explore", "retention", "kv-validate"),
     )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
@@ -107,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     module_name = _COMMANDS[(args.group, args.action)]
-    _invoke(module_name, [args.action, *args.arguments] if args.group == "data" else args.arguments)
+    _invoke(module_name, [*_LEADING_ARGS.get((args.group, args.action), []), *args.arguments])
     return 0
 
 

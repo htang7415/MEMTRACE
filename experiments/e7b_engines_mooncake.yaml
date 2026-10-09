@@ -1,0 +1,23 @@
+schema_version: memtrace-experiment-v1
+name: e7b-engines-mooncake
+description: >
+  E7b: E7's three engines on the first 100 Mooncake tool-agent records instead of ShareGPT (prefix blocks
+  rendered as 32 words, at most 100 blocks; up to 128 output tokens), closed-loop concurrency 1-8, a fresh
+  engine per trial. Was MEMTRACE's Phase 1 engine baseline (scripts/run_engine_baselines.sh).
+seed: 0
+repeats: 3
+target:
+  kind: engine
+  params: {engine: vllm-metal}
+target_variants:
+  vllm_metal: {kind: engine, params: {engine: vllm-metal}}
+  mlx_lm: {kind: engine, params: {engine: mlx-lm}}
+  vllm_cpu: {kind: engine, params: {engine: vllm-cpu}}
+workload:
+  kind: mooncake
+  params: {trace: toolagent, requests: 100, block_tokens: 32, max_blocks: 100, max_tokens: 128, concurrency: 1, warmup_requests: 2, timeout_s: 600}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.variant: [vllm_metal, mlx_lm, vllm_cpu]
+  workload.concurrency: [1, 2, 4, 8]
+quiet_host: {max_load_1m: 4.0, wait_s: 90, min_available_gb: 3.0}

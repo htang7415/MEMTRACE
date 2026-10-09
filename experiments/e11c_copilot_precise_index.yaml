@@ -1,0 +1,19 @@
+schema_version: memtrace-experiment-v1
+name: e11c-copilot-precise-index
+description: >
+  E11c: does a precise prefix index (fed by the engines' KV-cache events) beat llm-d's approximate one? E11's
+  replay with the combined policy, approximate vs precise (deploy/kind/epp/precise.yaml); the CPU simulator
+  tokenizes through vllm-render (overlay precise) so its events match. Was MEMTRACE's Phase 4c.
+seed: 0
+seed_strategy: fixed
+repeats: 3
+target:
+  kind: llmd_kind
+  params: {pool: hetero, policy: combined, overlay: precise, kv_events: true}
+workload:
+  kind: copilot_agent
+  params: {shards: [date=2026-06-06/shard-0000.jsonl.gz], sessions: 64, max_tokens: 128, ignore_eos: true, warmup_requests: 2}
+slo: {ttft_s: 2.0, tpot_s: 0.1, e2e_s: 3600}
+matrix:
+  target.policy: [combined, precise]
+quiet_host: {max_load_1m: 6.0, wait_s: 90}

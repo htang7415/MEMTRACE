@@ -1,7 +1,7 @@
 """M3: does the KV-cache simulator predict a real engine's prefix-cache hits?
 
-Takes an engine-bench replay run (`requests.jsonl`, best with `--reuse full` so prompts are append-only as the
-simulator assumes), rebuilds it as trace sessions from the measured start times, latencies and token counts, and
+Takes an agent replay run (`requests.jsonl` of a `copilot_agent` experiment, best with `reuse: full` so prompts
+are append-only as the simulator assumes), rebuilds it as trace sessions from the measured start times, latencies and token counts, and
 replays those through the simulator (`memtrace.kv.sim`) in trace time, with one replica of the engine's KV
 capacity, its block size, and LRU eviction. Per gap bin it compares the engine's cached prompt tokens with the
 simulator's hits, both as shares of the reusable prefix.
@@ -29,9 +29,10 @@ TOLERANCE_POINTS = 5.0
 
 def sessions_from_run(records: list[dict[str, Any]]) -> tuple[list[TraceSession], dict[tuple[int, int], int]]:
     """Trace sessions from a replay's records (successful calls only), and the engine's cached tokens per call,
-    keyed by (session position, call position) in the returned list."""
+    keyed by (session position, call position) in the returned list. Takes the harness's request records
+    (`copilot_agent` workload) or those of the engine bench that recorded the M3 pilot."""
     by_session: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for record in records:
+    for record in map(_engine_bench_record, records):
         if record.get("ok") and record.get("prompt_tokens") is not None:
             by_session[record["session"]].append(record)
     sessions, cached = [], {}
@@ -45,6 +46,23 @@ def sessions_from_run(records: list[dict[str, Any]]) -> tuple[list[TraceSession]
             cached[(s, c)] = r.get("cached_prompt_tokens") or 0
         sessions.append(TraceSession(str(key), tuple(calls)))
     return sessions, cached
+
+
+def _engine_bench_record(record: dict[str, Any]) -> dict[str, Any]:
+    """A harness request record in the engine bench's field names; engine-bench records pass through."""
+    if "request_id" not in record:
+        return record
+    session, _, call = record["request_id"].removeprefix("s").partition("-c")
+    return {
+        "session": int(session),
+        "call": int(call),
+        "started_at": record["scheduled_s"],
+        "e2e_seconds": record["e2e_s"],
+        "prompt_tokens": record["prompt_tokens"],
+        "cached_prompt_tokens": record["cached_tokens"],
+        "output_tokens": record["completion_tokens"],
+        "ok": record["status"] == "ok",
+    }
 
 
 def compare(

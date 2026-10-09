@@ -343,7 +343,7 @@ def phase6_section() -> list[str]:
             if (r := v["by_gap"].get(b))
         ]
         lines += [
-            f"### Simulator vs a real engine (`scripts/studies/m3_pilot.sh`, {commit(v.get('provenance'))})",
+            f"### Simulator vs a real engine (`experiments/k11_engine_kv_check.yaml`, {commit(v.get('provenance'))})",
             "",
             f"One `vllm-metal` replica (Qwen3-0.6B), KV fixed at {v['kv_tokens']:,} tokens, LRU; 120 Copilot sessions",
             "replayed with append-only prompts at their real gaps (capped at 10 min); predictions fixed before the run.",
