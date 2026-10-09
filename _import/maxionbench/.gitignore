@@ -1,0 +1,58 @@
+# Local datasets and generated benchmark outputs
+dataset/
+containers/
+artifacts/
+results/
+results_quick_check/
+release/
+logs/
+home/
+
+# Python/package build outputs
+build/
+dist/
+.venv/
+*.egg-info/
+maxionbench.egg-info/
+
+# Generated workflow outputs
+dataset/processed/
+artifacts/lancedb/
+artifacts/run_matrix/
+artifacts/runs/
+
+# Python bytecode/test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+
+# Local editor and assistant state
+.codex
+.agents/
+.claude/
+.vscode/
+CLAUDE.md
+AGENTS.md
+command.md
+
+# OS metadata
+._*
+.DS_Store
+.AppleDouble/
+
+# Local workflow state
+ci_s1_smoke_local.yaml
+.claude/settings.local.json
+docs/
+/docs
+# Secrets: never commit API keys, even if docs/ becomes tracked
+gemini_api.txt
+**/gemini_api.txt
+*.key
+.env
+.env.*
+!.env.docker.example
+
+# Go gateway build output
+gateway/bin/
