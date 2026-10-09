@@ -88,6 +88,4 @@ def _hash64(text: str) -> int:
     return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
 
 
-PICKERS: dict[str, type[EndpointPicker]] = {
-    cls.name: cls for cls in (RoundRobin, LeastOutstanding, PrefixAffinity)
-}
+PICKERS: dict[str, type[EndpointPicker]] = {cls.name: cls for cls in (RoundRobin, LeastOutstanding, PrefixAffinity)}

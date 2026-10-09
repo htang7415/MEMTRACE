@@ -69,8 +69,17 @@ def profile_day(day: str, root: Path = DATASET_ROOT, limit: int | None = None) -
                 n_turn += 1
                 prompt, cached = int(tok["prompt"]), int(tok.get("cached") or 0)
                 end = _epoch(c["timestamp"])
-                chain.append((end - (c["duration_ms"] or 0) / 1000, end, t_i, c["model"], prompt, cached,
-                              int(tok.get("completion") or 0)))
+                chain.append(
+                    (
+                        end - (c["duration_ms"] or 0) / 1000,
+                        end,
+                        t_i,
+                        c["model"],
+                        prompt,
+                        cached,
+                        int(tok.get("completion") or 0),
+                    )
+                )
                 models[c["model"]] += 1
                 model_tokens[c["model"]] += prompt
                 seg_total = 0
@@ -113,10 +122,17 @@ def profile_day(day: str, root: Path = DATASET_ROOT, limit: int | None = None) -
     return {
         "calls": {k: np.asarray(v, dtype=np.float64) for k, v in calls.items()},
         "pairs": {k: np.asarray(v, dtype=np.float64) for k, v in pairs.items()},
-        "segments": segments, "segments_long": segments_long, "models": models, "model_tokens": model_tokens,
-        "tools": tools, "tool_failures": tool_failures, "counts": counts,
-        "calls_per_turn": np.asarray(calls_per_turn), "turns_per_session": np.asarray(turns_per_session),
-        "batch_ms": np.asarray(batch_ms), "new_tool_results": np.asarray(new_tool_results),
+        "segments": segments,
+        "segments_long": segments_long,
+        "models": models,
+        "model_tokens": model_tokens,
+        "tools": tools,
+        "tool_failures": tool_failures,
+        "counts": counts,
+        "calls_per_turn": np.asarray(calls_per_turn),
+        "turns_per_session": np.asarray(turns_per_session),
+        "batch_ms": np.asarray(batch_ms),
+        "new_tool_results": np.asarray(new_tool_results),
     }
 
 
@@ -125,7 +141,7 @@ def _new_tool_results(metadata: list[dict[str, Any]]) -> list[int]:
     tool batch just run. Earlier tool messages were new in an earlier call."""
     ordered = sorted(metadata, key=lambda m: m["sequenceId"])
     last_assistant = max((i for i, m in enumerate(ordered) if m["role"] == "assistant"), default=-1)
-    return [int(m["token_len"] or 0) for m in ordered[last_assistant + 1:] if m["role"] == "tool"]
+    return [int(m["token_len"] or 0) for m in ordered[last_assistant + 1 :] if m["role"] == "tool"]
 
 
 def merge(parts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -169,23 +185,32 @@ def summarize(d: dict[str, Any]) -> dict[str, Any]:
     for lo, hi in zip(GAP_BINS_S, GAP_BINS_S[1:]):
         mask = steady & (p["gap_s"] >= lo) & (p["gap_s"] < hi)
         gap_bins[f"{lo:g}-{hi:g}s"] = {"pairs": int(mask.sum()), "cached_frac_mean": _mean(p["next_cached_frac"], mask)}
-    tools_top = {name: {"calls": count, "failure_rate": round(d["tool_failures"][name] / count, 4)}
-                 for name, count in d["tools"].most_common(20)}
+    tools_top = {
+        name: {"calls": count, "failure_rate": round(d["tool_failures"][name] / count, 4)}
+        for name, count in d["tools"].most_common(20)
+    }
     return {
         "scale": {
-            "sessions": n["sessions"], "turns": int(len(d["calls_per_turn"])), "llm_calls": int(len(prompt)),
-            "calls_without_tokens": n["calls_without_tokens"], "tool_calls": int(sum(d["tools"].values())),
+            "sessions": n["sessions"],
+            "turns": int(len(d["calls_per_turn"])),
+            "llm_calls": int(len(prompt)),
+            "calls_without_tokens": n["calls_without_tokens"],
+            "tool_calls": int(sum(d["tools"].values())),
             "overlapping_pair_share": round(n["overlapping_pairs"] / max(1, len(p["ratio"])), 6),
-            "prompt_tokens": int(prompt.sum()), "cached_tokens": int(cached.sum()),
+            "prompt_tokens": int(prompt.sum()),
+            "cached_tokens": int(cached.sum()),
             "completion_tokens": int(c["completion"].sum()),
-            "calls_per_turn": _pct(d["calls_per_turn"]), "turns_per_session": _pct(d["turns_per_session"]),
+            "calls_per_turn": _pct(d["calls_per_turn"]),
+            "turns_per_session": _pct(d["turns_per_session"]),
         },
         "context": {
             "prompt_tokens": _pct(prompt) | {"token_weighted_median": token_weighted_median},
-            "share_calls_over": {f"{k // 1000}k": round(float((prompt > k).mean()), 4)
-                                 for k in (30_000, 64_000, 100_000, 128_000)},
-            "median_prompt_by_call_index": {str(i): float(np.median(prompt[c["index"] == i]))
-                                            for i in GROWTH_INDEXES if (c["index"] == i).any()},
+            "share_calls_over": {
+                f"{k // 1000}k": round(float((prompt > k).mean()), 4) for k in (30_000, 64_000, 100_000, 128_000)
+            },
+            "median_prompt_by_call_index": {
+                str(i): float(np.median(prompt[c["index"] == i])) for i in GROWTH_INDEXES if (c["index"] == i).any()
+            },
             "completion_tokens": _pct(c["completion"]),
         },
         "composition": {
@@ -195,7 +220,8 @@ def summarize(d: dict[str, Any]) -> dict[str, Any]:
             "new_tool_result_tokens": _pct(results, (50, 90, 99, 99.9)) | {"count": int(len(results))},
             "tool_result_token_share_from_results_over": {
                 f"{k // 1000}k": round(float(results[results > k].sum() / max(1, results.sum())), 4)
-                for k in RESULT_SIZE_THRESHOLDS},
+                for k in RESULT_SIZE_THRESHOLDS
+            },
         },
         "drops": {
             "definition": f"same model, prompt < {DROP_RATIO} x previous, previous >= {MIN_DROP_PROMPT} tokens",
@@ -221,9 +247,12 @@ def summarize(d: dict[str, Any]) -> dict[str, Any]:
             "within_turn_share_over_300s": round(float((p["gap_s"][within] > 300).mean()), 4),
             "tool_batch": _pct(d["batch_ms"] / 1000),
         },
-        "models": {"distinct": len(d["models"]), "call_share": _shares(d["models"], 12),
-                   "prompt_token_share": _shares(d["model_tokens"], 12),
-                   "switch_rate": round(float((~same_model).mean()), 4)},
+        "models": {
+            "distinct": len(d["models"]),
+            "call_share": _shares(d["models"], 12),
+            "prompt_token_share": _shares(d["model_tokens"], 12),
+            "switch_rate": round(float((~same_model).mean()), 4),
+        },
         "tools": {"top": tools_top, "distinct": len(d["tools"])},
     }
 

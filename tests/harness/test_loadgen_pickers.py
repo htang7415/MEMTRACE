@@ -127,7 +127,10 @@ class _FakeOpenAI(BaseHTTPRequestHandler):
             {"choices": [{"delta": {"role": "assistant", "content": None}}]},
             {"choices": [{"delta": {"content": "Par"}}]},
             {"choices": [{"delta": {"content": "is"}}]},
-            {"choices": [], "usage": {"prompt_tokens": 50, "completion_tokens": 2, "prompt_tokens_details": {"cached_tokens": 30}}},
+            {
+                "choices": [],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 2, "prompt_tokens_details": {"cached_tokens": 30}},
+            },
         ]
         for event in events:
             self.wfile.write(f"data: {json.dumps(event)}\n\n".encode())

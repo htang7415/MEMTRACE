@@ -25,8 +25,15 @@ FN = {
         "required": ["city", "days"],
     },
 }
-TRUTH = {"weather.get": {"city": ["New York", "NYC"], "days": [3], "scale": [1.0, ""], "units": ["", "metric"],
-                         "opts": ["", {"hourly": [True]}]}}
+TRUTH = {
+    "weather.get": {
+        "city": ["New York", "NYC"],
+        "days": [3],
+        "scale": [1.0, ""],
+        "units": ["", "metric"],
+        "opts": ["", {"hourly": [True]}],
+    }
+}
 
 
 def _case(category: str = "simple", truth: tuple = (TRUTH,)) -> BfclCase:
@@ -74,7 +81,13 @@ def test_openai_tool_round_trip() -> None:
     props = tool["function"]["parameters"]["properties"]
     assert tool["function"]["parameters"]["type"] == "object" and props["scale"]["type"] == "number"
     calls = bfcl.parse_openai_tool_calls(
-        [{"id": "1", "type": "function", "function": {"name": "weather_get", "arguments": '{"city": "NYC", "days": 3}'}}]
+        [
+            {
+                "id": "1",
+                "type": "function",
+                "function": {"name": "weather_get", "arguments": '{"city": "NYC", "days": 3}'},
+            }
+        ]
     )
     assert bfcl.grade(_case(), calls).correct
     with pytest.raises(ValueError, match="not JSON"):
@@ -119,7 +132,8 @@ KNOWN_SCHEMA_CONFLICTS = {"simple_307", "parallel_multiple_21"}
 def test_bfcl_reference_answers_grade_correct(category: str) -> None:
     cases = load_bfcl(category)
     failures = {
-        c.id: g.error for c in cases
+        c.id: g.error
+        for c in cases
         if not (g := bfcl.grade(c, bfcl.parse_openai_tool_calls(_reference_calls(c)))).correct
     }
     assert set(failures) == KNOWN_SCHEMA_CONFLICTS & {c.id for c in cases}, failures
@@ -156,8 +170,12 @@ def test_qa_grades_take_best_gold() -> None:
 
 
 def test_crag_labels_and_score() -> None:
-    labels = [crag_label("Paris", "paris"), crag_label("I don't know", "Paris"), crag_label("Lyon", "Paris"),
-              crag_label("1.5", "one point five", alt_ans=["1.5"])]
+    labels = [
+        crag_label("Paris", "paris"),
+        crag_label("I don't know", "Paris"),
+        crag_label("Lyon", "Paris"),
+        crag_label("1.5", "one point five", alt_ans=["1.5"]),
+    ]
     assert labels == ["correct", "missing", "incorrect", "correct"]
     assert crag_score(labels) == pytest.approx((1 + 0 - 1 + 1) / 4)
 

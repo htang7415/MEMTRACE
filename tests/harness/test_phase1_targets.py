@@ -126,13 +126,15 @@ def test_workload_requires_exactly_one_load_mode() -> None:
 def test_engine_commands_and_request_options(tmp_path: Path) -> None:
     model = tmp_path / "Qwen3-4B-Q4_K_M.gguf"
     model.write_bytes(b"gguf")
-    cpu = LlamaCppReplicas({"model": str(model), "device": "cpu", "replicas": 1, "disable_thinking": True,
-                            "cache_prompt": False}, tmp_path)
+    cpu = LlamaCppReplicas(
+        {"model": str(model), "device": "cpu", "replicas": 1, "disable_thinking": True, "cache_prompt": False}, tmp_path
+    )
     metal = LlamaCppReplicas({"model": str(model), "device": "metal", "replicas": 1}, tmp_path)
     assert "--device" in cpu.command(0) and "none" in cpu.command(0)
     assert "-ngl" in metal.command(0) and "--device" not in metal.command(0)
     assert cpu.request_options()["extra_body"] == {
-        "chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "cache_prompt": False,
     }
     with pytest.raises(ValueError, match="device"):
         LlamaCppReplicas({"model": str(model), "device": "tpu"}, tmp_path)
@@ -143,9 +145,7 @@ def test_engine_commands_and_request_options(tmp_path: Path) -> None:
     assert vllm.request_options()["extra_body"]["chat_template_kwargs"] == {"enable_thinking": False}
 
 
-def test_gemini_target_sends_bearer_key_without_exposing_it(
-    recorder: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_gemini_target_sends_bearer_key_without_exposing_it(recorder: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
     target = GeminiTarget({"model": "gemini-3.5-flash-lite", "reasoning_effort": "none"})
     options = target.request_options()
@@ -161,8 +161,14 @@ def test_gemini_target_sends_bearer_key_without_exposing_it(
 
 
 class _PaidFake(StaticEndpoints):
-    PRICE = ModelPrice(input_per_m=1.0, output_per_m=10.0, cached_input_per_m=0.1,
-                       cache_storage_per_m_hour=0.0, batch_input_per_m=0.5, batch_output_per_m=5.0)
+    PRICE = ModelPrice(
+        input_per_m=1.0,
+        output_per_m=10.0,
+        cached_input_per_m=0.1,
+        cache_storage_per_m_hour=0.0,
+        batch_input_per_m=0.5,
+        batch_output_per_m=5.0,
+    )
 
     def __init__(self, params: dict[str, Any], cap: float) -> None:
         super().__init__(params)
@@ -179,8 +185,10 @@ def _paid_spec(url: str, requests: int) -> Any:
             "name": "paid",
             "repeats": 1,
             "target": {"kind": "static_endpoints", "params": {"urls": [url]}},
-            "workload": {"kind": "synthetic_chat", "params": {"requests": requests, "prompt_words": 50,
-                                                               "concurrency": 2, "max_tokens": 4}},
+            "workload": {
+                "kind": "synthetic_chat",
+                "params": {"requests": requests, "prompt_words": 50, "concurrency": 2, "max_tokens": 4},
+            },
             "slo": {"ttft_s": 5, "e2e_s": 5},
             "quiet_host": {"max_load_1m": 1000, "wait_s": 0},
         }
@@ -232,7 +240,13 @@ def test_warmup_requests_run_before_measurement_and_are_excluded(recorder: str, 
     )
     _, result = run_experiment(spec, tmp_path, log=lambda msg: None)
     assert len(_Recorder.bodies) == 5
-    assert [b["messages"][0]["content"].startswith("Warm-up") for b in _Recorder.bodies] == [True, True, False, False, False]
+    assert [b["messages"][0]["content"].startswith("Warm-up") for b in _Recorder.bodies] == [
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
     assert result.trials[0].metrics["requests"] == 3.0
 
 
@@ -240,7 +254,8 @@ def test_paid_target_rejects_warmup(recorder: str, tmp_path: Path) -> None:
     payload = _paid_spec(recorder, 2).to_dict()
     payload["workload"]["params"]["warmup_requests"] = 1
     _, result = run_experiment(
-        parse_spec(payload), tmp_path / "runs",
+        parse_spec(payload),
+        tmp_path / "runs",
         target_factory=lambda kind, params, log_dir: _PaidFake(params, cap=10.0),
         ledger_factory=lambda cap: BudgetLedger(cap, tmp_path / "ledger.jsonl"),
         log=lambda msg: None,
@@ -273,8 +288,10 @@ def _reuse_spec(url: str, reuse: bool) -> Any:
                 "a": {"kind": "static_endpoints", "params": {"urls": [url]}},
                 "b": {"kind": "static_endpoints", "params": {"urls": [url], "routing_policy": "least_outstanding"}},
             },
-            "workload": {"kind": "synthetic_chat", "params": {"requests": 2, "concurrency": 1, "ignore_eos": True,
-                                                               "max_tokens": 4}},
+            "workload": {
+                "kind": "synthetic_chat",
+                "params": {"requests": 2, "concurrency": 1, "ignore_eos": True, "max_tokens": 4},
+            },
             "slo": {"ttft_s": 5, "e2e_s": 5},
             "matrix": {"target.variant": ["a", "b"], "workload.concurrency": [1, 2, 3]},
             "quiet_host": {"max_load_1m": 1000, "wait_s": 0},
@@ -361,8 +378,12 @@ def test_llmd_target_wires_vllm_workers(tmp_path: Path) -> None:
     model.write_bytes(b"gguf")
     target = make_target(
         "llmd",
-        {"workers": "vllm_metal", "scorer_profile": "prefix-aware", "model": "qwen3-1.7b",
-         "worker_params": {"model": str(model), "replicas": 2, "base_port": 8210}},
+        {
+            "workers": "vllm_metal",
+            "scorer_profile": "prefix-aware",
+            "model": "qwen3-1.7b",
+            "worker_params": {"model": str(model), "replicas": 2, "base_port": 8210},
+        },
         tmp_path,
     )
     assert target.base_urls == ["http://127.0.0.1:8081"]

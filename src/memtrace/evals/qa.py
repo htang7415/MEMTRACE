@@ -26,8 +26,8 @@ def build_messages(question: str, docs: list[str]) -> list[dict[str, str]]:
 
 CRAG_SYSTEM = (
     "Answer the question using the web search results. Reply with the shortest possible answer and "
-    "no explanation. If the results do not contain the answer, reply \"I don't know\". If the question "
-    "rests on a false premise, reply \"invalid question\"."
+    'no explanation. If the results do not contain the answer, reply "I don\'t know". If the question '
+    'rests on a false premise, reply "invalid question".'
 )
 
 
@@ -46,8 +46,13 @@ def crag_item(ex: CragExample, max_pages: int = 5, snippet_chars: int = 600) -> 
         for i, p in enumerate(ex.pages[:max_pages], start=1)
     )
     user = f"Search results:\n{pages}\n\nCurrent time: {ex.query_time}\nQuestion: {ex.query}"
-    return QAItem(f"crag-{ex.interaction_id}", "crag", ex.query, (ex.answer, *ex.alt_ans),
-                  ({"role": "system", "content": CRAG_SYSTEM}, {"role": "user", "content": user}))
+    return QAItem(
+        f"crag-{ex.interaction_id}",
+        "crag",
+        ex.query,
+        (ex.answer, *ex.alt_ans),
+        ({"role": "system", "content": CRAG_SYSTEM}, {"role": "user", "content": user}),
+    )
 
 
 def hotpot_items(dataset_dir: Path, n: int, seed: int, k: int = 5) -> list[QAItem]:
@@ -71,6 +76,13 @@ def hotpot_items(dataset_dir: Path, n: int, seed: int, k: int = 5) -> list[QAIte
         ctx = gold[q["query_id"]][:k]
         ctx += [d for d in rng.sample(doc_ids, k) if d not in ctx][: k - len(ctx)]
         rng.shuffle(ctx)
-        items.append(QAItem(f"hotpot-{q['query_id'].rsplit('::', 1)[-1]}", "hotpotqa", q["text"], (q["answer"],),
-                            tuple(build_messages(q["text"], [docs[d] for d in ctx]))))
+        items.append(
+            QAItem(
+                f"hotpot-{q['query_id'].rsplit('::', 1)[-1]}",
+                "hotpotqa",
+                q["text"],
+                (q["answer"],),
+                tuple(build_messages(q["text"], [docs[d] for d in ctx])),
+            )
+        )
     return items

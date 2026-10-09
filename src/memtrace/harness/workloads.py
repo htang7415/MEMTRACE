@@ -11,7 +11,13 @@ from typing import Any, Mapping
 from memtrace.harness.loadgen import RequestSpec
 
 LOADGEN_KEYS = {
-    "rate_rps", "concurrency", "max_in_flight", "timeout_s", "max_tokens", "warmup_requests", "ignore_eos",
+    "rate_rps",
+    "concurrency",
+    "max_in_flight",
+    "timeout_s",
+    "max_tokens",
+    "warmup_requests",
+    "ignore_eos",
 }
 
 
@@ -65,7 +71,9 @@ FOLLOW_UPS = (
 )
 
 
-def build_workload(dataset_dir: Path, *, sessions: int, turns: int, k: int, window: int, seed: int) -> list[RequestSpec]:
+def build_workload(
+    dataset_dir: Path, *, sessions: int, turns: int, k: int, window: int, seed: int
+) -> list[RequestSpec]:
     """Sessions share a k-paragraph context (gold evidence + random distractors) across turns."""
     from memtrace.evals.qa import build_messages
 
@@ -163,8 +171,16 @@ def _synthetic_chat(params: Mapping[str, Any]) -> list[RequestSpec]:
 
 
 TRACE_KEYS = {
-    "start_s", "duration_s", "rate_scale", "token_scale", "max_prompt_tokens", "max_output_tokens",
-    "max_in_flight", "timeout_s", "warmup_requests", "ignore_eos",
+    "start_s",
+    "duration_s",
+    "rate_scale",
+    "token_scale",
+    "max_prompt_tokens",
+    "max_output_tokens",
+    "max_in_flight",
+    "timeout_s",
+    "warmup_requests",
+    "ignore_eos",
 }
 # Short common words, roughly one BPE token each; servers report the actual prompt_tokens per request.
 _FILLER = (

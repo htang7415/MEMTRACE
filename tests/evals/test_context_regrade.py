@@ -18,9 +18,16 @@ def test_holm_is_monotone_step_down() -> None:
 
 
 def test_compare_pairs_on_tasks() -> None:
-    correct = {("t1", "full"): False, ("t1", "x"): True, ("t2", "full"): True, ("t2", "x"): True,
-               ("t3", "full"): True, ("t3", "x"): False, ("t4", "full"): False, ("t4", "x"): True}
+    correct = {
+        ("t1", "full"): False,
+        ("t1", "x"): True,
+        ("t2", "full"): True,
+        ("t2", "x"): True,
+        ("t3", "full"): True,
+        ("t3", "x"): False,
+        ("t4", "full"): False,
+        ("t4", "x"): True,
+    }
     out = compare(correct, ["full", "x"])
     assert out["full"]["accuracy"] == 0.5
-    assert out["x"] == {"tasks": 4, "accuracy": 0.75, "delta": 0.25, "wins": 2, "losses": 1,
-                        "p": 1.0, "p_holm": 1.0}
+    assert out["x"] == {"tasks": 4, "accuracy": 0.75, "delta": 0.25, "wins": 2, "losses": 1, "p": 1.0, "p_holm": 1.0}

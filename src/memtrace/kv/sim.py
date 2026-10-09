@@ -192,8 +192,9 @@ def simulate(sessions: Sequence[Session], p: SimParams, seed: int) -> dict[str, 
     rng.shuffle(order)
     if len(order) <= p.concurrency:
         raise ValueError(f"need more than {p.concurrency} sessions to reach steady state, have {len(order)}")
-    replicas = [Replica(p.capacity_tokens // BLOCK_TOKENS, p.cpu_capacity_tokens // BLOCK_TOKENS)
-                for _ in range(p.replicas)]
+    replicas = [
+        Replica(p.capacity_tokens // BLOCK_TOKENS, p.cpu_capacity_tokens // BLOCK_TOKENS) for _ in range(p.replicas)
+    ]
     events: list[tuple[float, int, int, tuple]] = []  # (time, kind, seq, payload); kind 0 = done first
     seq = 0
     streams: dict[tuple[int, int], _Stream] = {}
@@ -231,8 +232,14 @@ def simulate(sessions: Sequence[Session], p: SimParams, seed: int) -> dict[str, 
             gpu = r.cached_prefix(keys)
             return r.cpu_run(keys, gpu) if p.routing == "tiered_prefix_load" else gpu
 
-        best = max(range(p.replicas), key=lambda i: (
-            3 * prefix(replicas[i]) / n + 2 * (1 - replicas[i].inflight / most), -replicas[i].inflight, -i))
+        best = max(
+            range(p.replicas),
+            key=lambda i: (
+                3 * prefix(replicas[i]) / n + 2 * (1 - replicas[i].inflight / most),
+                -replicas[i].inflight,
+                -i,
+            ),
+        )
         return replicas[best]
 
     for s_idx in (next(pending) for _ in range(p.concurrency)):
@@ -344,8 +351,8 @@ def simulate(sessions: Sequence[Session], p: SimParams, seed: int) -> dict[str, 
         "token_hit_rate": tot.hit_tokens / prompt,
         "recomputed_tokens_per_request": (prompt - tot.hit_tokens - tot.loaded_tokens) / tot.requests,
         "cpu_loaded_share": tot.loaded_tokens / prompt,
-        "prefill_cost_tokens_per_request":
-            (prompt - tot.hit_tokens - (1 - p.load_cost) * tot.loaded_tokens) / tot.requests,
+        "prefill_cost_tokens_per_request": (prompt - tot.hit_tokens - (1 - p.load_cost) * tot.loaded_tokens)
+        / tot.requests,
         "miss_cold_share": tot.miss_cold / prompt,
         "miss_evicted_share": tot.miss_evicted / prompt,
         "miss_routing_share": tot.miss_routing / prompt,
@@ -356,8 +363,9 @@ def simulate(sessions: Sequence[Session], p: SimParams, seed: int) -> dict[str, 
     }
 
 
-def _protection(p: SimParams, st: _Stream, end: float, next_arrival: float,
-                noise: random.Random) -> tuple[float, float]:
+def _protection(
+    p: SimParams, st: _Stream, end: float, next_arrival: float, noise: random.Random
+) -> tuple[float, float]:
     """(protection window, expected return) for blocks this request releases at `end`."""
     if p.eviction == "lru":
         return 0.0, end

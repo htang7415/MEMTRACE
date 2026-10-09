@@ -79,8 +79,19 @@ def load_spec(path: Path) -> ExperimentSpec:
 
 def parse_spec(payload: Mapping[str, Any]) -> ExperimentSpec:
     allowed = {
-        "schema_version", "name", "description", "seed", "repeats", "seed_strategy",
-        "target", "workload", "slo", "matrix", "quiet_host", "target_variants", "reuse_targets",
+        "schema_version",
+        "name",
+        "description",
+        "seed",
+        "repeats",
+        "seed_strategy",
+        "target",
+        "workload",
+        "slo",
+        "matrix",
+        "quiet_host",
+        "target_variants",
+        "reuse_targets",
     }
     unknown = set(payload) - allowed
     if unknown:

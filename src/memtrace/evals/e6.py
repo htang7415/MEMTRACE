@@ -69,8 +69,9 @@ class Answer:
     output_tokens: int
 
 
-def build_sessions(n: int, questions: int, distractors: int, seed: int, dataset_dir: Path = DEFAULT_DATASET
-                   ) -> list[Session]:
+def build_sessions(
+    n: int, questions: int, distractors: int, seed: int, dataset_dir: Path = DEFAULT_DATASET
+) -> list[Session]:
     rng = random.Random(seed)
     docs: dict[str, str] = {}
     with (dataset_dir / "corpus.jsonl").open(encoding="utf-8") as fh:
@@ -88,20 +89,29 @@ def build_sessions(n: int, questions: int, distractors: int, seed: int, dataset_
     doc_ids = list(docs)
     sessions = []
     for s in range(n):
-        qs = picked[s * questions:(s + 1) * questions]
+        qs = picked[s * questions : (s + 1) * questions]
         ids = list(dict.fromkeys(d for q in qs for d in gold[q["query_id"]]))
         ids += [d for d in rng.sample(doc_ids, distractors) if d not in ids]
         rng.shuffle(ids)
         document = "\n\n".join(f"[{i}] {docs[d]}" for i, d in enumerate(ids, start=1))
-        sessions.append(Session(f"seed{seed}-s{s}", document, tuple(
-            (q["query_id"].rsplit("::", 1)[-1], q["text"], q["answer"]) for q in qs)))
+        sessions.append(
+            Session(
+                f"seed{seed}-s{s}",
+                document,
+                tuple((q["query_id"].rsplit("::", 1)[-1], q["text"], q["answer"]) for q in qs),
+            )
+        )
     return sessions
 
 
 def _rest(method: str, path: str, body: dict[str, Any] | None = None, timeout_s: float = 60.0) -> dict[str, Any]:
     secret = load_gemini_key()
-    req = urllib.request.Request(f"{REST}/{path}", method=method, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"content-type": "application/json", "x-goog-api-key": secret.reveal()})
+    req = urllib.request.Request(
+        f"{REST}/{path}",
+        method=method,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"content-type": "application/json", "x-goog-api-key": secret.reveal()},
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             raw = resp.read()
@@ -112,42 +122,66 @@ def _rest(method: str, path: str, body: dict[str, Any] | None = None, timeout_s:
 
 
 def _answer(qid: str, r: CompletionResult) -> Answer:
-    return Answer(qid, r.text.strip(), r.status, r.ttft_s, r.e2e_s if r.status == "ok" else None,
-                  r.prompt_tokens, r.cached_tokens, r.completion_tokens + r.reasoning_tokens)
+    return Answer(
+        qid,
+        r.text.strip(),
+        r.status,
+        r.ttft_s,
+        r.e2e_s if r.status == "ok" else None,
+        r.prompt_tokens,
+        r.cached_tokens,
+        r.completion_tokens + r.reasoning_tokens,
+    )
 
 
-def run_implicit(sessions: list[Session], send: Callable[..., CompletionResult], meter: Any) -> tuple[list[Answer], float]:
+def run_implicit(
+    sessions: list[Session], send: Callable[..., CompletionResult], meter: Any
+) -> tuple[list[Answer], float]:
     out = []
     for s in sessions:
         for qid, text, _ in s.questions:
-            messages = ({"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": f"{s.document}\n\nQuestion: {text}"})
+            messages = (
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"{s.document}\n\nQuestion: {text}"},
+            )
             r = send(GeminiTarget.BASE_URL, messages, max_tokens=MAX_TOKENS, timeout_s=60.0)
             meter.add(r, messages, MAX_TOKENS)
             out.append(_answer(qid, r))
     return out, 0.0
 
 
-def run_explicit(sessions: list[Session], send: Callable[..., CompletionResult], meter: Any, price: ModelPrice
-                 ) -> tuple[list[Answer], float]:
+def run_explicit(
+    sessions: list[Session], send: Callable[..., CompletionResult], meter: Any, price: ModelPrice
+) -> tuple[list[Answer], float]:
     """Returns answers and the storage charge (cached tokens x full TTL x storage price)."""
     out, storage = [], 0.0
     for s in sessions:
-        cache = _rest("POST", "cachedContents", {
-            "model": f"models/{MODEL}",
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [{"role": "user", "parts": [{"text": s.document}]}],
-            "ttl": f"{CACHE_TTL_S}s",
-        })
+        cache = _rest(
+            "POST",
+            "cachedContents",
+            {
+                "model": f"models/{MODEL}",
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [{"role": "user", "parts": [{"text": s.document}]}],
+                "ttl": f"{CACHE_TTL_S}s",
+            },
+        )
         usage = cache.get("usageMetadata") or cache.get("usage_metadata") or {}
         tokens = int(usage.get("totalTokenCount") or usage.get("cachedInputTokens") or 0)
         storage += tokens / 1e6 * price.cache_storage_per_m_hour * CACHE_TTL_S / 3600
         try:
             for qid, text, _ in s.questions:
                 messages = ({"role": "user", "content": f"Question: {text}"},)
-                r = send(GeminiTarget.BASE_URL, messages, max_tokens=MAX_TOKENS, timeout_s=60.0,
-                         extra_body={**send.keywords["extra_body"],
-                                     "extra_body": {"google": {"cached_content": cache["name"]}}})
+                r = send(
+                    GeminiTarget.BASE_URL,
+                    messages,
+                    max_tokens=MAX_TOKENS,
+                    timeout_s=60.0,
+                    extra_body={
+                        **send.keywords["extra_body"],
+                        "extra_body": {"google": {"cached_content": cache["name"]}},
+                    },
+                )
                 meter.add(r, messages, MAX_TOKENS)
                 out.append(_answer(qid, r))
         finally:
@@ -155,21 +189,32 @@ def run_explicit(sessions: list[Session], send: Callable[..., CompletionResult],
     return out, storage
 
 
-def run_batch(sessions: list[Session], poll_s: float = 15.0, max_wait_s: float = 3600.0
-              ) -> tuple[list[Answer], float, dict[str, int]]:
+def run_batch(
+    sessions: list[Session], poll_s: float = 15.0, max_wait_s: float = 3600.0
+) -> tuple[list[Answer], float, dict[str, int]]:
     """Returns answers, job turnaround in seconds, and token usage from the inline responses."""
     requests = [
-        {"request": {
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [{"role": "user", "parts": [{"text": f"{s.document}\n\nQuestion: {text}"}]}],
-            "generation_config": {"max_output_tokens": MAX_TOKENS, "temperature": 0,
-                                  "thinking_config": {"thinking_level": "minimal"}},
-        }, "metadata": {"key": qid}}
-        for s in sessions for qid, text, _ in s.questions
+        {
+            "request": {
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [{"role": "user", "parts": [{"text": f"{s.document}\n\nQuestion: {text}"}]}],
+                "generation_config": {
+                    "max_output_tokens": MAX_TOKENS,
+                    "temperature": 0,
+                    "thinking_config": {"thinking_level": "minimal"},
+                },
+            },
+            "metadata": {"key": qid},
+        }
+        for s in sessions
+        for qid, text, _ in s.questions
     ]
     started = time.perf_counter()
-    job = _rest("POST", f"models/{MODEL}:batchGenerateContent",
-                {"batch": {"display_name": "maxionbench-e6", "input_config": {"requests": {"requests": requests}}}})
+    job = _rest(
+        "POST",
+        f"models/{MODEL}:batchGenerateContent",
+        {"batch": {"display_name": "maxionbench-e6", "input_config": {"requests": {"requests": requests}}}},
+    )
     name = job["name"]
     while not job.get("done"):
         if time.perf_counter() - started > max_wait_s:
@@ -189,7 +234,9 @@ def run_batch(sessions: list[Session], poll_s: float = 15.0, max_wait_s: float =
             out.append(Answer(qid, "", "error", None, None, 0, 0, 0))
             continue
         meta = resp.get("usageMetadata") or {}
-        text = "".join(p.get("text", "") for p in resp["candidates"][0]["content"].get("parts", []) if not p.get("thought"))
+        text = "".join(
+            p.get("text", "") for p in resp["candidates"][0]["content"].get("parts", []) if not p.get("thought")
+        )
         prompt, cached = int(meta.get("promptTokenCount") or 0), int(meta.get("cachedContentTokenCount") or 0)
         output = int(meta.get("candidatesTokenCount") or 0) + int(meta.get("thoughtsTokenCount") or 0)
         usage["input_tokens"] += prompt
@@ -214,8 +261,9 @@ def _find_inlined(node: Any) -> list[dict[str, Any]]:
     return []
 
 
-def trial_metrics(arm: str, answers: list[Answer], sessions: list[Session], spend: float, turnaround_s: float,
-                  storage_usd: float) -> dict[str, float]:
+def trial_metrics(
+    arm: str, answers: list[Answer], sessions: list[Session], spend: float, turnaround_s: float, storage_usd: float
+) -> dict[str, float]:
     golds = {qid: gold for s in sessions for qid, _, gold in s.questions}
     ok = [a for a in answers if a.status == "ok"]
     prompt = sum(a.prompt_tokens for a in ok)
@@ -238,11 +286,29 @@ def trial_metrics(arm: str, answers: list[Answer], sessions: list[Session], spen
     return m
 
 
-def run_e6(arms: list[str], n_sessions: int, questions: int, distractors: int, repeats: int, seed: int,
-           out_root: Path, log: Callable[[str], None]) -> Path:
-    spec = {"name": "e6-gemini-caching", "model": MODEL, "arms": arms, "sessions": n_sessions, "questions": questions,
-            "distractors": distractors, "repeats": repeats, "seed": seed, "max_tokens": MAX_TOKENS,
-            "cache_ttl_s": CACHE_TTL_S, "reasoning_effort": "minimal"}
+def run_e6(
+    arms: list[str],
+    n_sessions: int,
+    questions: int,
+    distractors: int,
+    repeats: int,
+    seed: int,
+    out_root: Path,
+    log: Callable[[str], None],
+) -> Path:
+    spec = {
+        "name": "e6-gemini-caching",
+        "model": MODEL,
+        "arms": arms,
+        "sessions": n_sessions,
+        "questions": questions,
+        "distractors": distractors,
+        "repeats": repeats,
+        "seed": seed,
+        "max_tokens": MAX_TOKENS,
+        "cache_ttl_s": CACHE_TTL_S,
+        "reasoning_effort": "minimal",
+    }
     started_at = utc_now_iso()
     run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-e6-gemini-caching"
     out_dir = Path(out_root) / run_id
@@ -275,29 +341,54 @@ def run_e6(arms: list[str], n_sessions: int, questions: int, distractors: int, r
                     meter.usage["storage_usd_micros"] = round(storage * 1e6)
                 else:
                     answers, turnaround, usage = run_batch(sessions)
-                    batch_price = ModelPrice(price.batch_input_per_m, price.batch_output_per_m,
-                                             price.cached_input_per_m / 2, 0.0, 0.0, 0.0)
-                    spend = cost_usd(batch_price, input_tokens=usage["input_tokens"],
-                                     output_tokens=usage["output_tokens"], cached_tokens=usage["cached_tokens"])
+                    batch_price = ModelPrice(
+                        price.batch_input_per_m, price.batch_output_per_m, price.cached_input_per_m / 2, 0.0, 0.0, 0.0
+                    )
+                    spend = cost_usd(
+                        batch_price,
+                        input_tokens=usage["input_tokens"],
+                        output_tokens=usage["output_tokens"],
+                        cached_tokens=usage["cached_tokens"],
+                    )
                     meter.usage.update(usage)
                 meter.override_usd = spend  # commit the arm's full cost (storage, batch price)
             metrics = trial_metrics(arm, answers, sessions, spend, turnaround, storage)
             log(f"{label}: ${spend:.4f} cached={metrics['cached_token_ratio']:.2f} em={metrics['em']:.2f}")
             rows += [{"arm": arm, "repeat": rep, **a.__dict__} for a in answers]
-            trials.append(TrialResult(
-                trial_id=f"{arm}-r{rep}", cell_id=arm, repeat=rep, seed=seed * 1000 + rep * 10 + a_i, status="ok",
-                started_at=started_at, duration_s=round(time.perf_counter() - t0, 3), host_load_1m_before=0.0,
-                quiet_host_ok=True, metrics=metrics, requests_per_endpoint=[len(answers)],
-                target={**target.describe(), "arm": arm}, error=None))
+            trials.append(
+                TrialResult(
+                    trial_id=f"{arm}-r{rep}",
+                    cell_id=arm,
+                    repeat=rep,
+                    seed=seed * 1000 + rep * 10 + a_i,
+                    status="ok",
+                    started_at=started_at,
+                    duration_s=round(time.perf_counter() - t0, 3),
+                    host_load_1m_before=0.0,
+                    quiet_host_ok=True,
+                    metrics=metrics,
+                    requests_per_endpoint=[len(answers)],
+                    target={**target.describe(), "arm": arm},
+                    error=None,
+                )
+            )
     with (out_dir / "requests.jsonl").open("w", encoding="utf-8") as fh:
         for row in rows:
             fh.write(scrub(json.dumps(row, ensure_ascii=False)) + "\n")
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=run_id, name=spec["name"], description=__doc__.split("\n\n")[0],
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=run_id,
+        name=spec["name"],
+        description=__doc__.split("\n\n")[0],
         spec=spec,
-        provenance=make_provenance(spec, started_at, {
-            "gemini_key_present": key_present, "trials_planned": len(trials), "trials_completed": len(trials)}),
-        trials=trials, cells=aggregate_cells(trials, {arm: {"arm": arm} for arm in arms}))
+        provenance=make_provenance(
+            spec,
+            started_at,
+            {"gemini_key_present": key_present, "trials_planned": len(trials), "trials_completed": len(trials)},
+        ),
+        trials=trials,
+        cells=aggregate_cells(trials, {arm: {"arm": arm} for arm in arms}),
+    )
     (out_dir / "results.json").write_text(scrub(json.dumps(result.to_dict(), indent=2)) + "\n", encoding="utf-8")
     log(f"wrote {out_dir}")
     return out_dir
@@ -316,8 +407,16 @@ def main(argv: list[str] | None = None) -> int:
     arms = args.arms.split(",")
     if set(arms) - set(ARMS):
         raise SystemExit(f"arms must be among {ARMS}")
-    run_e6(arms, args.sessions, args.questions, args.distractors, args.repeats, args.seed, args.out,
-           lambda m: print(f"[e6] {m}", file=sys.stderr, flush=True))
+    run_e6(
+        arms,
+        args.sessions,
+        args.questions,
+        args.distractors,
+        args.repeats,
+        args.seed,
+        args.out,
+        lambda m: print(f"[e6] {m}", file=sys.stderr, flush=True),
+    )
     return 0
 
 

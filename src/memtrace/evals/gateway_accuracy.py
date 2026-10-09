@@ -40,19 +40,29 @@ def compare(rows: dict[tuple[str, str], dict[str, Any]], arm: str, base: str, ta
         b = [p[1][grading] for p in pairs]
         wins = sum(x and not y for x, y in zip(a, b))
         losses = sum(y and not x for x, y in zip(a, b))
-        out[grading] = {"accuracy": round(sum(a) / len(a), 4), "base_accuracy": round(sum(b) / len(b), 4),
-                        "wins": wins, "losses": losses, "p": round(mcnemar_exact(wins, losses), 4)}
+        out[grading] = {
+            "accuracy": round(sum(a) / len(a), 4),
+            "base_accuracy": round(sum(b) / len(b), 4),
+            "wins": wins,
+            "losses": losses,
+            "p": round(mcnemar_exact(wins, losses), 4),
+        }
     for field in ("cost_usd", "prompt_tokens", "model_calls"):
         ci = mean_ci([float(x[field]) - float(y[field]) for x, y in pairs])
         base = sum(float(y[field]) for _, y in pairs) / len(pairs)
-        out[field] = {"base_mean": round(base, 6), "diff_mean": round(ci.mean, 6),
-                      "ci95": [round(ci.ci_low, 6), round(ci.ci_high, 6)], "rel": round(ci.mean / base, 4)}
+        out[field] = {
+            "base_mean": round(base, 6),
+            "diff_mean": round(ci.mean, 6),
+            "ci95": [round(ci.ci_low, 6), round(ci.ci_high, 6)],
+            "rel": round(ci.mean / base, 4),
+        }
     for name, side in (("arm", 0), ("base", 1)):
         cost = sum(p[side]["cost_usd"] for p in pairs)
         solved = sum(p[side]["judge"] for p in pairs)
         out[f"usd_per_solved_{name}"] = round(cost / solved, 4) if solved else None
-        out[f"cached_share_{name}"] = round(sum(p[side]["cached_tokens"] for p in pairs)
-                                            / sum(p[side]["prompt_tokens"] for p in pairs), 4)
+        out[f"cached_share_{name}"] = round(
+            sum(p[side]["cached_tokens"] for p in pairs) / sum(p[side]["prompt_tokens"] for p in pairs), 4
+        )
     return out
 
 
@@ -68,8 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     for label, run in (("c1", args.c1), ("c2a", args.c2a), ("c2b", args.c2b)):
         items, answers, gold = _load(run)
         for key, it in items.items():
-            rows[key] = {**it, "judge": bool(it["correct"]),
-                                      "strict": agent_success(answers.get(key), gold[key[0]])}
+            rows[key] = {**it, "judge": bool(it["correct"]), "strict": agent_success(answers.get(key), gold[key[0]])}
         sets[label] = sorted(gold)
     c1_tasks, new_tasks = sets["c1"], sets["c2b"]
     comparisons = {

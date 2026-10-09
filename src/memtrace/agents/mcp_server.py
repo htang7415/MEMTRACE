@@ -1,6 +1,6 @@
 """MCP server (stdio) exposing `search` and `read` over the HotpotQA paragraph corpus.
 
-    python -m memtrace.agents.mcp_server [--dataset experiments/data/hotpot_portable]
+python -m memtrace.agents.mcp_server [--dataset experiments/data/hotpot_portable]
 """
 
 from __future__ import annotations

@@ -17,8 +17,10 @@ def _result(name: str, cells: list[tuple[dict, dict]], failed: bool = False) -> 
     return {
         "name": name,
         "trials": [{"trial_id": "t0", "status": "failed" if failed else "ok"}],
-        "cells": [{"cell_id": str(i), "params": p, "metrics": {k: _ci(v) for k, v in m.items()}}
-                  for i, (p, m) in enumerate(cells)],
+        "cells": [
+            {"cell_id": str(i), "params": p, "metrics": {k: _ci(v) for k, v in m.items()}}
+            for i, (p, m) in enumerate(cells)
+        ],
     }
 
 
@@ -27,9 +29,12 @@ LLAMA_OK = {"errors": 0, "ok": 12, "output_tokens_per_s": 15, "ttft_p50_ms": 150
 
 
 def _both(sim: dict = SIM_OK, llama: dict = LLAMA_OK, failed: bool = False) -> list[dict]:
-    return [_result("ci-smoke-sim", [({}, sim)]),
-            _result("ci-smoke-llamacpp", [({"workload.concurrency": 1}, llama), ({"workload.concurrency": 2}, llama)],
-                    failed)]
+    return [
+        _result("ci-smoke-sim", [({}, sim)]),
+        _result(
+            "ci-smoke-llamacpp", [({"workload.concurrency": 1}, llama), ({"workload.concurrency": 2}, llama)], failed
+        ),
+    ]
 
 
 def test_local_calibration_passes() -> None:
@@ -51,6 +56,8 @@ def test_latency_drift_missing_metric_failed_trial_and_missing_run() -> None:
 
 def test_cell_selector_scopes_bounds() -> None:
     slow = {**LLAMA_OK, "ttft_p50_ms": 20_000}
-    results = [_both()[0], _result("ci-smoke-llamacpp", [({"workload.concurrency": 1}, LLAMA_OK),
-                                                        ({"workload.concurrency": 2}, slow)])]
+    results = [
+        _both()[0],
+        _result("ci-smoke-llamacpp", [({"workload.concurrency": 1}, LLAMA_OK), ({"workload.concurrency": 2}, slow)]),
+    ]
     assert check(BASELINE, results) == []  # the TTFT ceiling applies to concurrency 1 only

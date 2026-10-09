@@ -245,7 +245,9 @@ def summarize(
     return out
 
 
-def _degraded(spec: RequestSpec, endpoint: int | None, scheduled_s: float, status: str, error: str | None) -> RequestRecord:
+def _degraded(
+    spec: RequestSpec, endpoint: int | None, scheduled_s: float, status: str, error: str | None
+) -> RequestRecord:
     return RequestRecord(
         request_id=spec.request_id,
         session_id=spec.session_id,

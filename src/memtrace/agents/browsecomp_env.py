@@ -52,13 +52,18 @@ class BrowseTask:
     gold_doc_ids: tuple[str, ...]
 
 
-def load_tasks(n: int, seed: int = 0, root: Path = DATASET_ROOT, pool: int = 1,
-               exclude: Collection[str] = ()) -> list[BrowseTask]:
+def load_tasks(
+    n: int, seed: int = 0, root: Path = DATASET_ROOT, pool: int = 1, exclude: Collection[str] = ()
+) -> list[BrowseTask]:
     """`n` seeded queries, decrypted, none of them in `exclude`. Each task searches its own documents plus
     those of `pool - 1` other queries (a separate seeded draw, so the tasks are the same for every pool size)."""
     paths = [verified_path(rel, root) for rel in SHARDS]
-    ids = sorted(qid for p in paths for qid in pq.read_table(p, columns=["query_id"]).column("query_id").to_pylist()
-                 if qid not in exclude)
+    ids = sorted(
+        qid
+        for p in paths
+        for qid in pq.read_table(p, columns=["query_id"]).column("query_id").to_pylist()
+        if qid not in exclude
+    )
     chosen = random.Random(seed).sample(ids, n)
     extras = random.Random(seed + 1).sample(sorted(set(ids) - set(chosen)), n * (pool - 1))
     rows: dict[str, dict] = {}
@@ -68,7 +73,7 @@ def load_tasks(n: int, seed: int = 0, root: Path = DATASET_ROOT, pool: int = 1,
     tasks = []
     for i, qid in enumerate(chosen):
         task = _task(rows[qid])
-        for other in extras[i * (pool - 1):(i + 1) * (pool - 1)]:
+        for other in extras[i * (pool - 1) : (i + 1) * (pool - 1)]:
             for docid, text in _docs(rows[other]).items():
                 task.docs.setdefault(docid, text)
         tasks.append(task)

@@ -41,8 +41,14 @@ class Meter:
 
     price: ModelPrice | None
     usage: dict[str, int] = field(
-        default_factory=lambda: {"requests": 0, "input_tokens": 0, "cached_tokens": 0, "output_tokens": 0,
-                                 "estimated_requests": 0})
+        default_factory=lambda: {
+            "requests": 0,
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "output_tokens": 0,
+            "estimated_requests": 0,
+        }
+    )
     override_usd: float | None = None  # set when the cost is not plain token pricing (storage, batch rates)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -67,13 +73,19 @@ class Meter:
         if self.price is None:
             return 0.0
         u = self.usage
-        return cost_usd(self.price, input_tokens=u["input_tokens"], output_tokens=u["output_tokens"],
-                        cached_tokens=u["cached_tokens"])
+        return cost_usd(
+            self.price,
+            input_tokens=u["input_tokens"],
+            output_tokens=u["output_tokens"],
+            cached_tokens=u["cached_tokens"],
+        )
 
 
 @contextmanager
 def metered(
-    target: Target, estimate_usd: Callable[[ModelPrice], float], label: str,
+    target: Target,
+    estimate_usd: Callable[[ModelPrice], float],
+    label: str,
     ledger_factory: LedgerFactory = BudgetLedger,
 ) -> Iterator[Meter]:
     """Reserve `estimate_usd(price)` for a paid target, then commit the meter's actual usage."""
@@ -88,14 +100,20 @@ def metered(
     try:
         yield meter
     except BaseException:
-        ledger.commit(reservation, max(meter.spend_usd, reservation.estimate_usd),
-                      {**meter.usage, "note": "run failed; at least the estimate charged"})
+        ledger.commit(
+            reservation,
+            max(meter.spend_usd, reservation.estimate_usd),
+            {**meter.usage, "note": "run failed; at least the estimate charged"},
+        )
         raise
     ledger.commit(reservation, meter.spend_usd, meter.usage)
 
 
-def bound_send(target: Target, send: Callable[..., CompletionResult], extra_body: Mapping[str, Any] | None = None,
-               ) -> Callable[..., CompletionResult]:
+def bound_send(
+    target: Target,
+    send: Callable[..., CompletionResult],
+    extra_body: Mapping[str, Any] | None = None,
+) -> Callable[..., CompletionResult]:
     """`send` with the target's request options (model, auth, path) applied."""
     options = target.request_options()
     options["extra_body"] = {**options.get("extra_body", {}), **(extra_body or {})}
@@ -118,15 +136,18 @@ def run_calls(
     fn = bound_send(target, send, extra_body)
 
     def estimate(price: ModelPrice) -> float:  # retried requests may bill again
-        return (1 + retries) * sum(cost_usd(price, input_tokens=estimated_prompt_tokens(c.messages),
-                                            output_tokens=c.max_tokens) for c in calls)
+        return (1 + retries) * sum(
+            cost_usd(price, input_tokens=estimated_prompt_tokens(c.messages), output_tokens=c.max_tokens) for c in calls
+        )
 
     with metered(target, estimate, label, ledger_factory) as meter:
+
         def one(call: Call) -> CompletionResult:
             kwargs = {"tools": list(call.tools)} if call.tools else {}
             for attempt in range(retries + 1):
-                result = fn(target.base_urls[0], call.messages, max_tokens=call.max_tokens, timeout_s=timeout_s,
-                            **kwargs)
+                result = fn(
+                    target.base_urls[0], call.messages, max_tokens=call.max_tokens, timeout_s=timeout_s, **kwargs
+                )
                 meter.add(result, call.messages, call.max_tokens)
                 if result.status == "ok" or not retryable(result.error):
                     break

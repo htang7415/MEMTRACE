@@ -17,10 +17,21 @@ from memtrace.harness.budget import BudgetLedger, ModelPrice
 from memtrace.harness.gateway import AIGateway
 from memtrace.serving.client import CompletionResult
 
-PRICE = ModelPrice(input_per_m=1.0, output_per_m=10.0, cached_input_per_m=0.1, cache_storage_per_m_hour=0.0,
-                   batch_input_per_m=0.5, batch_output_per_m=5.0)
-TASK = BrowseTask("7", "Which mill?", "paper",
-                  {f"d{i}": f"page {i} about the paper mill " + "word " * 3_000 for i in range(4)}, ("d0",))
+PRICE = ModelPrice(
+    input_per_m=1.0,
+    output_per_m=10.0,
+    cached_input_per_m=0.1,
+    cache_storage_per_m_hour=0.0,
+    batch_input_per_m=0.5,
+    batch_output_per_m=5.0,
+)
+TASK = BrowseTask(
+    "7",
+    "Which mill?",
+    "paper",
+    {f"d{i}": f"page {i} about the paper mill " + "word " * 3_000 for i in range(4)},
+    ("d0",),
+)
 
 
 class FakeModel:
@@ -33,8 +44,17 @@ class FakeModel:
         self.prompts.append(list(messages))
         step = len(self.prompts)
         if step <= 3:
-            message = {"role": "assistant", "content": None, "tool_calls": [
-                {"id": f"c{step}", "type": "function", "function": {"name": "search", "arguments": '{"query": "mill"}'}}]}
+            message = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": f"c{step}",
+                        "type": "function",
+                        "function": {"name": "search", "arguments": '{"query": "mill"}'},
+                    }
+                ],
+            }
         else:
             message = {"role": "assistant", "content": "paper"}
         return CompletionResult(json.dumps(message), "ok", None, 0.1, 1_000 * step, 500 * step, 10)
@@ -49,12 +69,14 @@ def with_retries(fn: Any, meter: Meter, messages: Any, max_tokens: int, **kwargs
     return r
 
 
-@pytest.mark.parametrize("name,params", [("full", {}), ("mask", {"keep": 1}),
-                                         ("summarize", {"trigger_tokens": 3_000, "keep": 1})])
+@pytest.mark.parametrize(
+    "name,params", [("full", {}), ("mask", {"keep": 1}), ("summarize", {"trigger_tokens": 3_000, "keep": 1})]
+)
 def test_run_one_records_cost_and_isolates_each_run(tmp_path: Path, name: str, params: dict[str, Any]) -> None:
     model = FakeModel()
-    item, answer = context_eval.run_one(TASK, name, params, 6, tmp_path, Meter(PRICE), PRICE, with_retries,
-                                        model.tools, model.text)
+    item, answer = context_eval.run_one(
+        TASK, name, params, 6, tmp_path, Meter(PRICE), PRICE, with_retries, model.tools, model.text
+    )
     assert item["run_status"] == "answered" and answer == "paper" and item["model_calls"] == 4
     assert "paper" not in json.dumps(item)  # items hold ids and numbers only
     assert model.prompts[0][0]["content"].startswith("run ")  # unique run id leads the system prompt
@@ -72,12 +94,28 @@ def test_run_one_records_cost_and_isolates_each_run(tmp_path: Path, name: str, p
 
 def test_metrics_and_paired_differences() -> None:
     def item(task: str, policy: str, correct: bool, cost: float) -> dict[str, Any]:
-        return {"task_id": task, "policy": policy, "correct": correct, "cost_usd": cost, "prompt_tokens": 100,
-                "cached_tokens": 50, "peak_context_tokens": 80, "model_calls": 4, "view_share": 1.0,
-                "summary_cost_usd": 0.0, "run_status": "answered"}
+        return {
+            "task_id": task,
+            "policy": policy,
+            "correct": correct,
+            "cost_usd": cost,
+            "prompt_tokens": 100,
+            "cached_tokens": 50,
+            "peak_context_tokens": 80,
+            "model_calls": 4,
+            "view_share": 1.0,
+            "summary_cost_usd": 0.0,
+            "run_status": "answered",
+        }
 
-    items = [item("a", "full", True, 0.04), item("b", "full", False, 0.02), item("c", "full", True, 0.03),
-             item("a", "mask", True, 0.02), item("b", "mask", True, 0.01), item("c", "mask", False, 0.02)]
+    items = [
+        item("a", "full", True, 0.04),
+        item("b", "full", False, 0.02),
+        item("c", "full", True, 0.03),
+        item("a", "mask", True, 0.02),
+        item("b", "mask", True, 0.01),
+        item("c", "mask", False, 0.02),
+    ]
     m = context_eval.metrics([i for i in items if i["policy"] == "mask"])
     assert m["accuracy"] == pytest.approx(2 / 3) and m["usd_per_correct"] == pytest.approx(0.025)
     paired = context_eval.paired_vs_full(items, ["full", "mask"])["mask"]
@@ -86,11 +124,13 @@ def test_metrics_and_paired_differences() -> None:
 
 
 def test_transcript_renders_calls_and_results_as_text() -> None:
-    text = context_eval.transcript([
-        {"role": "user", "content": "task"},
-        {"role": "assistant", "content": None, "tool_calls": [{"function": {"name": "search", "arguments": "{}"}}]},
-        {"role": "tool", "content": "page"},
-    ])
+    text = context_eval.transcript(
+        [
+            {"role": "user", "content": "task"},
+            {"role": "assistant", "content": None, "tool_calls": [{"function": {"name": "search", "arguments": "{}"}}]},
+            {"role": "tool", "content": "page"},
+        ]
+    )
     assert text == "[user] task\n[agent called search({})]\n[tool result] page"
 
 
@@ -114,7 +154,8 @@ class FakeTarget:
 
 
 def test_run_stops_on_refused_credits_and_resume_finishes_only_missing_tasks(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     tasks = [BrowseTask(str(i), f"Which mill {i}?", "paper", dict(TASK.docs), ("d0",)) for i in range(3)]
     state: dict[str, Any] = {"refuse_after": None, "calls": 0, "judged": []}
 
@@ -123,24 +164,46 @@ def test_run_stops_on_refused_credits_and_resume_finishes_only_missing_tasks(
         if state["refuse_after"] is not None and state["calls"] > state["refuse_after"]:
             return CompletionResult("", "error", None, 0.1, 0, 0, 0, "http 402: prepayment credits are depleted")
         searched = sum(m["role"] == "tool" for m in messages)
-        message = ({"role": "assistant", "content": "paper"} if searched else
-                   {"role": "assistant", "content": None, "tool_calls": [
-                       {"id": "c1", "type": "function", "function": {"name": "search", "arguments": '{"query": "mill"}'}}]})
+        message = (
+            {"role": "assistant", "content": "paper"}
+            if searched
+            else {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "search", "arguments": '{"query": "mill"}'}}
+                ],
+            }
+        )
         return CompletionResult(json.dumps(message), "ok", None, 0.1, 1_000, 0, 10)
 
     def judge(target: Any, calls: Any, label: str, **kwargs: Any) -> Any:
         state["judged"] += [c.id for c in calls]
-        return ({c.id: CompletionResult('{"label": "correct"}', "ok", None, 0.1, 10, 0, 5) for c in calls},
-                {"spend_usd": 0.0})
+        return (
+            {c.id: CompletionResult('{"label": "correct"}', "ok", None, 0.1, 10, 0, 5) for c in calls},
+            {"spend_usd": 0.0},
+        )
 
     monkeypatch.setattr(context_eval, "load_tasks", lambda n, seed, pool, exclude: tasks[:n])
     monkeypatch.setattr(context_eval, "GeminiTarget", FakeTarget)
-    monkeypatch.setattr(context_eval, "bound_send", lambda target, send: tools if send.__name__ == "chat_tools" else None)
+    monkeypatch.setattr(
+        context_eval, "bound_send", lambda target, send: tools if send.__name__ == "chat_tools" else None
+    )
     budget_dir = tmp_path.parent / f"{tmp_path.name}-budget"
     monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(budget_dir))
     monkeypatch.setattr(context_eval, "run_calls", judge)
-    spec = {"schema_version": context_eval.SCHEMA, "name": "t", "seed": 0, "pool": 1, "tasks": 3, "max_steps": 4,
-            "shards": 3, "budget_usd": 10.0, "model": {}, "policies": {"full": {}, "mask": {"keep": 1}}}
+    spec = {
+        "schema_version": context_eval.SCHEMA,
+        "name": "t",
+        "seed": 0,
+        "pool": 1,
+        "tasks": 3,
+        "max_steps": 4,
+        "shards": 3,
+        "budget_usd": 10.0,
+        "model": {},
+        "policies": {"full": {}, "mask": {"keep": 1}},
+    }
     # each run makes 2 model calls (search, answer): tasks 0 and 1 finish (8 calls); task 2's first run is refused
     state["refuse_after"] = 9
     with pytest.raises(context_eval.CreditsExhausted, match="--resume"):
@@ -165,8 +228,11 @@ def test_run_stops_on_refused_credits_and_resume_finishes_only_missing_tasks(
     assert answers.count("paper") == 6 and "paper" not in (out / "results.json").read_text()
 
     # a resume reruns only missing (task, policy) pairs: drop one arm's run of task 0
-    kept = [line for line in (out / "items.jsonl").read_text().splitlines()
-            if not ('"task_id": "0"' in line and '"policy": "mask"' in line)]
+    kept = [
+        line
+        for line in (out / "items.jsonl").read_text().splitlines()
+        if not ('"task_id": "0"' in line and '"policy": "mask"' in line)
+    ]
     (out / "items.jsonl").write_text("\n".join(kept) + "\n")
     calls_before = state["calls"]
     context_eval.run_context_eval({}, tmp_path, resume=out)
@@ -180,17 +246,34 @@ def test_gateway_budget_refusal_stops_the_run() -> None:
 
 class _FakeGemini(BaseHTTPRequestHandler):
     """Non-streaming provider: three searches, then an answer; records each body it receives."""
+
     bodies: list[dict[str, Any]] = []
 
     def do_POST(self) -> None:  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers["content-length"])))
         type(self).bodies.append(body)
         step = len(type(self).bodies)
-        message = ({"role": "assistant", "content": None, "tool_calls": [{"id": f"c{step}", "type": "function",
-                    "function": {"name": "search", "arguments": '{"query": "mill"}'}}]} if step <= 3 else
-                   {"role": "assistant", "content": "paper"})
-        raw = json.dumps({"choices": [{"message": message}], "usage": {"prompt_tokens": 1_000, "completion_tokens": 10,
-                                                                         "total_tokens": 1_010}}).encode()
+        message = (
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": f"c{step}",
+                        "type": "function",
+                        "function": {"name": "search", "arguments": '{"query": "mill"}'},
+                    }
+                ],
+            }
+            if step <= 3
+            else {"role": "assistant", "content": "paper"}
+        )
+        raw = json.dumps(
+            {
+                "choices": [{"message": message}],
+                "usage": {"prompt_tokens": 1_000, "completion_tokens": 10, "total_tokens": 1_010},
+            }
+        ).encode()
         self.send_response(200)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(raw)))
@@ -215,14 +298,35 @@ def test_gateway_arm_trims_in_the_gateway_and_bills_the_ledger(tmp_path: Path, m
         return r
 
     params = {"gateway": {"policy": "window+cache", "keep": 1, "budget_tokens": 5_000}}
-    gw = AIGateway({"policy": "remote_only", "port": 18091, "context": params["gateway"],
-                    "remote": {"enabled": True, "model": "gemini-3.5-flash-lite", "base_url": f"http://127.0.0.1:{remote.server_port}"}},
-                   tmp_path / "gw")
+    gw = AIGateway(
+        {
+            "policy": "remote_only",
+            "port": 18091,
+            "context": params["gateway"],
+            "remote": {
+                "enabled": True,
+                "model": "gemini-3.5-flash-lite",
+                "base_url": f"http://127.0.0.1:{remote.server_port}",
+            },
+        },
+        tmp_path / "gw",
+    )
     try:
         with gw:
             meter = Meter(PRICE)
-            item, answer = context_eval.run_one(TASK, "gw-window+cache", params, 6, tmp_path, meter, PRICE, retry,
-                                                None, None, gateway_url=gw.base_urls[0])
+            item, answer = context_eval.run_one(
+                TASK,
+                "gw-window+cache",
+                params,
+                6,
+                tmp_path,
+                meter,
+                PRICE,
+                retry,
+                None,
+                None,
+                gateway_url=gw.base_urls[0],
+            )
             stats = context_eval.scrape_context_metrics(gw.base_urls[0])
     finally:
         remote.shutdown()
@@ -248,9 +352,21 @@ def test_run_stops_when_the_shared_cap_refuses_a_reservation(tmp_path: Path, mon
 
     monkeypatch.setattr(context_eval, "load_tasks", lambda n, seed, pool, exclude: [TASK])
     monkeypatch.setattr(context_eval, "GeminiTarget", TinyCap)
-    monkeypatch.setattr(context_eval, "bound_send", lambda target, send: tools if send.__name__ == "chat_tools" else None)
-    spec = {"schema_version": context_eval.SCHEMA, "name": "t", "seed": 0, "pool": 1, "tasks": 1, "max_steps": 4,
-            "shards": 1, "budget_usd": 10.0, "model": {}, "policies": {"full": {}}}
+    monkeypatch.setattr(
+        context_eval, "bound_send", lambda target, send: tools if send.__name__ == "chat_tools" else None
+    )
+    spec = {
+        "schema_version": context_eval.SCHEMA,
+        "name": "t",
+        "seed": 0,
+        "pool": 1,
+        "tasks": 1,
+        "max_steps": 4,
+        "shards": 1,
+        "budget_usd": 10.0,
+        "model": {},
+        "policies": {"full": {}},
+    }
     with pytest.raises(context_eval.CreditsExhausted, match="exceeds remaining"):
         context_eval.run_context_eval(spec, tmp_path)
     assert calls == []  # refused before anything was sent

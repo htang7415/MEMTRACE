@@ -37,8 +37,13 @@ EXPERIMENTS = {
     "c2a-gateway-context": "gateway",
     "c2b-gateway-context": "gateway",
 }
-SEARCH_DIRS = (Path("artifacts/harness"), Path("artifacts/e5"), Path("artifacts/e6"), Path("artifacts/kvsim"),
-               Path("artifacts/context_eval"))
+SEARCH_DIRS = (
+    Path("artifacts/harness"),
+    Path("artifacts/e5"),
+    Path("artifacts/e6"),
+    Path("artifacts/kvsim"),
+    Path("artifacts/context_eval"),
+)
 
 
 def latest_results(search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[str, Path]:
@@ -64,9 +69,17 @@ def export(out_dir: Path, search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[s
         result: ExperimentResult = from_dict(ExperimentResult, data)  # strict schema check
         text = json.dumps(data, separators=(",", ":")).replace(str(Path.home()), "~")  # published: no local user paths
         (out_dir / f"{name}.json").write_text(text + "\n", encoding="utf-8")
-        entries.append({"name": name, "page": EXPERIMENTS[name], "run_id": result.run_id, "file": f"{name}.json",
-                        "git_commit": result.provenance.git_commit, "git_dirty": result.provenance.git_dirty,
-                        "finished_at": result.provenance.finished_at})
+        entries.append(
+            {
+                "name": name,
+                "page": EXPERIMENTS[name],
+                "run_id": result.run_id,
+                "file": f"{name}.json",
+                "git_commit": result.provenance.git_commit,
+                "git_dirty": result.provenance.git_dirty,
+                "finished_at": result.provenance.finished_at,
+            }
+        )
     index = {"experiments": entries}
     (out_dir / "index.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
     return index

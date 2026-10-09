@@ -64,11 +64,24 @@ def _run(job: tuple[str, dict[str, Any], int, int, dict[str, Any]]) -> TrialResu
     metrics = simulate(_SESSIONS[trace], params, seed)
     metrics["recomputed_tokens_total"] = metrics["recomputed_tokens_per_request"] * metrics["requests_measured"]
     return TrialResult(
-        trial_id=f"{cell_id}/r{rep}", cell_id=cell_id, repeat=rep, seed=seed, status="ok", started_at=started,
-        duration_s=round(time.perf_counter() - t0, 3), host_load_1m_before=0.0, quiet_host_ok=True,
-        metrics={k: round(v, 6) for k, v in metrics.items()}, requests_per_endpoint=[],
-        target={"kind": "kvsim", "trace": trace, **{k: getattr(params, k) for k in (f.name for f in fields(SimParams))}},
-        error=None)
+        trial_id=f"{cell_id}/r{rep}",
+        cell_id=cell_id,
+        repeat=rep,
+        seed=seed,
+        status="ok",
+        started_at=started,
+        duration_s=round(time.perf_counter() - t0, 3),
+        host_load_1m_before=0.0,
+        quiet_host_ok=True,
+        metrics={k: round(v, 6) for k, v in metrics.items()},
+        requests_per_endpoint=[],
+        target={
+            "kind": "kvsim",
+            "trace": trace,
+            **{k: getattr(params, k) for k in (f.name for f in fields(SimParams))},
+        },
+        error=None,
+    )
 
 
 def run(spec_path: Path, jobs: int, out_root: Path) -> Path:
@@ -78,8 +91,9 @@ def run(spec_path: Path, jobs: int, out_root: Path) -> Path:
     traces = spec.get("traces") or {"default": spec.get("trace", TRACE_FILE)}
     _SESSIONS = {}
     for name, rel in traces.items():
-        _SESSIONS[name] = load_sessions(verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300.0)),
-                                        limit=spec.get("sessions"))
+        _SESSIONS[name] = load_sessions(
+            verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300.0)), limit=spec.get("sessions")
+        )
         print(f"loaded {len(_SESSIONS[name])} sessions from {rel}", file=sys.stderr)
     trials = plan(spec)
     base = spec.get("params", {})
@@ -88,9 +102,12 @@ def run(spec_path: Path, jobs: int, out_root: Path) -> Path:
         for i, tr in enumerate(pool.imap_unordered(_run, [(*t, base) for t in trials]), 1):
             results.append(tr)
             m = tr.metrics
-            print(f"[{i}/{len(trials)}] {tr.trial_id}: hit={m['token_hit_rate']:.4f} "
-                  f"evicted={m['miss_evicted_share']:.4f} routing={m['miss_routing_share']:.4f} "
-                  f"({tr.duration_s:.0f}s)", file=sys.stderr)
+            print(
+                f"[{i}/{len(trials)}] {tr.trial_id}: hit={m['token_hit_rate']:.4f} "
+                f"evicted={m['miss_evicted_share']:.4f} routing={m['miss_routing_share']:.4f} "
+                f"({tr.duration_s:.0f}s)",
+                file=sys.stderr,
+            )
     order = {(cell_id, rep): i for i, (cell_id, _, rep, _) in enumerate(trials)}
     results.sort(key=lambda t: order[(t.cell_id, t.repeat)])
     run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
@@ -99,11 +116,24 @@ def run(spec_path: Path, jobs: int, out_root: Path) -> Path:
     (out_dir / "spec.yaml").write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
     cells = {cell_id: cell for cell_id, cell, _, _ in trials}
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=run_id, name=spec["name"], description=spec.get("description", ""),
-        spec=spec, provenance=make_provenance(spec, started_at, {
-            "traces": traces, "sessions_loaded": {k: len(v) for k, v in _SESSIONS.items()},
-            "trials_planned": len(trials), "trials_completed": len(results)}),
-        trials=results, cells=aggregate_cells(results, cells))
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=run_id,
+        name=spec["name"],
+        description=spec.get("description", ""),
+        spec=spec,
+        provenance=make_provenance(
+            spec,
+            started_at,
+            {
+                "traces": traces,
+                "sessions_loaded": {k: len(v) for k, v in _SESSIONS.items()},
+                "trials_planned": len(trials),
+                "trials_completed": len(results),
+            },
+        ),
+        trials=results,
+        cells=aggregate_cells(results, cells),
+    )
     (out_dir / "results.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out_dir}", file=sys.stderr)
     return out_dir

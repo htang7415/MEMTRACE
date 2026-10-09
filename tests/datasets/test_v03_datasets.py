@@ -41,10 +41,25 @@ def test_verified_path_rejects_modified_file(tmp_path: Path) -> None:
 
 
 def test_crag_slice_drops_html_and_loads(tmp_path: Path) -> None:
-    page = {"page_name": "P", "page_url": "u", "page_snippet": "snip", "page_last_modified": "", "page_result": "<html>"}
+    page = {
+        "page_name": "P",
+        "page_url": "u",
+        "page_snippet": "snip",
+        "page_last_modified": "",
+        "page_result": "<html>",
+    }
     rows = [
-        {"interaction_id": f"i{n}", "query": f"q{n}", "query_time": "t", "answer": "a", "alt_ans": ["b"],
-         "domain": "finance", "question_type": "simple", "static_or_dynamic": "static", "search_results": [page]}
+        {
+            "interaction_id": f"i{n}",
+            "query": f"q{n}",
+            "query_time": "t",
+            "answer": "a",
+            "alt_ans": ["b"],
+            "domain": "finance",
+            "question_type": "simple",
+            "static_or_dynamic": "static",
+            "search_results": [page],
+        }
         for n in range(3)
     ]
     src = tmp_path / "crag.jsonl.bz2"
@@ -94,9 +109,13 @@ def test_azure_trace_window(tmp_path: Path) -> None:
 
 def test_bfcl_joins_questions_and_answers(tmp_path: Path) -> None:
     fn = {"name": "f", "parameters": {"type": "dict", "properties": {}, "required": []}}
-    _write_jsonl(tmp_path / "BFCL_v3_simple.json", [{"id": "simple_0", "question": [[{"role": "user", "content": "x"}]],
-                                                    "function": [fn]}])
-    _write_jsonl(tmp_path / "possible_answer" / "BFCL_v3_simple.json", [{"id": "simple_0", "ground_truth": [{"f": {}}]}])
+    _write_jsonl(
+        tmp_path / "BFCL_v3_simple.json",
+        [{"id": "simple_0", "question": [[{"role": "user", "content": "x"}]], "function": [fn]}],
+    )
+    _write_jsonl(
+        tmp_path / "possible_answer" / "BFCL_v3_simple.json", [{"id": "simple_0", "ground_truth": [{"f": {}}]}]
+    )
     (case,) = v03.load_bfcl("simple", root=tmp_path)
     assert case.messages == ({"role": "user", "content": "x"},) and case.ground_truth == ({"f": {}},)
 

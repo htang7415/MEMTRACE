@@ -23,12 +23,27 @@ class _Fake(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'{"error": "nope"}')
             return
-        message = {"role": "assistant", "content": None, "tool_calls": [
-            {"id": "c1", "type": "function", "function": {"name": "search", "arguments": '{"query": "x"}'},
-             "extra_content": {"google": {"thought_signature": "sig"}}}]}
-        body = {"choices": [{"message": message}],
-                "usage": {"prompt_tokens": 40, "completion_tokens": 7, "total_tokens": 97,
-                          "prompt_tokens_details": {"cached_tokens": 8}}}
+        message = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "c1",
+                    "type": "function",
+                    "function": {"name": "search", "arguments": '{"query": "x"}'},
+                    "extra_content": {"google": {"thought_signature": "sig"}},
+                }
+            ],
+        }
+        body = {
+            "choices": [{"message": message}],
+            "usage": {
+                "prompt_tokens": 40,
+                "completion_tokens": 7,
+                "total_tokens": 97,
+                "prompt_tokens_details": {"cached_tokens": 8},
+            },
+        }
         self.send_response(200)
         self.send_header("content-type", "application/json")
         self.end_headers()
@@ -51,8 +66,9 @@ def fake() -> Iterator[str]:
 
 def test_chat_tools_keeps_message_verbatim_and_bills_reasoning(fake: str) -> None:
     tools = [{"type": "function", "function": {"name": "search", "parameters": {"type": "object"}}}]
-    r = chat_tools(fake, [{"role": "user", "content": "q"}], max_tokens=16, timeout_s=5, tools=tools,
-                   extra_body={"model": "m"})
+    r = chat_tools(
+        fake, [{"role": "user", "content": "q"}], max_tokens=16, timeout_s=5, tools=tools, extra_body={"model": "m"}
+    )
     assert r.status == "ok" and r.ttft_s is None
     message = json.loads(r.text)
     assert message["tool_calls"][0]["extra_content"] == {"google": {"thought_signature": "sig"}}
@@ -73,12 +89,24 @@ def _bundle(root: Path, run_id: str, name: str, done: int, planned: int | None, 
     out = root / run_id
     out.mkdir(parents=True)
     result = {
-        "schema_version": "maxionbench-harness-result-v1", "run_id": run_id, "name": name, "description": "",
-        "spec": {}, "trials": [], "cells": [],
-        "provenance": {"git_commit": "abc", "git_dirty": False, "spec_fingerprint": "f", "started_at": "s",
-                       "finished_at": "2026-10-06T00:00:00Z", "host": {"model": f"{Path.home()}/models/m.gguf"},
-                       "tools": {"trials_completed": done} if planned is None else
-                       {"trials_planned": planned, "trials_completed": done}},
+        "schema_version": "maxionbench-harness-result-v1",
+        "run_id": run_id,
+        "name": name,
+        "description": "",
+        "spec": {},
+        "trials": [],
+        "cells": [],
+        "provenance": {
+            "git_commit": "abc",
+            "git_dirty": False,
+            "spec_fingerprint": "f",
+            "started_at": "s",
+            "finished_at": "2026-10-06T00:00:00Z",
+            "host": {"model": f"{Path.home()}/models/m.gguf"},
+            "tools": {"trials_completed": done}
+            if planned is None
+            else {"trials_planned": planned, "trials_completed": done},
+        },
     }
     if not valid:
         del result["description"]
@@ -93,11 +121,14 @@ def test_export_picks_latest_complete_run_and_validates(tmp_path: Path) -> None:
     _bundle(runs, "20261002T000000Z-x", "not-published", 1, 1)  # not a dashboard experiment
     _bundle(runs, "20261002T000000Z-k9", "k9-gateway-context-qwen3-8b", 16, None)  # no plan recorded: complete
     assert {k: v.parent.name for k, v in latest_results((runs,)).items()} == {
-        "e2-prefix-caching": "20261002T000000Z-e2", "k9-gateway-context-qwen3-8b": "20261002T000000Z-k9"}
+        "e2-prefix-caching": "20261002T000000Z-e2",
+        "k9-gateway-context-qwen3-8b": "20261002T000000Z-k9",
+    }
     index = export(tmp_path / "data", (runs,))
     assert [(e["name"], e["page"], e["run_id"]) for e in index["experiments"]] == [
         ("e2-prefix-caching", "caching", "20261002T000000Z-e2"),
-        ("k9-gateway-context-qwen3-8b", "gateway", "20261002T000000Z-k9")]
+        ("k9-gateway-context-qwen3-8b", "gateway", "20261002T000000Z-k9"),
+    ]
     assert (tmp_path / "data" / "e2-prefix-caching.json").exists()
     assert str(Path.home()) not in (tmp_path / "data" / "e2-prefix-caching.json").read_text()  # home paths -> ~
     _bundle(runs, "20261004T000000Z-e2", "e2-prefix-caching", 1, 1, valid=False)

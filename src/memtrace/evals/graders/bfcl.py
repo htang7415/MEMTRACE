@@ -35,10 +35,14 @@ def openai_name(name: str) -> str:
 def to_openai_tools(functions: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """BFCL function docs -> OpenAI `tools` (JSON Schema types, API-safe names)."""
     return [
-        {"type": "function", "function": {
-            "name": openai_name(f["name"]), "description": f.get("description", ""),
-            "parameters": _schema(f["parameters"]),
-        }}
+        {
+            "type": "function",
+            "function": {
+                "name": openai_name(f["name"]),
+                "description": f.get("description", ""),
+                "parameters": _schema(f["parameters"]),
+            },
+        }
         for f in functions
     ]
 
@@ -98,7 +102,9 @@ def _match_all(docs: Mapping[str, Any], named: list, truth: list, used: frozense
     )
 
 
-def _check(doc: Mapping[str, Any] | None, call: tuple[str, dict[str, Any]], truth: tuple[str, dict[str, list]]) -> str | None:
+def _check(
+    doc: Mapping[str, Any] | None, call: tuple[str, dict[str, Any]], truth: tuple[str, dict[str, list]]
+) -> str | None:
     name, args = call
     want_name, options = truth
     if name != want_name:

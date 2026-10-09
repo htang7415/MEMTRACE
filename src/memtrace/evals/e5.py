@@ -68,17 +68,28 @@ def load_e5_spec(path: Path) -> dict[str, Any]:
 def _item_cost(price: ModelPrice | None, results: list[Any]) -> float:
     if price is None:
         return 0.0
-    return sum(cost_usd(price, input_tokens=r.prompt_tokens, output_tokens=r.completion_tokens + r.reasoning_tokens,
-                        cached_tokens=r.cached_tokens) for r in results)
+    return sum(
+        cost_usd(
+            price,
+            input_tokens=r.prompt_tokens,
+            output_tokens=r.completion_tokens + r.reasoning_tokens,
+            cached_tokens=r.cached_tokens,
+        )
+        for r in results
+    )
 
 
-def run_rag(target: Target, items: list[QAItem], judge: Target, label: str, log: Callable[[str], None]
-            ) -> tuple[list[ItemResult], dict[str, Any]]:
+def run_rag(
+    target: Target, items: list[QAItem], judge: Target, label: str, log: Callable[[str], None]
+) -> tuple[list[ItemResult], dict[str, Any]]:
     price = _price(target)
     answers, spend = run_calls(target, [Call(i.id, i.messages, max_tokens=64) for i in items], label, workers=1)
     log(f"{label}: {len(items)} answers, ${spend['spend_usd']:.4f}")
-    judge_calls = [Call(i.id, judge_messages(i.question, i.golds, answers[i.id].text.strip()), max_tokens=512)
-                   for i in items if answers[i.id].status == "ok"]
+    judge_calls = [
+        Call(i.id, judge_messages(i.question, i.golds, answers[i.id].text.strip()), max_tokens=512)
+        for i in items
+        if answers[i.id].status == "ok"
+    ]
     verdicts, judge_spend = run_calls(judge, judge_calls, f"{label}/judge", workers=8)
     out = []
     for item in items:
@@ -86,16 +97,24 @@ def run_rag(target: Target, items: list[QAItem], judge: Target, label: str, log:
         answer = r.text.strip()
         judged = parse_label(verdicts[item.id].text) if item.id in verdicts else None
         qa = grade_qa(answer, item.golds)
-        out.append(ItemResult(
-            item.source, item.id, r.status, judged == "correct", r.e2e_s if r.status == "ok" else None, r.ttft_s,
-            _item_cost(price, [r]),
-            {"answer": answer, "judge_label": judged or "unjudged", "em": qa.em, "f1": qa.f1, "error": r.error},
-        ))
+        out.append(
+            ItemResult(
+                item.source,
+                item.id,
+                r.status,
+                judged == "correct",
+                r.e2e_s if r.status == "ok" else None,
+                r.ttft_s,
+                _item_cost(price, [r]),
+                {"answer": answer, "judge_label": judged or "unjudged", "em": qa.em, "f1": qa.f1, "error": r.error},
+            )
+        )
     return out, {"answer": spend, "judge": judge_spend}
 
 
-def run_bfcl(target: Target, per_category: int, seed: int, label: str, log: Callable[[str], None]
-             ) -> tuple[list[ItemResult], dict[str, Any]]:
+def run_bfcl(
+    target: Target, per_category: int, seed: int, label: str, log: Callable[[str], None]
+) -> tuple[list[ItemResult], dict[str, Any]]:
     rng = random.Random(seed)
     cases = [c for cat in BFCL_CATEGORIES for c in rng.sample(load_bfcl(cat), min(per_category, len(load_bfcl(cat))))]
     calls = [Call(c.id, c.messages, max_tokens=512, tools=tuple(bfcl.to_openai_tools(c.functions))) for c in cases]
@@ -113,14 +132,24 @@ def run_bfcl(target: Target, per_category: int, seed: int, label: str, log: Call
                 grade = bfcl.grade(case, calls_made) if calls_made else bfcl.BfclGrade(False, "no tool call")
             except ValueError as exc:
                 grade = bfcl.BfclGrade(False, str(exc))
-        out.append(ItemResult("bfcl", case.id, r.status, grade.correct, r.e2e_s if r.status == "ok" else None, None,
-                              _item_cost(price, [r]),
-                              {"category": case.category, "calls": calls_made, "grade_error": grade.error}))
+        out.append(
+            ItemResult(
+                "bfcl",
+                case.id,
+                r.status,
+                grade.correct,
+                r.e2e_s if r.status == "ok" else None,
+                None,
+                _item_cost(price, [r]),
+                {"category": case.category, "calls": calls_made, "grade_error": grade.error},
+            )
+        )
     return out, {"answer": spend}
 
 
-def run_agent_suite(target: Target, n: int, max_steps: int, seed: int, label: str, log: Callable[[str], None]
-                    ) -> tuple[list[ItemResult], dict[str, Any]]:
+def run_agent_suite(
+    target: Target, n: int, max_steps: int, seed: int, label: str, log: Callable[[str], None]
+) -> tuple[list[ItemResult], dict[str, Any]]:
     corpus = HotpotCorpus(DEFAULT_DATASET)
     tasks = build_tasks(corpus, n, seed)
     del corpus  # the MCP server process builds its own index
@@ -132,6 +161,7 @@ def run_agent_suite(target: Target, n: int, max_steps: int, seed: int, label: st
 
     policies: dict[str, ChatPolicy] = {}
     with metered(target, estimate, label) as meter:
+
         def send(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
             for attempt in range(3):
                 r = fn(target.base_urls[0], messages, tools=tools, max_tokens=max_tokens, timeout_s=60.0)
@@ -151,12 +181,25 @@ def run_agent_suite(target: Target, n: int, max_steps: int, seed: int, label: st
     out = []
     for task, run in zip(tasks, runs):
         steps = policies[task.task_id].results
-        out.append(ItemResult(
-            "agent", task.task_id, "ok" if run.status != "error" else "error", agent_success(run.answer, task.answer),
-            sum(r.e2e_s for r in steps) if run.status != "error" else None, None, _item_cost(price, steps),
-            {"answer": run.answer, "gold": task.answer, "run_status": run.status, "model_calls": len(steps),
-             "tool_calls": [c["name"] for c in run.tool_calls], "error": run.error},
-        ))
+        out.append(
+            ItemResult(
+                "agent",
+                task.task_id,
+                "ok" if run.status != "error" else "error",
+                agent_success(run.answer, task.answer),
+                sum(r.e2e_s for r in steps) if run.status != "error" else None,
+                None,
+                _item_cost(price, steps),
+                {
+                    "answer": run.answer,
+                    "gold": task.answer,
+                    "run_status": run.status,
+                    "model_calls": len(steps),
+                    "tool_calls": [c["name"] for c in run.tool_calls],
+                    "error": run.error,
+                },
+            )
+        )
     return out, {"answer": {**meter.usage, "spend_usd": round(meter.spend_usd, 6)}}
 
 
@@ -187,7 +230,9 @@ def shard_metrics(items: list[ItemResult]) -> dict[str, float]:
     if items[0].suite in ("crag", "hotpotqa"):
         m["em"] = sum(i.detail["em"] for i in items) / len(items)
         m["f1"] = sum(i.detail["f1"] for i in items) / len(items)
-        labels = [i.detail["judge_label"] for i in items if i.detail["judge_label"] in ("correct", "incorrect", "missing")]
+        labels = [
+            i.detail["judge_label"] for i in items if i.detail["judge_label"] in ("correct", "incorrect", "missing")
+        ]
         m["missing_rate"] = sum(label == "missing" for label in labels) / len(items)
         if items[0].suite == "crag" and labels:
             m["crag_score"] = crag_score(labels)
@@ -202,8 +247,12 @@ def _capped(n: int, limit: int | None) -> int:
     return n if limit is None else min(n, limit)
 
 
-def run_e5(spec: dict[str, Any], out_root: Path, limit: int | None = None,
-           log: Callable[[str], None] = lambda m: print(f"[e5] {m}", file=sys.stderr, flush=True)) -> Path:
+def run_e5(
+    spec: dict[str, Any],
+    out_root: Path,
+    limit: int | None = None,
+    log: Callable[[str], None] = lambda m: print(f"[e5] {m}", file=sys.stderr, flush=True),
+) -> Path:
     started_at = utc_now_iso()
     run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
     out_dir = Path(out_root) / run_id
@@ -220,18 +269,25 @@ def run_e5(spec: dict[str, Any], out_root: Path, limit: int | None = None,
         if "rag_crag" in suites:
             rng = random.Random(seed)
             examples = rng.sample(load_crag(), _capped(int(suites["rag_crag"]["n"]), limit))
-            items["rag_crag"], spends["rag_crag"] = run_rag(target, [crag_item(e) for e in examples], judge,
-                                                            f"{label}/rag_crag", log)
+            items["rag_crag"], spends["rag_crag"] = run_rag(
+                target, [crag_item(e) for e in examples], judge, f"{label}/rag_crag", log
+            )
         if "rag_hotpot" in suites:
             qa = hotpot_items(DEFAULT_DATASET, _capped(int(suites["rag_hotpot"]["n"]), limit), seed)
             items["rag_hotpot"], spends["rag_hotpot"] = run_rag(target, qa, judge, f"{label}/rag_hotpot", log)
         if "bfcl" in suites:
-            items["bfcl"], spends["bfcl"] = run_bfcl(target, _capped(int(suites["bfcl"]["per_category"]), limit), seed,
-                                                     f"{label}/bfcl", log)
+            items["bfcl"], spends["bfcl"] = run_bfcl(
+                target, _capped(int(suites["bfcl"]["per_category"]), limit), seed, f"{label}/bfcl", log
+            )
         if "agent" in suites:
             items["agent"], spends["agent"] = run_agent_suite(
-                target, _capped(int(suites["agent"]["n"]), limit), int(suites["agent"].get("max_steps", 8)), seed,
-                f"{label}/agent", log)
+                target,
+                _capped(int(suites["agent"]["n"]), limit),
+                int(suites["agent"].get("max_steps", 8)),
+                seed,
+                f"{label}/agent",
+                log,
+            )
         target_desc = target.describe()
 
     scrub, key_present = scrubber()
@@ -246,21 +302,48 @@ def run_e5(spec: dict[str, Any], out_root: Path, limit: int | None = None,
             shard = suite_items[s::shards]
             if not shard:
                 continue
-            trials.append(TrialResult(
-                trial_id=f"{suite}-shard{s}", cell_id=suite, repeat=s, seed=seed, status="ok", started_at=started_at,
-                duration_s=0.0, host_load_1m_before=0.0, quiet_host_ok=True, metrics=shard_metrics(shard),
-                requests_per_endpoint=[len(shard)], target={**target_desc, "spend": spends[suite]}, error=None))
+            trials.append(
+                TrialResult(
+                    trial_id=f"{suite}-shard{s}",
+                    cell_id=suite,
+                    repeat=s,
+                    seed=seed,
+                    status="ok",
+                    started_at=started_at,
+                    duration_s=0.0,
+                    host_load_1m_before=0.0,
+                    quiet_host_ok=True,
+                    metrics=shard_metrics(shard),
+                    requests_per_endpoint=[len(shard)],
+                    target={**target_desc, "spend": spends[suite]},
+                    error=None,
+                )
+            )
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=run_id, name=spec["name"],
-        description=str(spec.get("description", "")), spec=spec,
-        provenance=make_provenance(spec, started_at, {
-            "gemini_key_present": key_present, "judge_rubric": RUBRIC_VERSION, "item_limit": limit,
-            "trials_planned": len(trials), "trials_completed": len(trials)}),
-        trials=trials, cells=aggregate_cells(trials, cell_params))
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=run_id,
+        name=spec["name"],
+        description=str(spec.get("description", "")),
+        spec=spec,
+        provenance=make_provenance(
+            spec,
+            started_at,
+            {
+                "gemini_key_present": key_present,
+                "judge_rubric": RUBRIC_VERSION,
+                "item_limit": limit,
+                "trials_planned": len(trials),
+                "trials_completed": len(trials),
+            },
+        ),
+        trials=trials,
+        cells=aggregate_cells(trials, cell_params),
+    )
     (out_dir / "results.json").write_text(scrub(json.dumps(result.to_dict(), indent=2)) + "\n", encoding="utf-8")
     overall = {suite: shard_metrics(v) for suite, v in items.items()}
-    (out_dir / "summary.json").write_text(json.dumps({"overall": overall, "spend": spends}, indent=2) + "\n",
-                                          encoding="utf-8")
+    (out_dir / "summary.json").write_text(
+        json.dumps({"overall": overall, "spend": spends}, indent=2) + "\n", encoding="utf-8"
+    )
     log(f"wrote {out_dir}")
     return out_dir
 

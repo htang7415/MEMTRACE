@@ -31,7 +31,9 @@ def test_session_calls_keep_order_cap_idle_gaps_and_first_token_counts() -> None
     raw["turns"][0]["llm_calls"][2]["message_metadata"][0]["token_len"] = 280  # drifted count for the same message
     s = session_calls(raw, idle_cap_s=60.0)
     assert [round(c.t, 3) for c in s.requests[:3]] == [0.0, 10.0, 20.0]
-    assert s.requests[-1].t == pytest.approx(42.0 + 60.0)  # the 9-minute idle gap after the call ending at 42 s, capped to 60 s
+    assert s.requests[-1].t == pytest.approx(
+        42.0 + 60.0
+    )  # the 9-minute idle gap after the call ending at 42 s, capped to 60 s
     assert all(c.messages[0] == ("system", "0|System|system", 300) for c in s.requests)
     assert [len(c.messages) for c in s.requests] == [4, 6, 8, 10, 12, 13]
 
@@ -40,7 +42,7 @@ def test_renderer_is_deterministic_scaled_and_keyed_by_message() -> None:
     r = Renderer(scale=0.25)
     s = session_calls(copilot_session(), idle_cap_s=300.0)
     a, b = r.messages(s.id, s.requests[0]), Renderer(0.25).messages(s.id, s.requests[1])
-    assert a == b[:len(a)]  # an unchanged message is the same text in every call (prefix reuse on the wire)
+    assert a == b[: len(a)]  # an unchanged message is the same text in every call (prefix reuse on the wire)
     assert len(a[0]["content"].split()) == 75 and len(a[3]["content"].split()) == 200
     assert a[3]["role"] == "tool" and a[3]["tool_call_id"]
     assert r.text("other", "0|System|system", 300) != a[0]["content"]
@@ -65,22 +67,44 @@ class _Upstream(BaseHTTPRequestHandler):
 
 
 @pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain not installed")
-@pytest.mark.parametrize("arm", [{"policy": "off"}, {"policy": "mask+cache", "keep": 2, "budget_tokens": 600},
-                                 {"policy": "mask+cache", "keep": 2, "budget_tokens": 100_000, "pause_s": 0.2}])
+@pytest.mark.parametrize(
+    "arm",
+    [
+        {"policy": "off"},
+        {"policy": "mask+cache", "keep": 2, "budget_tokens": 600},
+        {"policy": "mask+cache", "keep": 2, "budget_tokens": 100_000, "pause_s": 0.2},
+    ],
+)
 def test_replay_through_the_gateway_context_manager(arm: dict[str, Any], tmp_path: Path) -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Upstream)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     _Upstream.seen = []
     session = session_calls(copilot_session(pause_end="10:01:10"), idle_cap_s=300.0)
     # compress the trace: calls 50 ms apart, the last one after a 0.5 s pause
-    arrivals = [Arrival(t=0.05 * i + (0.5 if i == len(session.requests) - 1 else 0), session=0, request=c)
-                for i, c in enumerate(session.requests)]
+    arrivals = [
+        Arrival(t=0.05 * i + (0.5 if i == len(session.requests) - 1 else 0), session=0, request=c)
+        for i, c in enumerate(session.requests)
+    ]
     try:
-        gw = AIGateway({"local": {"kind": "static_endpoints", "params": {"urls": [f"http://127.0.0.1:{server.server_port}"]}},
-                        "policy": "local_only", "port": 18091, "context": arm}, tmp_path / "gw")
+        gw = AIGateway(
+            {
+                "local": {"kind": "static_endpoints", "params": {"urls": [f"http://127.0.0.1:{server.server_port}"]}},
+                "policy": "local_only",
+                "port": 18091,
+                "context": arm,
+            },
+            tmp_path / "gw",
+        )
         with gw:
-            outcomes = replay(arrivals, [session], gw.base_urls[0], Renderer(0.25), output_scale=1.0,
-                              max_output_tokens=4, timeout_s=10)
+            outcomes = replay(
+                arrivals,
+                [session],
+                gw.base_urls[0],
+                Renderer(0.25),
+                output_scale=1.0,
+                max_output_tokens=4,
+                timeout_s=10,
+            )
     finally:
         server.shutdown()
     assert all(o.status == "ok" for o in outcomes) and outcomes[0].cached_tokens == 40

@@ -65,10 +65,17 @@ def build_session(row: dict[str, Any], idle_cap_s: float) -> Session:
     next_arrival: dict[int, float] = {}
     reqs: list[Request] = []
     for stream, t, c in reversed(timed):
-        reqs.append(Request(
-            t=t - first, dur=float(c["api_time"]), blocks=np.asarray(c["hash_ids"], dtype=np.int32),
-            in_tokens=int(c["in"]), out_tokens=int(c["out"]), stream=stream,
-            next_t=next_arrival.get(stream, math.inf)))
+        reqs.append(
+            Request(
+                t=t - first,
+                dur=float(c["api_time"]),
+                blocks=np.asarray(c["hash_ids"], dtype=np.int32),
+                in_tokens=int(c["in"]),
+                out_tokens=int(c["out"]),
+                stream=stream,
+                next_t=next_arrival.get(stream, math.inf),
+            )
+        )
         next_arrival[stream] = t - first
     reqs.reverse()
     return Session(id=row["id"], requests=tuple(reqs), span=max((r.t + r.dur for r in reqs), default=0.0))

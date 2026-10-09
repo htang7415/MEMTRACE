@@ -35,14 +35,17 @@ def shards(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for i, rel in enumerate(SHARDS):
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [{
-            "query_id": str(10 * i + j),
-            "query": encrypt(f"question {i}-{j} über"),
-            "answer": encrypt(f"answer {i}-{j}"),
-            "gold_docs": _docs((f"g{i}{j}", "gold page")),
-            "evidence_docs": _docs((f"g{i}{j}", "gold page"), (f"e{i}{j}", "evidence page")),
-            "negative_docs": _docs((f"n{i}{j}", "negative page")),
-        } for j in range(2)]
+        rows = [
+            {
+                "query_id": str(10 * i + j),
+                "query": encrypt(f"question {i}-{j} über"),
+                "answer": encrypt(f"answer {i}-{j}"),
+                "gold_docs": _docs((f"g{i}{j}", "gold page")),
+                "evidence_docs": _docs((f"g{i}{j}", "gold page"), (f"e{i}{j}", "evidence page")),
+                "negative_docs": _docs((f"n{i}{j}", "negative page")),
+            }
+            for j in range(2)
+        ]
         pq.write_table(pa.Table.from_pylist(rows), path)
     return tmp_path
 
@@ -116,8 +119,14 @@ def test_context_policy_shapes_what_the_model_sees(tmp_path: Path) -> None:
 
 def test_summarize_applies_both_gates() -> None:
     def item(correct: bool, peak: int) -> dict[str, Any]:
-        return {"correct": correct, "run_status": "answered", "peak_context_tokens": peak, "cached_tokens": 50,
-                "prompt_tokens": 100, "model_calls": 4}
+        return {
+            "correct": correct,
+            "run_status": "answered",
+            "peak_context_tokens": peak,
+            "cached_tokens": 50,
+            "prompt_tokens": 100,
+            "model_calls": 4,
+        }
 
     fits = summarize([item(True, 40_000), item(False, 35_000), item(True, 10_000), item(False, 31_000)])
     assert fits["success"]["mean"] == 0.5 and fits["long_context_share"] == 0.75

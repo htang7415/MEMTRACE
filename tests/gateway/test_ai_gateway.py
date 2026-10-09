@@ -128,7 +128,9 @@ def test_gateway_overflow_end_to_end_with_shared_ledger(
 
 
 @pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain not installed")
-def test_gateway_slo_overflow_end_to_end(servers: tuple[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_gateway_slo_overflow_end_to_end(
+    servers: tuple[str, str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     local_url, remote_url = servers
     monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
     monkeypatch.setenv("MAXIONBENCH_BUDGET_DIR", str(tmp_path / "budget"))

@@ -124,16 +124,31 @@ class BudgetLedger:
                     f"of ${self.cap_usd:.2f} cap"
                 )
             reservation = Reservation(uuid.uuid4().hex, label, estimate_usd)
-            _append(fh, {"event": "reserve", "reservation_id": reservation.reservation_id, "label": label,
-                         "estimate_usd": round(estimate_usd, 6)})
+            _append(
+                fh,
+                {
+                    "event": "reserve",
+                    "reservation_id": reservation.reservation_id,
+                    "label": label,
+                    "estimate_usd": round(estimate_usd, 6),
+                },
+            )
             return reservation
 
     def commit(self, reservation: Reservation, actual_usd: float, usage: Mapping[str, Any]) -> None:
         if actual_usd < 0:
             raise ValueError("actual_usd must be >= 0")
         with self._locked(fcntl.LOCK_EX) as fh:
-            _append(fh, {"event": "commit", "reservation_id": reservation.reservation_id, "label": reservation.label,
-                         "actual_usd": round(actual_usd, 6), "usage": dict(usage)})
+            _append(
+                fh,
+                {
+                    "event": "commit",
+                    "reservation_id": reservation.reservation_id,
+                    "label": reservation.label,
+                    "actual_usd": round(actual_usd, 6),
+                    "usage": dict(usage),
+                },
+            )
 
     def release(self, reservation: Reservation) -> None:
         """Close a reservation that spent nothing (e.g. the run failed before its first request)."""

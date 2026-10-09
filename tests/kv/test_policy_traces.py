@@ -24,9 +24,12 @@ def test_block_ids_are_shared_exactly_as_far_as_the_token_prefix() -> None:
 
 
 def call(end: str, prompt: int, segments: list[tuple[int, str, str, int]], dur_ms: float = 2_000.0) -> dict[str, Any]:
-    return {"timestamp": f"2026-06-01T{end}.000000000Z", "duration_ms": dur_ms,
-            "tokens": {"prompt": prompt, "completion": 20},
-            "message_metadata": [{"sequenceId": s, "type": t, "role": r, "token_len": n} for s, t, r, n in segments]}
+    return {
+        "timestamp": f"2026-06-01T{end}.000000000Z",
+        "duration_ms": dur_ms,
+        "tokens": {"prompt": prompt, "completion": 20},
+        "message_metadata": [{"sequenceId": s, "type": t, "role": r, "token_len": n} for s, t, r, n in segments],
+    }
 
 
 def session() -> dict[str, Any]:
@@ -81,4 +84,4 @@ def test_unchanged_messages_keep_their_first_token_count_so_prefixes_stay_shared
         c["message_metadata"][0]["token_len"] = 3_000 - 50 * k  # Copilot's drifting count for the same system prompt
     reqs = session_trace(s, "full", {})["requests"]
     for a, b in zip(reqs[:3], reqs[1:4]):
-        assert b["hash_ids"][:a["in"] // 64] == a["hash_ids"][:a["in"] // 64]
+        assert b["hash_ids"][: a["in"] // 64] == a["hash_ids"][: a["in"] // 64]

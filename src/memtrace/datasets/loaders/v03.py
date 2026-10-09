@@ -67,6 +67,7 @@ class BeirDataset:
 def load_beir(subset: str, split: str = "test", path: Path | None = None) -> BeirDataset:
     """A BEIR subset (scifact, fiqa) read straight from its pinned zip."""
     with zipfile.ZipFile(path or verified_path(f"beir/{subset}.zip")) as zf:
+
         def member(name: str) -> io.TextIOWrapper:
             return io.TextIOWrapper(zf.open(f"{subset}/{name}"), encoding="utf-8")
 
@@ -124,8 +125,9 @@ def load_azure_trace(start_s: float, duration_s: float, path: Path | None = None
             t0 = ts.iloc[0]
         offset = (ts - t0).dt.total_seconds().to_numpy()
         keep = (offset >= start_s) & (offset < start_s + duration_s)
-        parts.append((offset[keep] - start_s, chunk["ContextTokens"].to_numpy()[keep],
-                      chunk["GeneratedTokens"].to_numpy()[keep]))
+        parts.append(
+            (offset[keep] - start_s, chunk["ContextTokens"].to_numpy()[keep], chunk["GeneratedTokens"].to_numpy()[keep])
+        )
         if offset[-1] >= start_s + duration_s:
             break
     arrival, ctx, gen = (np.concatenate(cols) for cols in zip(*parts))

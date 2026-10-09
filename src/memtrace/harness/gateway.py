@@ -29,8 +29,13 @@ def ensure_binary(path: Path = DEFAULT_BINARY) -> Path:
     sources = list(GATEWAY_DIR.rglob("*.go")) + [GATEWAY_DIR / "go.mod", GATEWAY_DIR / "go.sum"]
     newest = max(p.stat().st_mtime for p in sources if p.exists())
     if not path.exists() or path.stat().st_mtime < newest:
-        out = subprocess.run(["go", "build", "-o", str(path), "./cmd/maxion-gateway"], cwd=GATEWAY_DIR,
-                             capture_output=True, text=True, check=False)
+        out = subprocess.run(
+            ["go", "build", "-o", str(path), "./cmd/maxion-gateway"],
+            cwd=GATEWAY_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if out.returncode != 0:
             raise RuntimeError(f"go build failed: {out.stderr.strip()[-400:]}")
     return path
@@ -59,8 +64,20 @@ def scrape_gateway_metrics(base_url: str) -> dict[str, Any]:
 
 class AIGateway(Target):
     kind = "ai_gateway"
-    KEYS = {"local", "policy", "failover", "max_inflight", "port", "remote", "local_model", "binary",
-            "slo_ttft_s", "window_s", "min_samples", "context"}
+    KEYS = {
+        "local",
+        "policy",
+        "failover",
+        "max_inflight",
+        "port",
+        "remote",
+        "local_model",
+        "binary",
+        "slo_ttft_s",
+        "window_s",
+        "min_samples",
+        "context",
+    }
 
     def __init__(self, params: Mapping[str, Any], log_dir: Path) -> None:
         _check_keys(self.kind, params, self.KEYS)
@@ -69,8 +86,11 @@ class AIGateway(Target):
         if "kind" not in local and self.policy != "remote_only":
             raise ValueError("ai_gateway.local must be a target spec with kind and params")
         # remote_only needs no fleet
-        self.inner = make_target(str(local["kind"]), dict(local.get("params") or {}), log_dir / "local") \
-            if "kind" in local else None
+        self.inner = (
+            make_target(str(local["kind"]), dict(local.get("params") or {}), log_dir / "local")
+            if "kind" in local
+            else None
+        )
         self.failover = bool(params.get("failover", True))
         self.max_inflight = int(params.get("max_inflight", 8))
         # local_first_slo: overflow when in-flight x recent per-request service time exceeds slo_ttft_s
@@ -91,7 +111,11 @@ class AIGateway(Target):
             "listen": f"127.0.0.1:{self.port}",
             "policy": self.policy,
             "failover": self.failover,
-            "local": {"upstreams": self.inner.base_urls if self.inner else [], "max_inflight": self.max_inflight, "timeout_s": 300},
+            "local": {
+                "upstreams": self.inner.base_urls if self.inner else [],
+                "max_inflight": self.max_inflight,
+                "timeout_s": 300,
+            },
             "budget": {"ledger_path": str(ledger_dir / "gemini_ledger.jsonl")},  # same ledger as Python
             "remote": {"enabled": remote_enabled},
         }
@@ -101,15 +125,19 @@ class AIGateway(Target):
         if self.local_model:
             cfg["local"]["model"] = str(self.local_model)
         if remote_enabled:
-            cfg["remote"].update({
-                "base_url": str(self.remote.get("base_url", "https://generativelanguage.googleapis.com/v1beta/openai")),
-                "chat_path": "/chat/completions",
-                "model": str(self.remote["model"]),
-                "reasoning_effort": str(self.remote.get("reasoning_effort", "minimal")),
-                "pricing_file": str(REPO_ROOT / "configs" / "pricing" / "gemini.yaml"),
-                "key_file": str(REPO_ROOT / "docs" / "gemini_api.txt"),
-                "timeout_s": float(self.remote.get("timeout_s", 120)),
-            })
+            cfg["remote"].update(
+                {
+                    "base_url": str(
+                        self.remote.get("base_url", "https://generativelanguage.googleapis.com/v1beta/openai")
+                    ),
+                    "chat_path": "/chat/completions",
+                    "model": str(self.remote["model"]),
+                    "reasoning_effort": str(self.remote.get("reasoning_effort", "minimal")),
+                    "pricing_file": str(REPO_ROOT / "configs" / "pricing" / "gemini.yaml"),
+                    "key_file": str(REPO_ROOT / "docs" / "gemini_api.txt"),
+                    "timeout_s": float(self.remote.get("timeout_s", 120)),
+                }
+            )
         return cfg
 
     def __enter__(self) -> "AIGateway":
@@ -145,13 +173,22 @@ class AIGateway(Target):
         return PICKERS["round_robin"](1)
 
     def request_options(self) -> dict[str, Any]:
-        return self.inner.request_options() if self.inner else {}  # engine fields pass through; the gateway strips them for Gemini
+        return (
+            self.inner.request_options() if self.inner else {}
+        )  # engine fields pass through; the gateway strips them for Gemini
 
     def collect(self) -> dict[str, Any]:
-        return {"gateway": scrape_gateway_metrics(self.base_urls[0]), "local": self.inner.collect() if self.inner else {}}
+        return {
+            "gateway": scrape_gateway_metrics(self.base_urls[0]),
+            "local": self.inner.collect() if self.inner else {},
+        }
 
     def describe(self) -> dict[str, Any]:
         cfg = self.render_config()
         cfg["remote"].pop("key_file", None)  # the path is harmless, but keep provenance about behaviour only
-        return {"kind": self.kind, "engine": "maxion-gateway", "config": cfg,
-                "local": self.inner.describe() if self.inner else None}
+        return {
+            "kind": self.kind,
+            "engine": "maxion-gateway",
+            "config": cfg,
+            "local": self.inner.describe() if self.inner else None,
+        }

@@ -51,8 +51,15 @@ class Arrival:
     request: Request
 
 
-def schedule(sessions: Sequence[Session], concurrency: int, horizon_s: float, stagger_s: float, time_scale: float,
-             seed: int, mid_life: bool = False) -> list[Arrival]:
+def schedule(
+    sessions: Sequence[Session],
+    concurrency: int,
+    horizon_s: float,
+    stagger_s: float,
+    time_scale: float,
+    seed: int,
+    mid_life: bool = False,
+) -> list[Arrival]:
     """Arrivals before `horizon_s` with `concurrency` sessions active: the first ones start uniformly in
     [0, stagger_s), and a session that ends is replaced by the next (sessions shuffled by `seed`).
     Trace times are divided by `time_scale`. With `mid_life`, each first session joins at a uniform point
@@ -67,8 +74,11 @@ def schedule(sessions: Sequence[Session], concurrency: int, horizon_s: float, st
     def start(s_idx: int, t0: float, skip: float = 0.0) -> None:
         s = sessions[s_idx]
         t0 -= skip / time_scale
-        out.extend(Arrival(t0 + r.t / time_scale, s_idx, r) for r in s.requests
-                   if r.t >= skip and t0 + r.t / time_scale < horizon_s)
+        out.extend(
+            Arrival(t0 + r.t / time_scale, s_idx, r)
+            for r in s.requests
+            if r.t >= skip and t0 + r.t / time_scale < horizon_s
+        )
         heapq.heappush(ends, (t0 + s.span / time_scale, s_idx))
 
     for s_idx in (next(pending, None) for _ in range(concurrency)):
@@ -130,25 +140,42 @@ def stream_completion(base_url: str, body: dict[str, Any], timeout_s: float) -> 
         conn.close()
 
 
-def replay(arrivals: Sequence[Arrival], base_url: str, model: str, *, tokens_per_block: int, output_scale: float,
-           max_output_tokens: int, timeout_s: float) -> list[Outcome]:
+def replay(
+    arrivals: Sequence[Arrival],
+    base_url: str,
+    model: str,
+    *,
+    tokens_per_block: int,
+    output_scale: float,
+    max_output_tokens: int,
+    timeout_s: float,
+) -> list[Outcome]:
     outcomes: list[Outcome | None] = [None] * len(arrivals)
     t0 = time.perf_counter()
 
     def send(i: int, a: Arrival) -> None:
         sched_abs = t0 + a.t
         try:
-            body = {"model": model, "prompt": prompt_tokens(a.session, a.request.blocks, tokens_per_block),
-                    "max_tokens": max(1, min(max_output_tokens, round(a.request.out_tokens * output_scale))),
-                    "ignore_eos": True, "stream": True, "stream_options": {"include_usage": True}}
+            body = {
+                "model": model,
+                "prompt": prompt_tokens(a.session, a.request.blocks, tokens_per_block),
+                "max_tokens": max(1, min(max_output_tokens, round(a.request.out_tokens * output_scale))),
+                "ignore_eos": True,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            }
             sent = time.perf_counter()
             ttft, usage = stream_completion(base_url, body, timeout_s)
             done = time.perf_counter()
             queued = sent - sched_abs  # client-side lateness counts against latency
             outcomes[i] = Outcome(
-                scheduled_s=a.t, status="ok", ttft_s=None if ttft is None else queued + ttft, e2e_s=done - sched_abs,
+                scheduled_s=a.t,
+                status="ok",
+                ttft_s=None if ttft is None else queued + ttft,
+                e2e_s=done - sched_abs,
                 prompt_tokens=int(usage.get("prompt_tokens", 0)),
-                cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)))
+                cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)),
+            )
         except Exception as exc:  # noqa: BLE001 - every failure is recorded, none stops the replay
             outcomes[i] = Outcome(scheduled_s=a.t, status="error", error=str(exc)[:200])
 
@@ -174,7 +201,9 @@ def trial_metrics(outcomes: Sequence[Outcome], warmup_s: float, ttft_slo_s: floa
     return {
         "requests_measured": float(len(window)),
         "error_rate": 1 - len(ok) / len(window),
-        "ttft_p50_s": p50, "ttft_p90_s": p90, "ttft_p99_s": p99,
+        "ttft_p50_s": p50,
+        "ttft_p90_s": p90,
+        "ttft_p99_s": p99,
         "ttft_mean_s": sum(ttfts) / len(ttfts),
         "e2e_p50_s": float(np.percentile([o.e2e_s for o in ok if o.e2e_s is not None], 50)),
         "slo_attainment": sum(1 for t in ttfts if t <= ttft_slo_s) / len(window),
@@ -199,13 +228,31 @@ def target_params(target: dict[str, Any], cell: dict[str, Any]) -> dict[str, Any
     workers), or native vllm-metal workers configured by `worker_params`."""
     t = {**target, **cell}
     if t.get("workers") == "vllm_metal":
-        return {"workers": "vllm_metal", "scorer_profile": t["scorer_profile"], "model": t.get("model", "qwen3"),
-                "worker_params": dict(t["worker_params"])}
-    args = [*t.get("sim_args", []), "--enable-kvcache", "--kv-cache-size", str(t["gpu_kv_blocks"]),
-            "--cpu-kv-cache-size", str(t.get("cpu_kv_blocks", 0))]
-    return {"workers": "sim", "scorer_profile": t["scorer_profile"], "model": t.get("model", "qwen3"),
-            "worker_params": {"replicas": t["replicas"], "base_port": t.get("base_port", 8300),
-                              "image": t["image"], "args": args}}
+        return {
+            "workers": "vllm_metal",
+            "scorer_profile": t["scorer_profile"],
+            "model": t.get("model", "qwen3"),
+            "worker_params": dict(t["worker_params"]),
+        }
+    args = [
+        *t.get("sim_args", []),
+        "--enable-kvcache",
+        "--kv-cache-size",
+        str(t["gpu_kv_blocks"]),
+        "--cpu-kv-cache-size",
+        str(t.get("cpu_kv_blocks", 0)),
+    ]
+    return {
+        "workers": "sim",
+        "scorer_profile": t["scorer_profile"],
+        "model": t.get("model", "qwen3"),
+        "worker_params": {
+            "replicas": t["replicas"],
+            "base_port": t.get("base_port", 8300),
+            "image": t["image"],
+            "args": args,
+        },
+    }
 
 
 def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)) -> Path:
@@ -213,8 +260,10 @@ def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)
     rp = spec["replay"]
     started_at = utc_now_iso()
     traces = spec.get("traces") or {"default": spec.get("trace", TRACE_FILE)}  # e.g. one trace per context policy
-    sessions = {name: load_sessions(verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300)))
-                for name, rel in traces.items()}
+    sessions = {
+        name: load_sessions(verified_path(rel), idle_cap_s=float(spec.get("idle_cap_s", 300)))
+        for name, rel in traces.items()
+    }
     run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
     out_dir = Path(out_root) / run_id
     out_dir.mkdir(parents=True)
@@ -225,8 +274,17 @@ def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)
     trials: list[TrialResult] = []
     for rep in range(int(spec.get("repeats", 1))):
         seed = int(spec.get("seed", 0)) * 1000 + rep
-        arrivals = {name: schedule(s, int(rp["concurrency"]), float(rp["horizon_s"]), float(rp["warmup_s"]),
-                                   float(rp.get("time_scale", 1.0)), seed) for name, s in sessions.items()}
+        arrivals = {
+            name: schedule(
+                s,
+                int(rp["concurrency"]),
+                float(rp["horizon_s"]),
+                float(rp["warmup_s"]),
+                float(rp.get("time_scale", 1.0)),
+                seed,
+            )
+            for name, s in sessions.items()
+        }
         for cell_id, cell in cells.items():  # every cell replays the same session schedule within a repeat
             params = target_params(spec["target"], {k: v for k, v in cell.items() if k != "trace"})
             trace_arrivals = arrivals[cell.get("trace", "default")]
@@ -235,31 +293,56 @@ def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)
             t_start, trial_started = time.perf_counter(), utc_now_iso()
             target = LlmdNoK8s(params, out_dir / "logs" / label.replace("/", "_"))
             with target:
-                outcomes = replay(trace_arrivals, target.base_urls[0], params["model"],
-                                  tokens_per_block=int(rp["tokens_per_block"]), output_scale=float(rp["output_scale"]),
-                                  max_output_tokens=int(rp["max_output_tokens"]), timeout_s=float(rp["timeout_s"]))
+                outcomes = replay(
+                    trace_arrivals,
+                    target.base_urls[0],
+                    params["model"],
+                    tokens_per_block=int(rp["tokens_per_block"]),
+                    output_scale=float(rp["output_scale"]),
+                    max_output_tokens=int(rp["max_output_tokens"]),
+                    timeout_s=float(rp["timeout_s"]),
+                )
                 server = target.collect()
             metrics = trial_metrics(outcomes, float(rp["warmup_s"]), float(rp["ttft_slo_s"]))
             per_worker = server["requests_per_worker"]
-            metrics.update({
-                "server_gpu_hit_ratio": server["server_prefix_cache_hit_ratio"] or 0.0,
-                "server_cpu_loaded_ratio": server["server_cpu_loaded_ratio"] or 0.0,
-                "load_imbalance": max(per_worker) / (sum(per_worker) / len(per_worker)) if sum(per_worker) else 0.0,
-            })
+            metrics.update(
+                {
+                    "server_gpu_hit_ratio": server["server_prefix_cache_hit_ratio"] or 0.0,
+                    "server_cpu_loaded_ratio": server["server_cpu_loaded_ratio"] or 0.0,
+                    "load_imbalance": max(per_worker) / (sum(per_worker) / len(per_worker)) if sum(per_worker) else 0.0,
+                }
+            )
             log(f"{label}: " + " ".join(f"{k}={v:.4g}" for k, v in metrics.items()))
-            trials.append(TrialResult(
-                trial_id=label, cell_id=cell_id, repeat=rep, seed=seed, status="ok", started_at=trial_started,
-                duration_s=round(time.perf_counter() - t_start, 3), host_load_1m_before=0.0, quiet_host_ok=True,
-                metrics={k: round(v, 6) for k, v in metrics.items()}, requests_per_endpoint=[int(x) for x in per_worker],
-                target=target.describe(), error=None))
+            trials.append(
+                TrialResult(
+                    trial_id=label,
+                    cell_id=cell_id,
+                    repeat=rep,
+                    seed=seed,
+                    status="ok",
+                    started_at=trial_started,
+                    duration_s=round(time.perf_counter() - t_start, 3),
+                    host_load_1m_before=0.0,
+                    quiet_host_ok=True,
+                    metrics={k: round(v, 6) for k, v in metrics.items()},
+                    requests_per_endpoint=[int(x) for x in per_worker],
+                    target=target.describe(),
+                    error=None,
+                )
+            )
             with (out_dir / "requests.jsonl").open("a", encoding="utf-8") as fh:
                 for o in outcomes:
                     fh.write(json.dumps({"trial": label, **o.__dict__}) + "\n")
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=run_id, name=spec["name"], description=spec.get("description", ""),
-        spec=spec, provenance=make_provenance(spec, started_at, {
-            "traces": traces, "trials_completed": len(trials)}),
-        trials=trials, cells=aggregate_cells(trials, cells))
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=run_id,
+        name=spec["name"],
+        description=spec.get("description", ""),
+        spec=spec,
+        provenance=make_provenance(spec, started_at, {"traces": traces, "trials_completed": len(trials)}),
+        trials=trials,
+        cells=aggregate_cells(trials, cells),
+    )
     (out_dir / "results.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
     log(f"wrote {out_dir}")
     return out_dir

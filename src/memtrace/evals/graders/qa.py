@@ -56,4 +56,4 @@ def agent_success(prediction: str | None, gold: str) -> bool:
     pred, want = normalize_answer(prediction).split(), normalize_answer(gold).split()
     if not want or want in (["yes"], ["no"]) or len(pred) > 2 * len(want) + 5:
         return False
-    return any(pred[i:i + len(want)] == want for i in range(len(pred) - len(want) + 1))
+    return any(pred[i : i + len(want)] == want for i in range(len(pred) - len(want) + 1))

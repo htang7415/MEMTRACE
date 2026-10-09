@@ -189,11 +189,15 @@ def _write_result(
         name=spec.name,
         description=spec.description,
         spec=spec_dict,
-        provenance=make_provenance(spec_dict, started_at, {
-            "gemini_key_present": key_present,  # presence only, never the value
-            "trials_planned": len(trials),
-            "trials_completed": len(results),
-        }),
+        provenance=make_provenance(
+            spec_dict,
+            started_at,
+            {
+                "gemini_key_present": key_present,  # presence only, never the value
+                "trials_planned": len(trials),
+                "trials_completed": len(results),
+            },
+        ),
         trials=list(results),
         cells=aggregate_cells(results, cell_params),
     )
@@ -242,14 +246,25 @@ def _drive(
 ) -> tuple[list[RequestRecord], float]:
     if workload.concurrency is not None:
         return run_closed_loop(
-            workload.specs, base_urls=target.base_urls, picker=target.picker(),
-            concurrency=workload.concurrency, timeout_s=workload.timeout_s,
-            max_tokens=workload.max_tokens, send=send,
+            workload.specs,
+            base_urls=target.base_urls,
+            picker=target.picker(),
+            concurrency=workload.concurrency,
+            timeout_s=workload.timeout_s,
+            max_tokens=workload.max_tokens,
+            send=send,
         )
     return run_open_loop(
-        workload.specs, base_urls=target.base_urls, picker=target.picker(), rate_rps=workload.rate_rps,
-        max_in_flight=workload.max_in_flight, timeout_s=workload.timeout_s,
-        max_tokens=workload.max_tokens, seed=seed, send=send, arrivals=workload.arrivals,
+        workload.specs,
+        base_urls=target.base_urls,
+        picker=target.picker(),
+        rate_rps=workload.rate_rps,
+        max_in_flight=workload.max_in_flight,
+        timeout_s=workload.timeout_s,
+        max_tokens=workload.max_tokens,
+        seed=seed,
+        send=send,
+        arrivals=workload.arrivals,
     )
 
 
@@ -264,7 +279,9 @@ def estimate_cost_usd(workload: Workload, price: ModelPrice) -> float:
     return cost_usd(price, input_tokens=prompt, output_tokens=output)
 
 
-def actual_cost_usd(records: list[RequestRecord], workload: Workload, price: ModelPrice) -> tuple[float, dict[str, int]]:
+def actual_cost_usd(
+    records: list[RequestRecord], workload: Workload, price: ModelPrice
+) -> tuple[float, dict[str, int]]:
     """Bill from provider-reported usage; requests without usage are charged their estimate."""
     by_id = {s.request_id: s for s in workload.specs}
     usage = {"input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "estimated_requests": 0}
@@ -277,8 +294,12 @@ def actual_cost_usd(records: list[RequestRecord], workload: Workload, price: Mod
             usage["input_tokens"] += estimated_tokens(by_id[r.request_id])
             usage["output_tokens"] += by_id[r.request_id].max_tokens or workload.max_tokens
             usage["estimated_requests"] += 1
-    cost = cost_usd(price, input_tokens=usage["input_tokens"], output_tokens=usage["output_tokens"],
-                    cached_tokens=usage["cached_tokens"])
+    cost = cost_usd(
+        price,
+        input_tokens=usage["input_tokens"],
+        output_tokens=usage["output_tokens"],
+        cached_tokens=usage["cached_tokens"],
+    )
     return cost, usage
 
 
@@ -383,8 +404,9 @@ def foreign_engine_containers(docker_ps: str | None = None) -> list[str]:
     """
     if docker_ps is None:
         try:
-            out = subprocess.run(["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"],
-                                 capture_output=True, text=True, timeout=10)
+            out = subprocess.run(
+                ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"], capture_output=True, text=True, timeout=10
+            )
         except (OSError, subprocess.SubprocessError):
             return []
         docker_ps = out.stdout if out.returncode == 0 else ""
@@ -417,4 +439,3 @@ def wait_for_quiet_host(
         if time.monotonic() >= deadline:
             return load, False, others
         time.sleep(poll_s)
-

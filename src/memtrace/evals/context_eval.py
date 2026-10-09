@@ -43,7 +43,11 @@ from memtrace.harness.budget import BudgetExceededError, BudgetLedger, ModelPric
 from memtrace.harness.gateway import AIGateway
 from memtrace.harness.provenance import make_provenance, scrubber
 from memtrace.harness.results import (
-    RESULT_SCHEMA_VERSION, ExperimentResult, TrialResult, aggregate_cells, mean_ci,
+    RESULT_SCHEMA_VERSION,
+    ExperimentResult,
+    TrialResult,
+    aggregate_cells,
+    mean_ci,
 )
 from memtrace.harness.targets import GeminiTarget
 from memtrace.serving.client import CompletionResult, chat_completion
@@ -73,8 +77,11 @@ def load_spec(path: Path) -> dict[str, Any]:
 
 def spec_tasks(spec: dict[str, Any], n: int) -> list[BrowseTask]:
     """The spec's tasks: `n` seeded draws, skipping those of `exclude_tasks_from`."""
-    exclude = {it["task_id"] for it in _read_jsonl(Path(spec["exclude_tasks_from"]) / "items.jsonl")} \
-        if spec.get("exclude_tasks_from") else set()
+    exclude = (
+        {it["task_id"] for it in _read_jsonl(Path(spec["exclude_tasks_from"]) / "items.jsonl")}
+        if spec.get("exclude_tasks_from")
+        else set()
+    )
     return load_tasks(n, int(spec["seed"]), pool=int(spec["pool"]), exclude=exclude)
 
 
@@ -111,8 +118,16 @@ class Recorder:
 
 
 def _call_cost(price: ModelPrice, results: Sequence[Any]) -> float:
-    return sum(cost_usd(price, input_tokens=r.prompt_tokens, output_tokens=r.completion_tokens + r.reasoning_tokens,
-                        cached_tokens=r.cached_tokens) for r in results if r.status == "ok")
+    return sum(
+        cost_usd(
+            price,
+            input_tokens=r.prompt_tokens,
+            output_tokens=r.completion_tokens + r.reasoning_tokens,
+            cached_tokens=r.cached_tokens,
+        )
+        for r in results
+        if r.status == "ok"
+    )
 
 
 class CreditsExhausted(RuntimeError):
@@ -120,8 +135,9 @@ class CreditsExhausted(RuntimeError):
 
 
 def _fatal(error: str | None) -> bool:  # provider out of credit or quota, or the gateway refused the spend
-    return bool(error) and (error.startswith("http 402") or "RESOURCE_EXHAUSTED" in error
-                            or "remote budget exhausted" in error)
+    return bool(error) and (
+        error.startswith("http 402") or "RESOURCE_EXHAUSTED" in error or "remote budget exhausted" in error
+    )
 
 
 def _write_jsonl(path: Path, rows: Sequence[dict[str, Any]]) -> None:
@@ -133,8 +149,9 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
 
 
-def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = None,
-                     resume: Path | None = None) -> Path:
+def run_context_eval(
+    spec: dict[str, Any], out_root: Path, limit: int | None = None, resume: Path | None = None
+) -> Path:
     """Run (or, with `resume`, finish) an evaluation. `items.jsonl` and the local-only `answers.jsonl` are
     saved after every task group, so a stopped run resumes without repeating finished tasks."""
     if resume is not None:
@@ -144,8 +161,9 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
     else:
         out_dir = out_root / f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
         out_dir.mkdir(parents=True)
-        (out_dir / "spec.yaml").write_text(yaml.safe_dump({**spec, "_task_limit": limit}, sort_keys=False),
-                                           encoding="utf-8")
+        (out_dir / "spec.yaml").write_text(
+            yaml.safe_dump({**spec, "_task_limit": limit}, sort_keys=False), encoding="utf-8"
+        )
     started_at = utc_now_iso()
     n = int(spec["tasks"]) if limit is None else min(int(spec["tasks"]), limit)
     seed, max_steps, budget = int(spec["seed"]), int(spec["max_steps"]), float(spec["budget_usd"])
@@ -166,23 +184,35 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
     price = target.pricing()[1]
     send_tools, send_text = bound_send(target, chat_tools), bound_send(target, chat_completion)
     stop: list[str] = []
-    gateways = {name: AIGateway({"policy": "remote_only", "port": 8090 + i, "context": params["gateway"],
-                                 "remote": {"enabled": True, **spec["model"]}}, out_dir / f"gateway-{name}")
-                for i, (name, params) in enumerate(policies.items()) if "gateway" in params}
+    gateways = {
+        name: AIGateway(
+            {
+                "policy": "remote_only",
+                "port": 8090 + i,
+                "context": params["gateway"],
+                "remote": {"enabled": True, **spec["model"]},
+            },
+            out_dir / f"gateway-{name}",
+        )
+        for i, (name, params) in enumerate(policies.items())
+        if "gateway" in params
+    }
     meter = Meter(price)
     gateway_meter = Meter(price)  # the gateway commits these calls to the ledger; counted here for the budget
     # Like the gateway, every direct request reserves its worst case and commits what it cost, so the two
     # share the cap without either holding budget the other needs.
     ledger, label = BudgetLedger(target.pricing()[2]), f"context-eval/{spec['name']}"
 
-    def with_retries(fn: Any, meter: Meter, messages: Any, max_tokens: int, url: str | None = None,
-                     **kwargs: Any) -> Any:
+    def with_retries(
+        fn: Any, meter: Meter, messages: Any, max_tokens: int, url: str | None = None, **kwargs: Any
+    ) -> Any:
         for attempt in range(3):
             reservation = None
             if url is None:  # calls through the gateway are reserved by the gateway
                 try:
-                    reservation = ledger.reserve(cost_usd(price, input_tokens=estimated_prompt_tokens(messages),
-                                                          output_tokens=max_tokens), label)
+                    reservation = ledger.reserve(
+                        cost_usd(price, input_tokens=estimated_prompt_tokens(messages), output_tokens=max_tokens), label
+                    )
                 except BudgetExceededError as exc:
                     stop.append(str(exc)[:200])
                     return CompletionResult("", "error", None, 0.0, 0, 0, 0, f"budget: {exc}")
@@ -190,8 +220,9 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
             r = fn(url or target.base_urls[0], messages, max_tokens=max_tokens, timeout_s=120.0, **kwargs)
             meter.add(r, messages, max_tokens)
             if reservation is not None:
-                ledger.commit(reservation, max(0.0, meter.spend_usd - spend),
-                              {k: meter.usage[k] - usage[k] for k in usage})
+                ledger.commit(
+                    reservation, max(0.0, meter.spend_usd - spend), {k: meter.usage[k] - usage[k] for k in usage}
+                )
             if _fatal(r.error):
                 stop.append(scrubber()[0](r.error or "")[:200])
                 return r
@@ -202,11 +233,12 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
 
     def save() -> None:
         _write_jsonl(out_dir / "items.jsonl", items)
-        _write_jsonl(out_dir / "answers.jsonl",  # local only: answers can contain benchmark text
-                     [{"task_id": k[0], "policy": k[1], "answer": v} for k, v in answers.items()])
+        _write_jsonl(
+            out_dir / "answers.jsonl",  # local only: answers can contain benchmark text
+            [{"task_id": k[0], "policy": k[1], "answer": v} for k, v in answers.items()],
+        )
 
-    with target, \
-            tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+    with target, tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
         for gw in gateways.values():
             stack.enter_context(gw)
         for i, task in enumerate(tasks):
@@ -220,9 +252,19 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
                 if (task.task_id, name) in finished:
                     continue
                 gw = gateways.get(name)
-                item, answer = run_one(task, name, params, max_steps, Path(tmp), gateway_meter if gw else meter,
-                                       price, with_retries, send_tools, send_text,
-                                       gateway_url=gw.base_urls[0] if gw else None)
+                item, answer = run_one(
+                    task,
+                    name,
+                    params,
+                    max_steps,
+                    Path(tmp),
+                    gateway_meter if gw else meter,
+                    price,
+                    with_retries,
+                    send_tools,
+                    send_text,
+                    gateway_url=gw.base_urls[0] if gw else None,
+                )
                 if stop:
                     break
                 group.append((item, answer))
@@ -234,23 +276,41 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
                     answers[(item["task_id"], item["policy"])] = answer
             done.add(task.task_id)
             save()
-            _log(f"task {i + 1}/{len(tasks)} done, spend ${spent_before + meter.spend_usd + gateway_meter.spend_usd:.4f}")
+            _log(
+                f"task {i + 1}/{len(tasks)} done, spend ${spent_before + meter.spend_usd + gateway_meter.spend_usd:.4f}"
+            )
         gateway_stats = {name: scrape_context_metrics(gw.base_urls[0]) for name, gw in gateways.items()}
     agent_spend = spent_before + meter.spend_usd + gateway_meter.spend_usd
-    (out_dir / "spec.yaml").write_text(yaml.safe_dump({**spec, "_agent_spend_usd": round(agent_spend, 6)},
-                                                      sort_keys=False), encoding="utf-8")
+    (out_dir / "spec.yaml").write_text(
+        yaml.safe_dump({**spec, "_agent_spend_usd": round(agent_spend, 6)}, sort_keys=False), encoding="utf-8"
+    )
     if stop:
-        raise CreditsExhausted(f"provider refused requests ({stop[0]}); finished task groups are saved in "
-                               f"{out_dir}; add credit, then rerun with --resume {out_dir}")
+        raise CreditsExhausted(
+            f"provider refused requests ({stop[0]}); finished task groups are saved in "
+            f"{out_dir}; add credit, then rerun with --resume {out_dir}"
+        )
 
-    pending = [it for it in items if it.get("judge_label") in (None, "judge_error")
-               and (it["task_id"], it["policy"]) in answers]
-    calls = [Call(f"{it['task_id']}|{it['policy']}",
-                  judge_messages(by_id[it["task_id"]].question, [by_id[it["task_id"]].answer],
-                                 answers[(it["task_id"], it["policy"])]), max_tokens=512) for it in pending]
+    pending = [
+        it
+        for it in items
+        if it.get("judge_label") in (None, "judge_error") and (it["task_id"], it["policy"]) in answers
+    ]
+    calls = [
+        Call(
+            f"{it['task_id']}|{it['policy']}",
+            judge_messages(
+                by_id[it["task_id"]].question, [by_id[it["task_id"]].answer], answers[(it["task_id"], it["policy"])]
+            ),
+            max_tokens=512,
+        )
+        for it in pending
+    ]
     with judge:
-        verdicts, judge_usage = run_calls(judge, calls, f"context-eval/{spec['name']}/judge", workers=8) \
-            if calls else ({}, {"spend_usd": 0.0})
+        verdicts, judge_usage = (
+            run_calls(judge, calls, f"context-eval/{spec['name']}/judge", workers=8)
+            if calls
+            else ({}, {"spend_usd": 0.0})
+        )
     for it in items:
         key = (it["task_id"], it["policy"])
         if key not in answers:
@@ -272,42 +332,89 @@ def run_context_eval(spec: dict[str, Any], out_root: Path, limit: int | None = N
         for s in range(shards):
             shard_ids = set(task_ids[s::shards])
             shard = [it for it in items if it["policy"] == name and it["task_id"] in shard_ids]
-            trials.append(TrialResult(
-                trial_id=f"{name}-shard{s}", cell_id=name, repeat=s, seed=seed, status="ok", started_at=started_at,
-                duration_s=0.0, host_load_1m_before=0.0, quiet_host_ok=True, metrics=metrics(shard),
-                requests_per_endpoint=[sum(it["model_calls"] for it in shard)], target=target.describe(), error=None))
+            trials.append(
+                TrialResult(
+                    trial_id=f"{name}-shard{s}",
+                    cell_id=name,
+                    repeat=s,
+                    seed=seed,
+                    status="ok",
+                    started_at=started_at,
+                    duration_s=0.0,
+                    host_load_1m_before=0.0,
+                    quiet_host_ok=True,
+                    metrics=metrics(shard),
+                    requests_per_endpoint=[sum(it["model_calls"] for it in shard)],
+                    target=target.describe(),
+                    error=None,
+                )
+            )
     scrub, key_present = scrubber()
     spend = {"agent": round(agent_spend, 4), "judge": judge_usage["spend_usd"]}
     public_spec = {k: v for k, v in spec.items() if not k.startswith("_")}
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=out_dir.name, name=spec["name"],
-        description=str(spec.get("description", "")), spec=public_spec,
-        provenance=make_provenance(public_spec, started_at, {
-            "gemini_key_present": key_present, "judge_rubric": RUBRIC_VERSION, "task_limit": limit,
-            "tasks_completed": len(task_ids), "resumed": resume is not None, "spend_usd": spend}),
-        trials=trials, cells=aggregate_cells(trials, {name: {"policy": name, **p} for name, p in policies.items()}))
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=out_dir.name,
+        name=spec["name"],
+        description=str(spec.get("description", "")),
+        spec=public_spec,
+        provenance=make_provenance(
+            public_spec,
+            started_at,
+            {
+                "gemini_key_present": key_present,
+                "judge_rubric": RUBRIC_VERSION,
+                "task_limit": limit,
+                "tasks_completed": len(task_ids),
+                "resumed": resume is not None,
+                "spend_usd": spend,
+            },
+        ),
+        trials=trials,
+        cells=aggregate_cells(trials, {name: {"policy": name, **p} for name, p in policies.items()}),
+    )
     (out_dir / "results.json").write_text(scrub(json.dumps(result.to_dict(), indent=2)) + "\n", encoding="utf-8")
     summary: dict[str, Any] = {
-        "tasks": len(task_ids), "spend_usd": spend,
-        "overall": {name: metrics([it for it in items if it["policy"] == name]) for name in policies}}
+        "tasks": len(task_ids),
+        "spend_usd": spend,
+        "overall": {name: metrics([it for it in items if it["policy"] == name]) for name in policies},
+    }
     if gateway_stats:
         summary["gateway_context"] = gateway_stats  # this session only (a resumed run restarts the gateway)
     paired = items
     if spec.get("pair_with"):
-        other = [it for it in _read_jsonl(Path(spec["pair_with"]) / "items.jsonl") if it["task_id"] in set(task_ids)
-                 and it["policy"] not in policies]
+        other = [
+            it
+            for it in _read_jsonl(Path(spec["pair_with"]) / "items.jsonl")
+            if it["task_id"] in set(task_ids) and it["policy"] not in policies
+        ]
         paired = items + other
-        summary["paired_with"] = {"run": Path(spec["pair_with"]).name, "overall": {
-            name: metrics([it for it in other if it["policy"] == name]) for name in dict.fromkeys(it["policy"] for it in other)}}
+        summary["paired_with"] = {
+            "run": Path(spec["pair_with"]).name,
+            "overall": {
+                name: metrics([it for it in other if it["policy"] == name])
+                for name in dict.fromkeys(it["policy"] for it in other)
+            },
+        }
     summary["paired_vs_full"] = paired_vs_full(paired, list(policies))
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     _log(f"wrote {out_dir}")
     return out_dir
 
 
-def run_one(task: BrowseTask, name: str, params: dict[str, Any], max_steps: int, workdir: Path, meter: Meter,
-            price: ModelPrice, with_retries: Any, send_tools: Any, send_text: Any, gateway_url: str | None = None,
-            ) -> tuple[dict[str, Any], str | None]:
+def run_one(
+    task: BrowseTask,
+    name: str,
+    params: dict[str, Any],
+    max_steps: int,
+    workdir: Path,
+    meter: Meter,
+    price: ModelPrice,
+    with_retries: Any,
+    send_tools: Any,
+    send_text: Any,
+    gateway_url: str | None = None,
+) -> tuple[dict[str, Any], str | None]:
     """One agent run: (item with ids and numbers only, the answer text or None). With `gateway_url` the agent
     sends its full history to the gateway, which applies the context policy."""
     summaries: list[Any] = []
@@ -324,19 +431,26 @@ def run_one(task: BrowseTask, name: str, params: dict[str, Any], max_steps: int,
         summaries.append(r)
         return r.text.strip() if r.status == "ok" else "(summary unavailable)"
 
-    context = Recorder(make_policy("full") if gateway_url else
-                       make_policy(name, summarizer if name.startswith("summarize") else None, **params))
+    context = Recorder(
+        make_policy("full")
+        if gateway_url
+        else make_policy(name, summarizer if name.startswith("summarize") else None, **params)
+    )
     agent = ChatPolicy(lambda messages, tools: retry(send_tools, meter, messages, MAX_TOKENS, tools=tools))
     run = run_task(task, agent, max_steps, workdir, context, nonce + SYSTEM_PROMPT)
     steps = [r for r in agent.results if r.status == "ok"]
     prompt = sum(r.prompt_tokens for r in steps)
     history_tokens = sum(h for h, _ in context.steps)
     item = {
-        "task_id": task.task_id, "policy": name, "run_status": run.status,
+        "task_id": task.task_id,
+        "policy": name,
+        "run_status": run.status,
         "error_type": (run.error or "").split(":", 1)[0] or None,  # type only: messages may quote task text
-        "model_calls": len(agent.results), "summary_calls": len(summaries),
+        "model_calls": len(agent.results),
+        "summary_calls": len(summaries),
         "tool_calls": len(run.tool_calls),
-        "prompt_tokens": prompt, "cached_tokens": sum(r.cached_tokens for r in steps),
+        "prompt_tokens": prompt,
+        "cached_tokens": sum(r.cached_tokens for r in steps),
         "output_tokens": sum(r.completion_tokens + r.reasoning_tokens for r in steps),
         "peak_context_tokens": max((r.prompt_tokens for r in steps), default=0),
         "view_share": round(sum(v for _, v in context.steps) / history_tokens, 4) if history_tokens else 1.0,
@@ -353,8 +467,11 @@ def scrape_context_metrics(base_url: str) -> dict[str, float]:
 
     with urllib.request.urlopen(base_url + "/metrics", timeout=5) as resp:
         lines = resp.read().decode("utf-8", "replace").splitlines()
-    return {line.rsplit(" ", 1)[0].removeprefix("maxion_gateway_"): float(line.rsplit(" ", 1)[1])
-            for line in lines if line.startswith("maxion_gateway_context_")}
+    return {
+        line.rsplit(" ", 1)[0].removeprefix("maxion_gateway_"): float(line.rsplit(" ", 1)[1])
+        for line in lines
+        if line.startswith("maxion_gateway_context_")
+    }
 
 
 def metrics(items: Sequence[dict[str, Any]]) -> dict[str, float]:
@@ -365,9 +482,12 @@ def metrics(items: Sequence[dict[str, Any]]) -> dict[str, float]:
     cost = sum(it["cost_usd"] for it in items)
     prompt = sum(it["prompt_tokens"] for it in items)
     m = {
-        "tasks": float(n), "accuracy": correct / n, "cost_usd_per_task": cost / n,
+        "tasks": float(n),
+        "accuracy": correct / n,
+        "cost_usd_per_task": cost / n,
         "cached_share": sum(it["cached_tokens"] for it in items) / prompt if prompt else 0.0,
-        "prompt_tokens_per_task": prompt / n, "peak_context_tokens": sum(it["peak_context_tokens"] for it in items) / n,
+        "prompt_tokens_per_task": prompt / n,
+        "peak_context_tokens": sum(it["peak_context_tokens"] for it in items) / n,
         "model_calls_per_task": sum(it["model_calls"] for it in items) / n,
         "view_share": sum(it["view_share"] for it in items) / n,
         "summary_cost_share": sum(it["summary_cost_usd"] for it in items) / cost if cost else 0.0,

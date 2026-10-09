@@ -45,8 +45,10 @@ SPEC_SCHEMA = "maxionbench-gwreplay-v1"
 CONTEXT_HEADER = "X-Maxionbench-Context"
 # Common three-letter words: " the" etc. are one token each in the Qwen3 tokenizer, so text has ~1 token
 # per word and ~4 characters per token, which is also what the gateway's estimator assumes.
-WORDS = ("the and for are but not you all any can had her was one our out day get has him his how man new now "
-         "old see two way who boy did its let put say she too use").split()
+WORDS = (
+    "the and for are but not you all any can had her was one our out day get has him his how man new now "
+    "old see two way who boy did its let put say she too use"
+).split()
 
 
 @dataclass(frozen=True)
@@ -131,7 +133,9 @@ def stream_chat(base_url: str, body: dict[str, Any], timeout_s: float) -> tuple[
     conn = http.client.HTTPConnection(parts.hostname or "localhost", parts.port, timeout=timeout_s)
     started = time.perf_counter()
     try:
-        conn.request("POST", "/v1/chat/completions", body=json.dumps(body), headers={"content-type": "application/json"})
+        conn.request(
+            "POST", "/v1/chat/completions", body=json.dumps(body), headers={"content-type": "application/json"}
+        )
         resp = conn.getresponse()
         if resp.status != 200:
             raise RuntimeError(f"http {resp.status}: {resp.read(300).decode('utf-8', 'replace')}")
@@ -150,26 +154,45 @@ def stream_chat(base_url: str, body: dict[str, Any], timeout_s: float) -> tuple[
         conn.close()
 
 
-def replay(arrivals: Sequence[Any], sessions: Sequence[ChatSession], base_url: str, render: Renderer, *,
-           output_scale: float, max_output_tokens: int, timeout_s: float) -> list[ChatOutcome]:
+def replay(
+    arrivals: Sequence[Any],
+    sessions: Sequence[ChatSession],
+    base_url: str,
+    render: Renderer,
+    *,
+    output_scale: float,
+    max_output_tokens: int,
+    timeout_s: float,
+) -> list[ChatOutcome]:
     outcomes: list[ChatOutcome | None] = [None] * len(arrivals)
     t0 = time.perf_counter()
 
     def send(i: int, a: Any) -> None:
         s = sessions[a.session]
         try:
-            body = {"model": "local", "messages": render.messages(s.id, a.request), "prompt_cache_key": s.id,
-                    "max_tokens": max(1, min(max_output_tokens, round(a.request.out_tokens * output_scale))),
-                    "ignore_eos": True, "stream": True, "stream_options": {"include_usage": True},
-                    "chat_template_kwargs": {"enable_thinking": False}}
+            body = {
+                "model": "local",
+                "messages": render.messages(s.id, a.request),
+                "prompt_cache_key": s.id,
+                "max_tokens": max(1, min(max_output_tokens, round(a.request.out_tokens * output_scale))),
+                "ignore_eos": True,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
             sent = time.perf_counter()
             ttft, usage, action = stream_chat(base_url, body, timeout_s)
             done = time.perf_counter()
             queued = sent - (t0 + a.t)
             outcomes[i] = ChatOutcome(
-                scheduled_s=a.t, status="ok", ttft_s=None if ttft is None else queued + ttft, e2e_s=done - t0 - a.t,
+                scheduled_s=a.t,
+                status="ok",
+                ttft_s=None if ttft is None else queued + ttft,
+                e2e_s=done - t0 - a.t,
                 prompt_tokens=int(usage.get("prompt_tokens", 0)),
-                cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)), action=action)
+                cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)),
+                action=action,
+            )
         except Exception as exc:  # noqa: BLE001 - every failure is recorded, none stops the replay
             outcomes[i] = ChatOutcome(scheduled_s=a.t, status="error", error=str(exc)[:200])
 
@@ -184,14 +207,25 @@ def replay(arrivals: Sequence[Any], sessions: Sequence[ChatSession], base_url: s
 
 def action_shares(outcomes: Sequence[ChatOutcome], warmup_s: float) -> dict[str, float]:
     ok = [o for o in outcomes if o.status == "ok" and o.scheduled_s >= warmup_s]
-    return {f"context_{a}_share": sum(o.action == a for o in ok) / len(ok)
-            for a in ("append", "edit", "pause_edit", "start")} if ok else {}
+    return (
+        {
+            f"context_{a}_share": sum(o.action == a for o in ok) / len(ok)
+            for a in ("append", "edit", "pause_edit", "start")
+        }
+        if ok
+        else {}
+    )
 
 
 def gateway_params(spec: dict[str, Any], arm: dict[str, Any]) -> dict[str, Any]:
-    return {"local": {"kind": "vllm_metal", "params": dict(spec["target"])}, "policy": "local_only",
-            "max_inflight": 1_000, "local_model": spec["target"]["model"],
-            "port": int(spec.get("gateway_port", 8090)), "context": dict(arm)}
+    return {
+        "local": {"kind": "vllm_metal", "params": dict(spec["target"])},
+        "policy": "local_only",
+        "max_inflight": 1_000,
+        "local_model": spec["target"]["model"],
+        "port": int(spec.get("gateway_port", 8090)),
+        "context": dict(arm),
+    }
 
 
 def load_spec(path: Path) -> dict[str, Any]:
@@ -210,9 +244,12 @@ def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)
     started_at = utc_now_iso()
     n, seed0, idle_cap = int(spec.get("sessions", 200)), int(spec.get("seed", 0)), float(spec.get("idle_cap_s", 300))
     cache_dir = Path(spec.get("cache_dir", "artifacts/cache/k9"))
-    sessions = {day: load_chat_sessions(verified_path(rel), n, seed0, idle_cap,
-                                        cache_dir / f"{Path(rel).name.split('.tar')[0]}.n{n}.s{seed0}.jsonl")
-                for day, rel in spec["days"].items()}
+    sessions = {
+        day: load_chat_sessions(
+            verified_path(rel), n, seed0, idle_cap, cache_dir / f"{Path(rel).name.split('.tar')[0]}.n{n}.s{seed0}.jsonl"
+        )
+        for day, rel in spec["days"].items()
+    }
     render = Renderer(float(rp["scale"]))
     run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
     out_dir = Path(out_root) / run_id
@@ -223,37 +260,72 @@ def run(spec_path: Path, out_root: Path, log=lambda m: print(m, file=sys.stderr)
     trials: list[TrialResult] = []
     for rep in range(int(spec.get("repeats", 1))):
         seed = seed0 * 1000 + rep
-        arrivals = {day: schedule(s, int(rp["concurrency"]), float(rp["horizon_s"]), warmup,
-                                  float(rp.get("time_scale", 1.0)), seed, mid_life=bool(rp.get("mid_life", False)))
-                    for day, s in sessions.items()}
+        arrivals = {
+            day: schedule(
+                s,
+                int(rp["concurrency"]),
+                float(rp["horizon_s"]),
+                warmup,
+                float(rp.get("time_scale", 1.0)),
+                seed,
+                mid_life=bool(rp.get("mid_life", False)),
+            )
+            for day, s in sessions.items()
+        }
         for cell_id, cell in cells.items():  # every arm replays the same session schedule within a day and repeat
             label = f"{cell_id}/r{rep}"
             log(f"{label}: {len(arrivals[cell['day']])} arrivals over {rp['horizon_s']} s")
             t_start, trial_started = time.perf_counter(), utc_now_iso()
             gw = AIGateway(gateway_params(spec, spec["arms"][cell["arm"]]), out_dir / "logs" / label.replace("/", "_"))
             with gw:
-                outcomes = replay(arrivals[cell["day"]], sessions[cell["day"]], gw.base_urls[0], render,
-                                  output_scale=float(rp["output_scale"]), max_output_tokens=int(rp["max_output_tokens"]),
-                                  timeout_s=float(rp["timeout_s"]))
+                outcomes = replay(
+                    arrivals[cell["day"]],
+                    sessions[cell["day"]],
+                    gw.base_urls[0],
+                    render,
+                    output_scale=float(rp["output_scale"]),
+                    max_output_tokens=int(rp["max_output_tokens"]),
+                    timeout_s=float(rp["timeout_s"]),
+                )
                 engine = scrape_vllm_counters(gw.inner.base_urls[0])
                 gateway = scrape_gateway_metrics(gw.base_urls[0])
             metrics = trial_metrics(outcomes, warmup, float(rp["ttft_slo_s"]))
             metrics.update(action_shares(outcomes, warmup))
             queries = engine.get("prefix_cache_queries_total", 0.0)
-            metrics["engine_prefix_hit_ratio"] = engine.get("prefix_cache_hits_total", 0.0) / queries if queries else 0.0
+            metrics["engine_prefix_hit_ratio"] = (
+                engine.get("prefix_cache_hits_total", 0.0) / queries if queries else 0.0
+            )
             log(f"{label}: " + " ".join(f"{k}={v:.4g}" for k, v in metrics.items()))
-            trials.append(TrialResult(
-                trial_id=label, cell_id=cell_id, repeat=rep, seed=seed, status="ok", started_at=trial_started,
-                duration_s=round(time.perf_counter() - t_start, 3), host_load_1m_before=0.0, quiet_host_ok=True,
-                metrics={k: round(v, 6) for k, v in metrics.items()}, requests_per_endpoint=[len(outcomes)],
-                target={**gw.describe(), "gateway_metrics": gateway}, error=None))
+            trials.append(
+                TrialResult(
+                    trial_id=label,
+                    cell_id=cell_id,
+                    repeat=rep,
+                    seed=seed,
+                    status="ok",
+                    started_at=trial_started,
+                    duration_s=round(time.perf_counter() - t_start, 3),
+                    host_load_1m_before=0.0,
+                    quiet_host_ok=True,
+                    metrics={k: round(v, 6) for k, v in metrics.items()},
+                    requests_per_endpoint=[len(outcomes)],
+                    target={**gw.describe(), "gateway_metrics": gateway},
+                    error=None,
+                )
+            )
             with (out_dir / "requests.jsonl").open("a", encoding="utf-8") as fh:
                 for o in outcomes:
                     fh.write(json.dumps({"trial": label, **o.__dict__}) + "\n")
     result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION, run_id=run_id, name=spec["name"], description=spec.get("description", ""),
-        spec=spec, provenance=make_provenance(spec, started_at, {"days": spec["days"], "trials_completed": len(trials)}),
-        trials=trials, cells=aggregate_cells(trials, cells))
+        schema_version=RESULT_SCHEMA_VERSION,
+        run_id=run_id,
+        name=spec["name"],
+        description=spec.get("description", ""),
+        spec=spec,
+        provenance=make_provenance(spec, started_at, {"days": spec["days"], "trials_completed": len(trials)}),
+        trials=trials,
+        cells=aggregate_cells(trials, cells),
+    )
     (out_dir / "results.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
     log(f"wrote {out_dir}")
     return out_dir

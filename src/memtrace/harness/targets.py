@@ -153,15 +153,27 @@ class LlamaCppReplicas(ManagedServers):
 
     kind = "llamacpp_replicas"
     KEYS = {
-        "model", "replicas", "threads", "slots", "ctx", "cache_ram_mib", "base_port",
-        "routing_policy", "llama_server", "device", "disable_thinking", "cache_prompt",
+        "model",
+        "replicas",
+        "threads",
+        "slots",
+        "ctx",
+        "cache_ram_mib",
+        "base_port",
+        "routing_policy",
+        "llama_server",
+        "device",
+        "disable_thinking",
+        "cache_prompt",
     }
 
     def __init__(self, params: Mapping[str, Any], log_dir: Path) -> None:
         _check_keys(self.kind, params, self.KEYS)
         super().__init__(
-            int(params.get("replicas", 3)), int(params.get("base_port", 8100)),
-            str(params.get("routing_policy", "round_robin")), log_dir,
+            int(params.get("replicas", 3)),
+            int(params.get("base_port", 8100)),
+            str(params.get("routing_policy", "round_robin")),
+            log_dir,
         )
         self.model = Path(str(params["model"])).expanduser()
         self.threads = int(params.get("threads", 3))
@@ -183,10 +195,24 @@ class LlamaCppReplicas(ManagedServers):
         else:
             placement = ["-ngl", "999"]  # all layers on the Metal GPU
         return [
-            self.llama_server, "-m", str(self.model), *placement,
-            "-t", str(self.threads), "-np", str(self.slots), "-c", str(self.ctx),
-            "--cache-ram", str(self.cache_ram_mib), "--metrics", "--jinja",
-            "--host", "127.0.0.1", "--port", str(self.base_port + i),
+            self.llama_server,
+            "-m",
+            str(self.model),
+            *placement,
+            "-t",
+            str(self.threads),
+            "-np",
+            str(self.slots),
+            "-c",
+            str(self.ctx),
+            "--cache-ram",
+            str(self.cache_ram_mib),
+            "--metrics",
+            "--jinja",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.base_port + i),
         ]
 
     def request_options(self) -> dict[str, Any]:
@@ -221,15 +247,27 @@ class VllmMetal(ManagedServers):
     kind = "vllm_metal"
     startup_timeout_s = 600.0
     KEYS = {
-        "model", "tokenizer", "replicas", "base_port", "routing_policy", "vllm", "max_model_len",
-        "gpu_memory_utilization", "enable_prefix_caching", "max_num_seqs", "disable_thinking", "extra_args",
+        "model",
+        "tokenizer",
+        "replicas",
+        "base_port",
+        "routing_policy",
+        "vllm",
+        "max_model_len",
+        "gpu_memory_utilization",
+        "enable_prefix_caching",
+        "max_num_seqs",
+        "disable_thinking",
+        "extra_args",
     }
 
     def __init__(self, params: Mapping[str, Any], log_dir: Path) -> None:
         _check_keys(self.kind, params, self.KEYS)
         super().__init__(
-            int(params.get("replicas", 1)), int(params.get("base_port", 8200)),
-            str(params.get("routing_policy", "round_robin")), log_dir,
+            int(params.get("replicas", 1)),
+            int(params.get("base_port", 8200)),
+            str(params.get("routing_policy", "round_robin")),
+            log_dir,
         )
         model = str(params["model"])
         self.model_path = Path(model).expanduser()
@@ -245,11 +283,19 @@ class VllmMetal(ManagedServers):
 
     def command(self, i: int) -> list[str]:
         cmd = [
-            self.vllm, "serve", self.model,
-            "--host", "127.0.0.1", "--port", str(self.base_port + i),
-            "--max-model-len", str(self.max_model_len),
-            "--gpu-memory-utilization", str(self.gpu_memory_utilization),
-            "--max-num-seqs", str(self.max_num_seqs),
+            self.vllm,
+            "serve",
+            self.model,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.base_port + i),
+            "--max-model-len",
+            str(self.max_model_len),
+            "--gpu-memory-utilization",
+            str(self.gpu_memory_utilization),
+            "--max-num-seqs",
+            str(self.max_num_seqs),
             "--enable-prefix-caching" if self.enable_prefix_caching else "--no-enable-prefix-caching",
             "--enable-prompt-tokens-details",  # report cached prompt tokens in usage
         ]
@@ -263,10 +309,15 @@ class VllmMetal(ManagedServers):
     def describe(self) -> dict[str, Any]:
         try:
             stdout = subprocess.run(
-                [str(Path(self.vllm).with_name("python")), "-c",
-                 "import vllm, vllm_metal; print('MAXIONBENCH_VERSIONS', vllm.__version__, "
-                 "getattr(vllm_metal, '__version__', '?'))"],
-                capture_output=True, text=True, check=False,
+                [
+                    str(Path(self.vllm).with_name("python")),
+                    "-c",
+                    "import vllm, vllm_metal; print('MAXIONBENCH_VERSIONS', vllm.__version__, "
+                    "getattr(vllm_metal, '__version__', '?'))",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
             ).stdout
         except OSError:  # vllm-metal not installed here: versions stay unknown
             stdout = ""
@@ -331,8 +382,11 @@ class GeminiTarget(Target):
             "engine": "gemini-api",
             "model": self.model,
             "reasoning_effort": self.reasoning_effort,
-            "price_per_m": {"input": self.price.input_per_m, "output": self.price.output_per_m,
-                            "cached_input": self.price.cached_input_per_m},
+            "price_per_m": {
+                "input": self.price.input_per_m,
+                "output": self.price.output_per_m,
+                "cached_input": self.price.cached_input_per_m,
+            },
             "price_source": self.price_source,
         }
 

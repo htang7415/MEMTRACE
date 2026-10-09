@@ -37,8 +37,16 @@ def _replay_rate(arrivals: list[float], specs: list) -> tuple[float, list[int]]:
         return CompletionResult("", "ok", 0.001, 0.001, 10, 0, max_tokens)
 
     records, _ = run_open_loop(
-        specs, base_urls=["http://x"], picker=PICKERS["round_robin"](1), rate_rps=None, max_in_flight=64,
-        timeout_s=5, max_tokens=999, seed=0, send=send, arrivals=arrivals,
+        specs,
+        base_urls=["http://x"],
+        picker=PICKERS["round_robin"](1),
+        rate_rps=None,
+        max_in_flight=64,
+        timeout_s=5,
+        max_tokens=999,
+        seed=0,
+        send=send,
+        arrivals=arrivals,
     )
     assert all(r.status == "ok" for r in records)
     sent.sort()
@@ -48,8 +56,9 @@ def _replay_rate(arrivals: list[float], specs: list) -> tuple[float, list[int]]:
 def test_trace_replay_scales_time_and_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     window = _fake_window()
     monkeypatch.setattr(v03, "load_azure_trace", lambda start_s, duration_s: window)
-    w = make_workload("trace_replay", {"duration_s": 20.0, "rate_scale": 0.5, "token_scale": 0.1,
-                                       "max_output_tokens": 40}, seed=1)
+    w = make_workload(
+        "trace_replay", {"duration_s": 20.0, "rate_scale": 0.5, "token_scale": 0.1, "max_output_tokens": 40}, seed=1
+    )
     assert w.arrivals == pytest.approx((window.arrival_s / 0.5).tolist())
     assert [s.max_tokens for s in w.specs] == [min(40, max(1, round(g * 0.1))) for g in window.generated_tokens]
     words = [len(s.messages[0]["content"].split(": ", 1)[1].split()) for s in w.specs]
@@ -76,8 +85,9 @@ def test_replayed_rate_matches_trace_within_5pct(monkeypatch: pytest.MonkeyPatch
 def test_real_azure_window_replays_within_5pct() -> None:
     window = v03.load_azure_trace(0.0, 60.0)
     # 20x speed-up: 60 s of trace in ~3 s of wall time, so the test stays fast
-    w = make_workload("trace_replay", {"start_s": 0.0, "duration_s": 60.0, "rate_scale": 20.0,
-                                       "token_scale": 0.01}, seed=0)
+    w = make_workload(
+        "trace_replay", {"start_s": 0.0, "duration_s": 60.0, "rate_scale": 20.0, "token_scale": 0.01}, seed=0
+    )
     rate, _ = _replay_rate(w.arrivals, w.specs)
     a = window.arrival_s
     assert rate == pytest.approx(20.0 * (len(a) - 1) / (a[-1] - a[0]), rel=0.05)

@@ -59,8 +59,11 @@ def main(argv: list[str] | None = None) -> int:
     problems = check(baseline, results)
     for r in results:
         for cell in r["cells"]:
-            summary = {m: round(cell["metrics"][m]["mean"], 2) for m in sorted(cell["metrics"])
-                       if m in ("errors", "ok", "ttft_p50_ms", "tpot_p50_ms", "output_tokens_per_s", "slo_attainment")}
+            summary = {
+                m: round(cell["metrics"][m]["mean"], 2)
+                for m in sorted(cell["metrics"])
+                if m in ("errors", "ok", "ttft_p50_ms", "tpot_p50_ms", "output_tokens_per_s", "slo_attainment")
+            }
             print(f"{r['name']}[{cell['cell_id']}] {summary}")
     for p in problems:
         print(f"FAIL {p}", file=sys.stderr)

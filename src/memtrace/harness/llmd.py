@@ -36,7 +36,10 @@ SIM_IMAGE = "ghcr.io/llm-d/llm-d-inference-sim:v0.11.4"
 # Scorer profiles (plugin names from llm-d's optimized-baseline / no-kubernetes guides).
 SCORER_PROFILES: dict[str, list[tuple[str, int]]] = {
     "optimized-baseline": [
-        ("queue-scorer", 2), ("kv-cache-utilization-scorer", 2), ("prefix-cache-scorer", 3), ("no-hit-lru-scorer", 2),
+        ("queue-scorer", 2),
+        ("kv-cache-utilization-scorer", 2),
+        ("prefix-cache-scorer", 3),
+        ("no-hit-lru-scorer", 2),
     ],
     "load-aware": [("queue-scorer", 1), ("kv-cache-utilization-scorer", 1)],
     "prefix-aware": [("prefix-cache-scorer", 1)],
@@ -60,22 +63,36 @@ def render_epp_config(profile: str, model: str = "qwen3", render_url: str = "", 
             raise ValueError(f"{profile} needs render_url")
         producers = [
             {"type": "token-producer", "parameters": {"modelName": model, "vllm": {"url": render_url}}},
-            {"type": "precise-prefix-cache-producer", "parameters": {
-                "tokenProcessorConfig": {"blockSizeTokens": block_size},
-                "indexerConfig": {"kvBlockIndexConfig": {"enableMetrics": True}, "kvCacheBackendConfigs": [
-                    {"name": "gpu", "weight": 1.0}, {"name": "cpu", "weight": PRECISE_PROFILES[profile]}]},
-                # global socket mode: the EPP binds, every worker connects and publishes on its own topic
-                "kvEventsConfig": {"zmqEndpoint": f"tcp://*:{KV_EVENTS_PORT}", "topicFilter": "kv@",
-                                   "discoverPods": False},
-            }},
+            {
+                "type": "precise-prefix-cache-producer",
+                "parameters": {
+                    "tokenProcessorConfig": {"blockSizeTokens": block_size},
+                    "indexerConfig": {
+                        "kvBlockIndexConfig": {"enableMetrics": True},
+                        "kvCacheBackendConfigs": [
+                            {"name": "gpu", "weight": 1.0},
+                            {"name": "cpu", "weight": PRECISE_PROFILES[profile]},
+                        ],
+                    },
+                    # global socket mode: the EPP binds, every worker connects and publishes on its own topic
+                    "kvEventsConfig": {
+                        "zmqEndpoint": f"tcp://*:{KV_EVENTS_PORT}",
+                        "topicFilter": "kv@",
+                        "discoverPods": False,
+                    },
+                },
+            },
         ]
         params["prefix-cache-scorer"] = {"prefixMatchInfoProducerName": "precise-prefix-cache-producer"}
     return {
         "apiVersion": "llm-d.ai/v1alpha1",
         "kind": "EndpointPickerConfig",
         "plugins": [
-            {"name": "file-discovery", "type": "file-discovery",
-             "parameters": {"path": "/etc/epp/endpoints.yaml", "watchFile": True}},
+            {
+                "name": "file-discovery",
+                "type": "file-discovery",
+                "parameters": {"path": "/etc/epp/endpoints.yaml", "watchFile": True},
+            },
             *producers,
             *({"type": name, "parameters": params[name]} if name in params else {"type": name} for name, _ in scorers),
             {"name": "metrics-source", "type": "metrics-data-source"},
@@ -109,8 +126,15 @@ class _SimWorkers:
     use for it, so its KV-event topic (kv@<pod_ip>:<port>@<model>) names the endpoint the EPP knows.
     """
 
-    def __init__(self, replicas: int, base_port: int, model: str, args: list[str], image: str = SIM_IMAGE,
-                 pod_ip: str = "127.0.0.1") -> None:
+    def __init__(
+        self,
+        replicas: int,
+        base_port: int,
+        model: str,
+        args: list[str],
+        image: str = SIM_IMAGE,
+        pod_ip: str = "127.0.0.1",
+    ) -> None:
         self.replicas, self.base_port, self.model, self.args = replicas, base_port, model, args
         self.image, self.pod_ip = image, pod_ip
         self.names = [f"maxionbench-sim-{base_port + i}" for i in range(replicas)]
@@ -121,9 +145,25 @@ class _SimWorkers:
             for i, name in enumerate(self.names):
                 port = self.base_port + i
                 # POD_IP is normally injected by Kubernetes; the sim needs it to publish KV-cache events.
-                _docker(["run", "-d", "--rm", "--name", name, "-p", f"127.0.0.1:{port}:{port}",
-                         "-e", f"POD_IP={self.pod_ip}", self.image, "--model", self.model, "--port", str(port),
-                         *self.args])
+                _docker(
+                    [
+                        "run",
+                        "-d",
+                        "--rm",
+                        "--name",
+                        name,
+                        "-p",
+                        f"127.0.0.1:{port}:{port}",
+                        "-e",
+                        f"POD_IP={self.pod_ip}",
+                        self.image,
+                        "--model",
+                        self.model,
+                        "--port",
+                        str(port),
+                        *self.args,
+                    ]
+                )
             for url in self.base_urls:
                 wait_healthy(url, timeout_s=60)
         except BaseException:
@@ -145,8 +185,12 @@ class SimReplicas(Target):
     def __init__(self, params: Mapping[str, Any]) -> None:
         _check_keys(self.kind, params, self.KEYS)
         self.routing_policy = str(params.get("routing_policy", "round_robin"))
-        self.workers = _SimWorkers(int(params.get("replicas", 2)), int(params.get("base_port", 8300)),
-                                   str(params.get("model", "qwen3")), [str(a) for a in params.get("args", [])])
+        self.workers = _SimWorkers(
+            int(params.get("replicas", 2)),
+            int(params.get("base_port", 8300)),
+            str(params.get("model", "qwen3")),
+            [str(a) for a in params.get("args", [])],
+        )
         self.base_urls = self.workers.base_urls
 
     def __enter__(self) -> "SimReplicas":
@@ -163,8 +207,14 @@ class SimReplicas(Target):
         return {"extra_body": {"model": self.workers.model}}  # the sim rejects requests without its model name
 
     def describe(self) -> dict[str, Any]:
-        return {"kind": self.kind, "engine": "llm-d-inference-sim", "image": self.workers.image,
-                "replicas": self.workers.replicas, "args": self.workers.args, "routing_policy": self.routing_policy}
+        return {
+            "kind": self.kind,
+            "engine": "llm-d-inference-sim",
+            "image": self.workers.image,
+            "replicas": self.workers.replicas,
+            "args": self.workers.args,
+            "routing_policy": self.routing_policy,
+        }
 
 
 class LlmdNoK8s(Target):
@@ -185,8 +235,10 @@ class LlmdNoK8s(Target):
         self.base_urls = [f"http://127.0.0.1:{self.gateway_port}"]
         if self.worker_kind == "vllm_metal":
             self.workers: Any = VllmMetal(
-                {**self.worker_params, "extra_args": [*self.worker_params.get("extra_args", []),
-                                                      "--served-model-name", self.model]},
+                {
+                    **self.worker_params,
+                    "extra_args": [*self.worker_params.get("extra_args", []), "--served-model-name", self.model],
+                },
                 log_dir / "workers",
             )
         elif self.worker_kind == "sim":
@@ -194,8 +246,14 @@ class LlmdNoK8s(Target):
             args = [str(a) for a in wp.get("args", [])]
             if self.profile in PRECISE_PROFILES and "--zmq-endpoint" not in args:
                 args += ["--zmq-endpoint", f"tcp://{DOCKER_HOST_GATEWAY}:{KV_EVENTS_PORT}"]
-            self.workers = _SimWorkers(int(wp.get("replicas", 4)), int(wp.get("base_port", 8300)), self.model,
-                                       args, image=str(wp.get("image", SIM_IMAGE)), pod_ip=DOCKER_HOST_GATEWAY)
+            self.workers = _SimWorkers(
+                int(wp.get("replicas", 4)),
+                int(wp.get("base_port", 8300)),
+                self.model,
+                args,
+                image=str(wp.get("image", SIM_IMAGE)),
+                pod_ip=DOCKER_HOST_GATEWAY,
+            )
         else:
             raise ValueError("llmd.workers must be 'vllm_metal' or 'sim'")
         self.worker_ports = [self.workers.base_port + i for i in range(self.workers.replicas)]
@@ -207,8 +265,9 @@ class LlmdNoK8s(Target):
             raise RuntimeError(f"ports {busy} are already in use; refusing to start llm-d stack")
         run_dir = self.log_dir / "llmd"
         (run_dir / "epp").mkdir(parents=True, exist_ok=True)
-        epp_config = render_epp_config(self.profile, self.model,
-                                       f"http://{DOCKER_HOST_GATEWAY}:{self.worker_ports[0]}", self._block_size())
+        epp_config = render_epp_config(
+            self.profile, self.model, f"http://{DOCKER_HOST_GATEWAY}:{self.worker_ports[0]}", self._block_size()
+        )
         (run_dir / "epp" / "config.yaml").write_text(yaml.safe_dump(epp_config, sort_keys=False))
         (run_dir / "epp" / "endpoints.yaml").write_text(
             yaml.safe_dump(render_endpoints(self.worker_ports, self.model), sort_keys=False)
@@ -225,11 +284,13 @@ class LlmdNoK8s(Target):
 
     def __exit__(self, *exc: object) -> None:
         if self._env:
-            logs = subprocess.run(self._compose_cmd(["logs", "--no-color"]), env=self._env,
-                                  capture_output=True, text=True, check=False)
+            logs = subprocess.run(
+                self._compose_cmd(["logs", "--no-color"]), env=self._env, capture_output=True, text=True, check=False
+            )
             (self.log_dir / "llmd" / "compose.log").write_text(logs.stdout + logs.stderr)
-            subprocess.run(self._compose_cmd(["down", "--remove-orphans"]), env=self._env,
-                           capture_output=True, check=False)
+            subprocess.run(
+                self._compose_cmd(["down", "--remove-orphans"]), env=self._env, capture_output=True, check=False
+            )
         self.workers.__exit__(None, None, None)
 
     def picker(self) -> EndpointPicker:
@@ -266,8 +327,9 @@ class LlmdNoK8s(Target):
             "envoy_image": compose["services"]["envoy"]["image"],
             "workers": self.worker_kind,
             "worker_ports": self.worker_ports,
-            "worker": self.workers.describe() if hasattr(self.workers, "describe") else
-            {"image": self.workers.image, "replicas": self.workers.replicas, "args": self.workers.args},
+            "worker": self.workers.describe()
+            if hasattr(self.workers, "describe")
+            else {"image": self.workers.image, "replicas": self.workers.replicas, "args": self.workers.args},
         }
 
     def _block_size(self) -> int:
@@ -284,14 +346,14 @@ class LlmdNoK8s(Target):
 
     def _wait_gateway(self, timeout_s: float) -> None:
         """Ready when a tiny request succeeds end to end through Envoy -> EPP -> worker."""
-        body = (b'{"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":1}'
-                % self.model.encode())
+        body = b'{"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' % self.model.encode()
         deadline = time.time() + timeout_s
         last = ""
         while time.time() < deadline:
             try:
-                req = urllib.request.Request(self.base_urls[0] + "/v1/chat/completions", data=body,
-                                             headers={"content-type": "application/json"})
+                req = urllib.request.Request(
+                    self.base_urls[0] + "/v1/chat/completions", data=body, headers={"content-type": "application/json"}
+                )
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     if resp.status == 200:
                         return

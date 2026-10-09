@@ -1,4 +1,8 @@
-from memtrace.memrisk.core.agents.writer import build_memory_writer_input, extract_memory_candidates, parse_writer_json_output
+from memtrace.memrisk.core.agents.writer import (
+    build_memory_writer_input,
+    extract_memory_candidates,
+    parse_writer_json_output,
+)
 from memtrace.memrisk.core.schema import RetrievedPassage
 
 

@@ -116,8 +116,10 @@ def derive_sharegpt_sample(src: Path, dst: Path, examples: int, seed: int = 0) -
         {"id": row["id"], "prompt": conv[0]["value"], "completion": conv[1]["value"]}
         for row in _iter_json_array(src)
         if len(conv := row.get("conversations") or []) >= 2
-        and conv[0].get("from") == "human" and conv[1].get("from") == "gpt"
-        and conv[0]["value"].strip() and conv[1]["value"].strip()
+        and conv[0].get("from") == "human"
+        and conv[1].get("from") == "gpt"
+        and conv[0]["value"].strip()
+        and conv[1]["value"].strip()
     ]
     with dst.open("w", encoding="utf-8") as fout:
         for row in random.Random(seed).sample(pairs, examples):
@@ -156,8 +158,11 @@ def derive_copilot_policy_trace(src: Path, dest: Path, **params: Any) -> None:
     derive_policy_trace(src, dest, **params)
 
 
-DERIVERS: dict[str, Callable[..., None]] = {"crag_slice": derive_crag_slice, "sharegpt_sample": derive_sharegpt_sample,
-                                            "copilot_policy_trace": derive_copilot_policy_trace}
+DERIVERS: dict[str, Callable[..., None]] = {
+    "crag_slice": derive_crag_slice,
+    "sharegpt_sample": derive_sharegpt_sample,
+    "copilot_policy_trace": derive_copilot_policy_trace,
+}
 DERIVED_META_KEYS = {"group", "kind", "from", "sha256", "license"}  # every other key is a deriver parameter
 
 

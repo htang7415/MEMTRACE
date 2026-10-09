@@ -8,8 +8,12 @@ from memtrace.kv.agentx import Request, Session
 
 
 def _session(sid, times, span):
-    reqs = tuple(Request(t=t, dur=1.0, blocks=np.arange(4, dtype=np.int32), in_tokens=256, out_tokens=64, stream=0,
-                         next_t=math.inf) for t in times)
+    reqs = tuple(
+        Request(
+            t=t, dur=1.0, blocks=np.arange(4, dtype=np.int32), in_tokens=256, out_tokens=64, stream=0, next_t=math.inf
+        )
+        for t in times
+    )
     return Session(id=sid, requests=reqs, span=span)
 
 
@@ -60,8 +64,15 @@ def test_target_params_set_kv_tiers_per_cell():
     target = {"replicas": 2, "image": "img", "gpu_kv_blocks": 100, "sim_args": ["--block-size", "16"]}
     p = target_params(target, {"scorer_profile": "precise-tiered", "cpu_kv_blocks": 400})
     assert p["scorer_profile"] == "precise-tiered" and p["worker_params"]["image"] == "img"
-    assert p["worker_params"]["args"] == ["--block-size", "16", "--enable-kvcache", "--kv-cache-size", "100",
-                                          "--cpu-kv-cache-size", "400"]
+    assert p["worker_params"]["args"] == [
+        "--block-size",
+        "16",
+        "--enable-kvcache",
+        "--kv-cache-size",
+        "100",
+        "--cpu-kv-cache-size",
+        "400",
+    ]
 
 
 def test_precise_epp_config_uses_kv_events_and_tier_weights():
@@ -77,7 +88,8 @@ def test_precise_epp_config_uses_kv_events_and_tier_weights():
         assert weights == {"gpu": 1.0, "cpu": cpu_weight}
         assert by_type["token-producer"]["parameters"]["vllm"]["url"] == "http://192.168.65.254:8300"
         assert by_type["prefix-cache-scorer"]["parameters"] == {
-            "prefixMatchInfoProducerName": "precise-prefix-cache-producer"}
+            "prefixMatchInfoProducerName": "precise-prefix-cache-producer"
+        }
     with pytest.raises(ValueError, match="render_url"):
         render_epp_config("precise-tiered")
 
@@ -85,8 +97,15 @@ def test_precise_epp_config_uses_kv_events_and_tier_weights():
 def test_target_params_supports_native_vllm_metal_workers() -> None:
     from memtrace.kv.live import target_params
 
-    target = {"workers": "vllm_metal", "model": "qwen3-0.6b",
-              "worker_params": {"model": "~/models/Qwen3-0.6B-Q8_0.gguf", "replicas": 2, "max_model_len": 16384}}
+    target = {
+        "workers": "vllm_metal",
+        "model": "qwen3-0.6b",
+        "worker_params": {"model": "~/models/Qwen3-0.6B-Q8_0.gguf", "replicas": 2, "max_model_len": 16384},
+    }
     params = target_params(target, {"scorer_profile": "optimized-baseline"})
-    assert params == {"workers": "vllm_metal", "scorer_profile": "optimized-baseline", "model": "qwen3-0.6b",
-                      "worker_params": target["worker_params"]}
+    assert params == {
+        "workers": "vllm_metal",
+        "scorer_profile": "optimized-baseline",
+        "model": "qwen3-0.6b",
+        "worker_params": target["worker_params"],
+    }

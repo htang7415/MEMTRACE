@@ -60,13 +60,22 @@ class AgentRun:
 
 def openai_tools(mcp_tools: Sequence[Any]) -> list[dict[str, Any]]:
     return [
-        {"type": "function", "function": {"name": t.name, "description": t.description or "", "parameters": t.inputSchema}}
+        {
+            "type": "function",
+            "function": {"name": t.name, "description": t.description or "", "parameters": t.inputSchema},
+        }
         for t in mcp_tools
     ]
 
 
-async def run_agent(session: ClientSession, policy: Policy, task: AgentTask, max_steps: int = 8,
-                    system_prompt: str = SYSTEM_PROMPT, context: ContextPolicy | None = None) -> AgentRun:
+async def run_agent(
+    session: ClientSession,
+    policy: Policy,
+    task: AgentTask,
+    max_steps: int = 8,
+    system_prompt: str = SYSTEM_PROMPT,
+    context: ContextPolicy | None = None,
+) -> AgentRun:
     """Run `task`; the model sees `context.view(history)` each step (the full history by default)."""
     tools = openai_tools((await session.list_tools()).tools)
     messages: list[dict[str, Any]] = [
@@ -80,14 +89,21 @@ async def run_agent(session: ClientSession, policy: Policy, task: AgentTask, max
             if out.answer is not None:
                 run.status, run.answer = "answered", out.answer
                 return run
-            messages.append(out.assistant_message or {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
-                    for c in out.tool_calls
-                ],
-            })
+            messages.append(
+                out.assistant_message
+                or {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": c.id,
+                            "type": "function",
+                            "function": {"name": c.name, "arguments": json.dumps(c.arguments)},
+                        }
+                        for c in out.tool_calls
+                    ],
+                }
+            )
             for call in out.tool_calls:
                 run.tool_calls.append({"name": call.name, "arguments": call.arguments})
                 result = await session.call_tool(call.name, call.arguments)
@@ -141,7 +157,9 @@ class ChatPolicy:
         for n, c in enumerate(calls):
             c["id"] = c.get("id") or f"call{len(self.results)}-{n}"  # some engines omit ids; tool replies need them
             args = c["function"].get("arguments") or "{}"
-            parsed.append(ToolCall(c["id"], c["function"]["name"], json.loads(args) if isinstance(args, str) else dict(args)))
+            parsed.append(
+                ToolCall(c["id"], c["function"]["name"], json.loads(args) if isinstance(args, str) else dict(args))
+            )
         message.setdefault("content", None)
         return PolicyOutput(tool_calls=tuple(parsed), assistant_message=message)
 
@@ -186,8 +204,17 @@ def main(argv: list[str] | None = None) -> int:
     solved = sum(r.answer == t.answer for r, t in zip(runs, tasks))
     calls = [len(r.tool_calls) for r in runs]
     recall = sum(t.question_search_recall for t in tasks) / len(tasks)
-    print(json.dumps({"tasks": len(tasks), "oracle_solved": solved, "mean_tool_calls": sum(calls) / len(calls),
-                      "min_tool_calls": min(calls), "mean_question_search_recall": round(recall, 3)}))
+    print(
+        json.dumps(
+            {
+                "tasks": len(tasks),
+                "oracle_solved": solved,
+                "mean_tool_calls": sum(calls) / len(calls),
+                "min_tool_calls": min(calls),
+                "mean_question_search_recall": round(recall, 3),
+            }
+        )
+    )
     return 0 if solved == len(tasks) else 1
 
 

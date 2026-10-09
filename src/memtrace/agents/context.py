@@ -92,7 +92,7 @@ class Truncate:
                 m = {**m, "content": f"{text}[truncated]", "tokens": self.max_chars // 4 + 8}
             elif m["role"] == "tool" and "tokens" not in m and len(text) > self.max_chars:
                 cut = (len(text) - self.max_chars) // 4
-                m = {**m, "content": f"{text[:self.max_chars]}\n[truncated: ~{cut} more tokens]"}
+                m = {**m, "content": f"{text[: self.max_chars]}\n[truncated: ~{cut} more tokens]"}
             out.append(m)
         return out
 
@@ -109,7 +109,7 @@ class Window:
 
     def view(self, history: Sequence[Message]) -> list[Message]:
         head, exchanges = split(history)
-        return _flat(head, exchanges[-self.keep:] if self.keep else [])
+        return _flat(head, exchanges[-self.keep :] if self.keep else [])
 
     def reset(self) -> None:
         pass
@@ -125,10 +125,13 @@ class Mask:
     def view(self, history: Sequence[Message]) -> list[Message]:
         head, exchanges = split(history)
         old = len(exchanges) - self.keep
-        return _flat(head, [
-            [_replace_content(m, MASK_TEXT) if i < old and m["role"] == "tool" else m for m in ex]
-            for i, ex in enumerate(exchanges)
-        ])
+        return _flat(
+            head,
+            [
+                [_replace_content(m, MASK_TEXT) if i < old and m["role"] == "tool" else m for m in ex]
+                for i, ex in enumerate(exchanges)
+            ],
+        )
 
     def reset(self) -> None:
         pass
@@ -138,8 +141,9 @@ class Summarize:
     """Above `trigger_tokens`, replace all but the last `keep` exchanges (and any earlier summary) with one
     summary message; later steps append to that compacted history until it passes the trigger again."""
 
-    def __init__(self, summarizer: Summarizer, trigger_tokens: int = 64_000, keep: int = 2,
-                 count: TokenCounter = estimate_tokens) -> None:
+    def __init__(
+        self, summarizer: Summarizer, trigger_tokens: int = 64_000, keep: int = 2, count: TokenCounter = estimate_tokens
+    ) -> None:
         self.name = f"summarize{trigger_tokens // 1000}k"
         self.summarizer, self.trigger, self.keep, self.count = summarizer, trigger_tokens, keep, count
         self.reset()
@@ -150,14 +154,14 @@ class Summarize:
         self.compactions = 0
 
     def _compose(self, head: list[Message], exchanges: list[list[Message]]) -> list[Message]:
-        return _flat(head + ([self.summary] if self.summary else []), exchanges[self.covered:])
+        return _flat(head + ([self.summary] if self.summary else []), exchanges[self.covered :])
 
     def view(self, history: Sequence[Message]) -> list[Message]:
         head, exchanges = split(history)
         view = self._compose(head, exchanges)
         if self.count(view) > self.trigger and len(exchanges) - self.covered > self.keep:
             upto = len(exchanges) - self.keep
-            older = ([self.summary] if self.summary else []) + _flat([], exchanges[self.covered:upto])
+            older = ([self.summary] if self.summary else []) + _flat([], exchanges[self.covered : upto])
             self.summary = {"role": "user", "content": SUMMARY_PREFIX + self.summarizer(head + older)}
             self.covered = upto
             self.compactions += 1
@@ -173,8 +177,9 @@ class CacheAware:
     when the base policy cannot bring a long history under the budget, re-rendering every call would break
     the cached prefix every call."""
 
-    def __init__(self, base: Policy, budget_tokens: int = 64_000, count: TokenCounter = estimate_tokens,
-                 min_growth: int = 0) -> None:
+    def __init__(
+        self, base: Policy, budget_tokens: int = 64_000, count: TokenCounter = estimate_tokens, min_growth: int = 0
+    ) -> None:
         self.name = f"{base.name}+cache{budget_tokens // 1000}k"
         self.base, self.budget, self.count, self.min_growth = base, budget_tokens, count, min_growth
         self.reset()

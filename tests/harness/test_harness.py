@@ -54,9 +54,7 @@ def test_parse_spec_validates_structure() -> None:
 
 
 def test_plan_is_repeat_major_shuffled_and_applies_matrix() -> None:
-    spec = parse_spec(
-        _spec(repeats=3, matrix={"target.routing_policy": ["a", "b"], "workload.rate_rps": [0.5, 1.0]})
-    )
+    spec = parse_spec(_spec(repeats=3, matrix={"target.routing_policy": ["a", "b"], "workload.rate_rps": [0.5, 1.0]}))
     trials = plan(spec)
     assert len(trials) == 12
     for repeat in range(3):
@@ -101,7 +99,10 @@ class _FakeLLM(BaseHTTPRequestHandler):
         self.end_headers()
         for event in (
             {"choices": [{"delta": {"content": "ok"}}]},
-            {"choices": [], "usage": {"prompt_tokens": 20, "completion_tokens": 1, "prompt_tokens_details": {"cached_tokens": 5}}},
+            {
+                "choices": [],
+                "usage": {"prompt_tokens": 20, "completion_tokens": 1, "prompt_tokens_details": {"cached_tokens": 5}},
+            },
         ):
             self.wfile.write(f"data: {json.dumps(event)}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
@@ -228,11 +229,18 @@ def test_available_memory_parses_vm_stat() -> None:
     assert available_memory_gb("garbage") == float("inf")
 
 
-def test_memory_gate_refuses_to_start_engine(tmp_path: Path, fake_urls: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_memory_gate_refuses_to_start_engine(
+    tmp_path: Path, fake_urls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     import memtrace.harness.runner as runner
 
     monkeypatch.setattr(runner, "available_memory_gb", lambda: 1.5)
-    spec = parse_spec(_spec(repeats=1, target={"kind": "static_endpoints", "params": {"urls": fake_urls}},
-                            quiet_host={"max_load_1m": 1000, "wait_s": 0, "min_available_gb": 4}))
+    spec = parse_spec(
+        _spec(
+            repeats=1,
+            target={"kind": "static_endpoints", "params": {"urls": fake_urls}},
+            quiet_host={"max_load_1m": 1000, "wait_s": 0, "min_available_gb": 4},
+        )
+    )
     _, result = run_experiment(spec, tmp_path, log=lambda msg: None)
     assert all(t.status == "failed" and "insufficient memory" in (t.error or "") for t in result.trials)

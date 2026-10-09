@@ -34,9 +34,14 @@ SUMMARIZE_INSTRUCTION_TOKENS = 60
 
 def history(call: dict[str, Any]) -> list[Message]:
     roles = {"system", "user", "assistant", "tool"}
-    return [{"role": m["role"] if m["role"] in roles else "user", "content": f"{m['sequenceId']}|{m['type']}|{m['role']}",
-             "tokens": int(m["token_len"] or 0)}
-            for m in sorted(call["message_metadata"] or [], key=lambda m: m["sequenceId"])]
+    return [
+        {
+            "role": m["role"] if m["role"] in roles else "user",
+            "content": f"{m['sequenceId']}|{m['type']}|{m['role']}",
+            "tokens": int(m["token_len"] or 0),
+        }
+        for m in sorted(call["message_metadata"] or [], key=lambda m: m["sequenceId"])
+    ]
 
 
 class BlockIds:
@@ -69,8 +74,12 @@ def _end_s(ts: str) -> float:
 
 def calls_of(session: dict[str, Any]) -> list[dict[str, Any]]:
     """Calls with token accounting and prompt metadata, in time order (`timestamp` marks a call's end)."""
-    calls = [c for t in session["turns"] or [] for c in t["llm_calls"] or []
-             if (c["tokens"] or {}).get("prompt") and c["message_metadata"]]
+    calls = [
+        c
+        for t in session["turns"] or []
+        for c in t["llm_calls"] or []
+        if (c["tokens"] or {}).get("prompt") and c["message_metadata"]
+    ]
     return sorted(calls, key=lambda c: _end_s(c["timestamp"]))
 
 
@@ -79,7 +88,9 @@ def session_trace(session: dict[str, Any], policy: str, params: dict[str, Any]) 
     count = [0]
 
     def summarizer(messages: Any) -> str:
-        pending.append(list(messages) + [{"role": "user", "content": "summarize", "tokens": SUMMARIZE_INSTRUCTION_TOKENS}])
+        pending.append(
+            list(messages) + [{"role": "user", "content": "summarize", "tokens": SUMMARIZE_INSTRUCTION_TOKENS}]
+        )
         count[0] += 1
         return f"summary {count[0]} ".ljust(4 * SUMMARY_TOKENS, ".")
 
@@ -92,19 +103,33 @@ def session_trace(session: dict[str, Any], policy: str, params: dict[str, Any]) 
         # prompt total apportioned by length), so a message keeps the count it had when it first appeared
         h = [{**m, "tokens": first_len.setdefault(m["content"], m["tokens"])} for m in history(c)]
         keys = [m["content"] for m in h]
-        if prev_keys is not None and keys[:len(prev_keys)] != prev_keys:
+        if prev_keys is not None and keys[: len(prev_keys)] != prev_keys:
             view_of.reset()  # Copilot rewrote its history: the policy starts over from this call
         prev_keys = keys
         prompt = view_of.view(h)
         dur = float(c["duration_ms"] or 0) / 1000
         start = _end_s(c["timestamp"]) - dur
         for sp in pending:
-            requests.append({"t": round(start, 3), "api_time": SUMMARY_S, "in": estimate_tokens(sp),
-                             "out": SUMMARY_TOKENS, "hash_ids": blocks(sp)})
+            requests.append(
+                {
+                    "t": round(start, 3),
+                    "api_time": SUMMARY_S,
+                    "in": estimate_tokens(sp),
+                    "out": SUMMARY_TOKENS,
+                    "hash_ids": blocks(sp),
+                }
+            )
             start += SUMMARY_S
         pending.clear()
-        requests.append({"t": round(start, 3), "api_time": round(dur, 3), "in": estimate_tokens(prompt),
-                         "out": int(c["tokens"].get("completion") or 0), "hash_ids": blocks(prompt)})
+        requests.append(
+            {
+                "t": round(start, 3),
+                "api_time": round(dur, 3),
+                "in": estimate_tokens(prompt),
+                "out": int(c["tokens"].get("completion") or 0),
+                "hash_ids": blocks(prompt),
+            }
+        )
     return {"id": session["session_id"], "block_size": BLOCK_TOKENS, "policy": policy, "requests": requests}
 
 
@@ -119,8 +144,9 @@ def iter_policy_traces(archive: Path, ids: set[str], policy: str, params: dict[s
             yield session_trace(s, policy, params)
 
 
-def derive_policy_trace(src: Path, dest: Path, *, sessions: int, seed: int, policy: str,
-                        policy_params: dict[str, Any] | None = None) -> None:
+def derive_policy_trace(
+    src: Path, dest: Path, *, sessions: int, seed: int, policy: str, policy_params: dict[str, Any] | None = None
+) -> None:
     """Manifest deriver: `sessions` seeded sessions of one Copilot day archive under `policy`."""
     ids = sample_ids(src, sessions, seed)
     dest.parent.mkdir(parents=True, exist_ok=True)

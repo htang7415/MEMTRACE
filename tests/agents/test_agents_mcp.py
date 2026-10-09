@@ -33,8 +33,12 @@ def dataset(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "".join(json.dumps({"doc_id": P + k, "text": v}) + "\n" for k, v in DOCS.items()), encoding="utf-8"
     )
     (root / "queries.jsonl").write_text(
-        "".join(json.dumps({"query_id": f"hotpotqa_portable::q::{q}", "text": t, "answer": a}) + "\n"
-                for q, t, a, _ in QUERIES), encoding="utf-8")
+        "".join(
+            json.dumps({"query_id": f"hotpotqa_portable::q::{q}", "text": t, "answer": a}) + "\n"
+            for q, t, a, _ in QUERIES
+        ),
+        encoding="utf-8",
+    )
     rows = ["query_id\tdoc_id\trelevance"]
     rows += [f"hotpotqa_portable::q::{q}\t{P}{d}\t1" for q, _, _, docs in QUERIES for d in docs]
     (root / "qrels.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -97,9 +101,17 @@ def test_chat_policy_replays_model_message_verbatim(dataset: Path) -> None:
     tasks = build_tasks(corpus, n=1, k=2, dataset_dir=dataset)
     seen: list[list[dict]] = []
     replies = [
-        {"role": "assistant", "content": None, "tool_calls": [  # no id: the policy must fill one in
-            {"type": "function", "function": {"name": "search", "arguments": '{"query": "Ottilie Brandt"}'},
-             "extra_content": {"google": {"thought_signature": "sig-1"}}}]},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [  # no id: the policy must fill one in
+                {
+                    "type": "function",
+                    "function": {"name": "search", "arguments": '{"query": "Ottilie Brandt"}'},
+                    "extra_content": {"google": {"thought_signature": "sig-1"}},
+                }
+            ],
+        },
         {"role": "assistant", "content": " Lübeck "},
     ]
 

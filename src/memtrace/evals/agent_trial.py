@@ -45,13 +45,20 @@ def _log(msg: str) -> None:
     print(f"[agent-trial] {msg}", file=sys.stderr, flush=True)
 
 
-def run_task(task: BrowseTask, policy: ChatPolicy, max_steps: int, workdir: Path,
-             context: ContextPolicy | None = None, system_prompt: str = SYSTEM_PROMPT) -> AgentRun:
+def run_task(
+    task: BrowseTask,
+    policy: ChatPolicy,
+    max_steps: int,
+    workdir: Path,
+    context: ContextPolicy | None = None,
+    system_prompt: str = SYSTEM_PROMPT,
+) -> AgentRun:
     """One agent run against an MCP server holding only this task's documents."""
     docs = workdir / f"{task.task_id}.json"
     write_docs(task, docs)
-    params = StdioServerParameters(command=sys.executable,
-                                   args=["-m", "memtrace.agents.browsecomp_env", "--docs", str(docs)])
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "memtrace.agents.browsecomp_env", "--docs", str(docs)]
+    )
 
     async def main() -> AgentRun:
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
@@ -74,8 +81,8 @@ def run_trial(n: int, max_steps: int, seed: int, pool: int, budget_usd: float, o
         return budget_usd + max_steps * cost_usd(price, input_tokens=60_000, output_tokens=MAX_TOKENS)
 
     runs: list[tuple[BrowseTask, AgentRun, ChatPolicy]] = []
-    with target, metered(target, estimate, "agent-trial/browsecomp") as meter, \
-            tempfile.TemporaryDirectory() as tmp:
+    with target, metered(target, estimate, "agent-trial/browsecomp") as meter, tempfile.TemporaryDirectory() as tmp:
+
         def send(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
             for attempt in range(3):
                 r = fn(target.base_urls[0], messages, tools=tools, max_tokens=MAX_TOKENS, timeout_s=120.0)
@@ -91,38 +98,56 @@ def run_trial(n: int, max_steps: int, seed: int, pool: int, budget_usd: float, o
                 break
             policy = ChatPolicy(send)
             runs.append((task, run_task(task, policy, max_steps, Path(tmp)), policy))
-            _log(f"task {i + 1}/{len(tasks)}: {runs[-1][1].status}, {len(policy.results)} model calls, "
-                 f"spend ${meter.spend_usd:.4f}")
+            _log(
+                f"task {i + 1}/{len(tasks)}: {runs[-1][1].status}, {len(policy.results)} model calls, "
+                f"spend ${meter.spend_usd:.4f}"
+            )
     agent_spend = meter.spend_usd
 
     answered = [(t, r) for t, r, _ in runs if r.status == "answered" and r.answer]
-    calls = [Call(t.task_id, judge_messages(t.question, [t.answer], r.answer or ""), max_tokens=512) for t, r in answered]
+    calls = [
+        Call(t.task_id, judge_messages(t.question, [t.answer], r.answer or ""), max_tokens=512) for t, r in answered
+    ]
     with judge:
-        verdicts, judge_usage = run_calls(judge, calls, "agent-trial/judge", workers=8) if calls else ({}, {"spend_usd": 0.0})
+        verdicts, judge_usage = (
+            run_calls(judge, calls, "agent-trial/judge", workers=8) if calls else ({}, {"spend_usd": 0.0})
+        )
 
     items = []
     for task, run, policy in runs:
         steps = [r for r in policy.results if r.status == "ok"]
         label = parse_label(verdicts[task.task_id].text) if task.task_id in verdicts else None
-        items.append({
-            "task_id": task.task_id,
-            "run_status": run.status,
-            "judge_label": label or "unjudged",
-            "correct": label == "correct",
-            "docs": len(task.docs),
-            "model_calls": len(policy.results),
-            "tool_calls": [c["name"] for c in run.tool_calls],
-            "read_gold": sum(c["name"] == "read" and c["arguments"].get("doc_id") in task.gold_doc_ids
-                             for c in run.tool_calls),
-            "peak_context_tokens": max((r.prompt_tokens for r in steps), default=0),
-            "prompt_tokens": sum(r.prompt_tokens for r in steps),
-            "cached_tokens": sum(r.cached_tokens for r in steps),
-            "error_type": (run.error or "").split(":", 1)[0] or None,  # type only: messages may quote task text
-        })
+        items.append(
+            {
+                "task_id": task.task_id,
+                "run_status": run.status,
+                "judge_label": label or "unjudged",
+                "correct": label == "correct",
+                "docs": len(task.docs),
+                "model_calls": len(policy.results),
+                "tool_calls": [c["name"] for c in run.tool_calls],
+                "read_gold": sum(
+                    c["name"] == "read" and c["arguments"].get("doc_id") in task.gold_doc_ids for c in run.tool_calls
+                ),
+                "peak_context_tokens": max((r.prompt_tokens for r in steps), default=0),
+                "prompt_tokens": sum(r.prompt_tokens for r in steps),
+                "cached_tokens": sum(r.cached_tokens for r in steps),
+                "error_type": (run.error or "").split(":", 1)[0] or None,  # type only: messages may quote task text
+            }
+        )
     summary = summarize(items)
-    summary.update({"n_planned": n, "max_steps": max_steps, "seed": seed, "pool": pool, "model": MODEL, "judge": JUDGE,
-                    "judge_rubric": RUBRIC_VERSION, "spend_usd": {"agent": round(agent_spend, 4),
-                                                                  "judge": judge_usage["spend_usd"]}})
+    summary.update(
+        {
+            "n_planned": n,
+            "max_steps": max_steps,
+            "seed": seed,
+            "pool": pool,
+            "model": MODEL,
+            "judge": JUDGE,
+            "judge_rubric": RUBRIC_VERSION,
+            "spend_usd": {"agent": round(agent_spend, 4), "judge": judge_usage["spend_usd"]},
+        }
+    )
     out_dir = out_root / f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-browsecomp-trial"
     out_dir.mkdir(parents=True)
     (out_dir / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
@@ -145,8 +170,10 @@ def summarize(items: list[dict[str, Any]]) -> dict[str, Any]:
         "long_context_share": long_share,
         "cached_share": sum(i["cached_tokens"] for i in items) / max(1, sum(i["prompt_tokens"] for i in items)),
         "model_calls_mean": statistics.fmean(i["model_calls"] for i in items),
-        "passes": {"success_band": SUCCESS_BAND[0] <= success.mean <= SUCCESS_BAND[1],
-                   "long_context": long_share >= 0.5},
+        "passes": {
+            "success_band": SUCCESS_BAND[0] <= success.mean <= SUCCESS_BAND[1],
+            "long_context": long_share >= 0.5,
+        },
     }
 
 

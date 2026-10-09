@@ -42,24 +42,51 @@ def make_answers(n_crag: int, n_hotpot: int, seed: int, out: Path) -> dict[str, 
     with out.open("w", encoding="utf-8") as fh:
         for item in items:
             r = results[item.id]
-            fh.write(json.dumps({"id": item.id, "source": item.source, "question": item.question,
-                                 "golds": list(item.golds), "answer": r.text.strip(), "answer_status": r.status,
-                                 "answer_model": MODEL}, ensure_ascii=False) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "id": item.id,
+                        "source": item.source,
+                        "question": item.question,
+                        "golds": list(item.golds),
+                        "answer": r.text.strip(),
+                        "answer_status": r.status,
+                        "answer_model": MODEL,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
     return spend
 
 
 def run_judge(rows: list[dict[str, Any]], repeats: int, out: Path) -> dict[str, Any]:
     target = GeminiTarget({"model": MODEL, "reasoning_effort": "low"})
-    calls = [Call(f"{row['id']}#{rep}", judge_messages(row["question"], row["golds"], row["answer"]), max_tokens=512)
-             for rep in range(repeats) for row in rows]
+    calls = [
+        Call(f"{row['id']}#{rep}", judge_messages(row["question"], row["golds"], row["answer"]), max_tokens=512)
+        for rep in range(repeats)
+        for row in rows
+    ]
     results, spend = run_calls(target, calls, "p4e/judge-calibration")
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as fh:
         for call in calls:
             r = results[call.id]
             item_id, rep = call.id.rsplit("#", 1)
-            fh.write(json.dumps({"id": item_id, "repeat": int(rep), "rubric": RUBRIC_VERSION, "judge_model": MODEL,
-                                 "label": parse_label(r.text), "raw": r.text, "status": r.status}) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "id": item_id,
+                        "repeat": int(rep),
+                        "rubric": RUBRIC_VERSION,
+                        "judge_model": MODEL,
+                        "label": parse_label(r.text),
+                        "raw": r.text,
+                        "status": r.status,
+                    }
+                )
+                + "\n"
+            )
     return spend
 
 
@@ -69,13 +96,20 @@ def report(rows: list[dict[str, Any]], judgements: list[dict[str, Any]]) -> dict
     for j in judgements:
         by_rep.setdefault(j["repeat"], {})[j["id"]] = j["label"]
     ids = sorted(reference)
-    out: dict[str, Any] = {"rubric": RUBRIC_VERSION, "judge_model": MODEL, "reference": "Claude (not independent)",
-                           "reference_counts": dict(Counter(reference.values())), "per_repeat": {}}
+    out: dict[str, Any] = {
+        "rubric": RUBRIC_VERSION,
+        "judge_model": MODEL,
+        "reference": "Claude (not independent)",
+        "reference_counts": dict(Counter(reference.values())),
+        "per_repeat": {},
+    }
     for rep, labels in sorted(by_rep.items()):
         judged = [labels.get(i) or "unparsed" for i in ids]
         usable = [(reference[i], j) for i, j in zip(ids, judged) if j != "unparsed"]
-        out["per_repeat"][rep] = {"unparsed": judged.count("unparsed"),
-                                  **agreement([r for r, _ in usable], [j for _, j in usable])}
+        out["per_repeat"][rep] = {
+            "unparsed": judged.count("unparsed"),
+            **agreement([r for r, _ in usable], [j for _, j in usable]),
+        }
         for source in ("crag", "hotpot"):
             pairs = [(reference[i], labels[i]) for i in ids if i.startswith(source) and labels.get(i)]
             out["per_repeat"][rep][f"kappa_{source}"] = round(cohen_kappa(*zip(*pairs)), 4) if pairs else None
@@ -83,7 +117,9 @@ def report(rows: list[dict[str, Any]], judgements: list[dict[str, Any]]) -> dict
     if len(reps) > 1:  # judge self-consistency: kappa between repeat 0 and each later repeat
         base = by_rep[reps[0]]
         out["self_kappa"] = {
-            rep: round(cohen_kappa(*zip(*[(base[i], by_rep[rep][i]) for i in ids if base.get(i) and by_rep[rep].get(i)])), 4)
+            rep: round(
+                cohen_kappa(*zip(*[(base[i], by_rep[rep][i]) for i in ids if base.get(i) and by_rep[rep].get(i)])), 4
+            )
             for rep in reps[1:]
         }
     return out

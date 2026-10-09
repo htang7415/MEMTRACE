@@ -7,7 +7,14 @@ from typing import Any
 import pytest
 
 from memtrace.agents.context import (
-    MASK_TEXT, SUMMARY_PREFIX, CacheAware, Mask, Window, estimate_tokens, make_policy, split,
+    MASK_TEXT,
+    SUMMARY_PREFIX,
+    CacheAware,
+    Mask,
+    Window,
+    estimate_tokens,
+    make_policy,
+    split,
 )
 
 POLICIES = ("full", "truncate", "window", "mask", "summarize", "truncate+cache", "window+cache", "mask+cache")
@@ -19,8 +26,12 @@ def summarizer(messages: Any) -> str:
 
 
 def policy(name: str) -> Any:
-    params = {"summarize": {"trigger_tokens": 12_000}, "window": {"keep": 3}, "mask": {"keep": 2},
-              "truncate": {"max_tokens": 500}}.get(name.split("+")[0], {})
+    params = {
+        "summarize": {"trigger_tokens": 12_000},
+        "window": {"keep": 3},
+        "mask": {"keep": 2},
+        "truncate": {"max_tokens": 500},
+    }.get(name.split("+")[0], {})
     if name.endswith("+cache"):
         params = {**params, "budget_tokens": 12_000}
     return make_policy(name, summarizer if name == "summarize" else None, **params)
@@ -31,11 +42,17 @@ def history(seed: int) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = [{"role": "system", "content": "sys"}, {"role": "user", "content": "task"}]
     for e in range(rng.randint(1, 30)):
         ids = [f"c{e}-{i}" for i in range(rng.randint(1, 3))]
-        out.append({"role": "assistant", "content": None, "tool_calls": [
-            {"id": i, "type": "function", "function": {"name": "search", "arguments": json.dumps({"q": i})}}
-            for i in ids]})
-        out += [{"role": "tool", "tool_call_id": i, "content": "x" * rng.choice((50, 800, 4_000, 20_000))}
-                for i in ids]
+        out.append(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": i, "type": "function", "function": {"name": "search", "arguments": json.dumps({"q": i})}}
+                    for i in ids
+                ],
+            }
+        )
+        out += [{"role": "tool", "tool_call_id": i, "content": "x" * rng.choice((50, 800, 4_000, 20_000))} for i in ids]
     return out
 
 
@@ -51,7 +68,7 @@ def run(name: str, seed: int) -> tuple[Any, list[list[dict[str, Any]]], list[lis
 
 
 def is_prefix(a: list[Any], b: list[Any]) -> bool:
-    return b[:len(a)] == a
+    return b[: len(a)] == a
 
 
 @pytest.mark.parametrize("name", POLICIES)
@@ -157,7 +174,9 @@ def test_policies_honour_token_counts_of_metadata_only_messages() -> None:
     truncated = make_policy("truncate", max_tokens=2_000).view(h)
     assert all(m["tokens"] == 2_008 and m["content"].endswith("[truncated]") for m in truncated if m["role"] == "tool")
     masked = make_policy("mask", keep=1).view(h)
-    assert [m["content"] == MASK_TEXT and "tokens" not in m for m in masked if m["role"] == "tool"] == [True] * 3 + [False]
+    assert [m["content"] == MASK_TEXT and "tokens" not in m for m in masked if m["role"] == "tool"] == [True] * 3 + [
+        False
+    ]
     assert estimate_tokens(masked) < 3_100 + 4 * 30 + 10_000 + 3 * 30
     summarized = make_policy("summarize", summarizer, trigger_tokens=20_000, keep=1).view(h)
     assert estimate_tokens(summarized) <= 20_000 and summarized[2]["content"].startswith(SUMMARY_PREFIX)

@@ -150,7 +150,9 @@ def test_ledger_cap_holds_across_processes(tmp_path: Path) -> None:
         "        pass\n"
         "print(ok)\n"
     )
-    procs = [subprocess.Popen([sys.executable, "-c", script, str(path)], stdout=subprocess.PIPE, text=True) for _ in range(4)]
+    procs = [
+        subprocess.Popen([sys.executable, "-c", script, str(path)], stdout=subprocess.PIPE, text=True) for _ in range(4)
+    ]
     granted = sum(int(p.communicate(timeout=60)[0].strip()) for p in procs)
     assert granted == 10  # 4 processes x 10 attempts, but only $10 of $1 reservations may exist
     assert BudgetLedger(10.0, path).remaining_usd() == pytest.approx(0.0)
