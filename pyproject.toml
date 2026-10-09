@@ -23,7 +23,7 @@ dev = [
   "build>=1.2",
   "mypy>=1.15",
   "pytest>=8.0",
-  "ruff>=0.12",
+  "ruff>=0.16.10",
   "types-PyYAML>=6.0",
 ]
 agents = [
