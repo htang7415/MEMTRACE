@@ -1,13 +1,14 @@
 schema_version: memtrace-resume-v1
-name: r1-resume-ssd-rerun-r0
+name: r1-resume-ssd-rerun
 description: >
-  Rerun of R1's repeat 0 for the two arms its decision compares (equal memory, host pool + SSD): in the first run
-  the host paged during both. Same build, replay, arms and seed as R1, so its repeat 0 replays the same session
-  order; only these trials replace R1's repeat 0 for the comparison.
+  Rerun of R1's three repeats for the two arms its decision compares (equal memory, host pool + SSD): in the first
+  run the host paged in every repeat. Same build, replay, arms and seeds as R1, so each repeat replays the
+  same session order; these trials replace R1's for the comparison. Paging is now also counted over the measured
+  window alone, so the run shows whether it came from engine start-up or from the measured calls.
 day: copilot_agent/date.2026-06-02.tar.gz
 sessions: 200
 seed: 0
-repeats: 1  # seed 0 * 1000 + 0, R1's repeat 0
+repeats: 3  # seeds 0 * 1000 + 0..2, R1's repeats
 idle_cap_s: 3600
 resume_gap_s: 60
 cache_dir: artifacts/cache/resume
