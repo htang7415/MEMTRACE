@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 from pathlib import Path
 from typing import Any
+
+from memtrace.harness.results import metric_bounds
 
 EXPORT = Path("dashboard/public/data")
 DATA = Path("data")
@@ -69,16 +72,48 @@ TOPICS: list[tuple[str, list[tuple[str, list[str]]]]] = [
         ],
     ),
 ]
-SHARES = ("ratio", "share", "attainment", "accuracy", "hit_rate", "overflow_rate")
 GAP = ("<10s", "10-60s", "1-5min", "5-10min", "10-60min", ">1h")
 
 
 def fmt(metric: str, value: float) -> str:
-    if any(s in metric for s in SHARES):
+    if metric_bounds(metric)[1] == 1.0:  # a proportion
         return f"{100 * value:.1f}%"
     if abs(value) >= 1000:
         return f"{value:,.0f}"
     return f"{value:.3g}" if abs(value) < 10 else f"{value:.1f}"
+
+
+def param_text(value: Any) -> str:
+    """A cell parameter as text; nested settings (a model or gateway config) as key=value pairs."""
+    if isinstance(value, dict):
+        return ", ".join(param_text(v) if isinstance(v, dict) else f"{k}={v}" for k, v in value.items())
+    return str(value)
+
+
+def cell_order(cells: list[dict[str, Any]], params: list[str]) -> list[dict[str, Any]]:
+    """Cells sorted by their parameters: numbers ascending, other values in order of first appearance."""
+    numeric = {
+        p: all(isinstance(c["params"][p], (int, float)) and not isinstance(c["params"][p], bool) for c in cells)
+        for p in params
+    }
+    seen = {p: list(dict.fromkeys(param_text(c["params"][p]) for c in cells)) for p in params}
+
+    def key(c: dict[str, Any]) -> tuple[float, ...]:
+        return tuple(
+            float(c["params"][p]) if numeric[p] else float(seen[p].index(param_text(c["params"][p]))) for p in params
+        )
+
+    return sorted(cells, key=key)
+
+
+def interval(metric: str, ci: dict[str, Any]) -> str:
+    """Mean [95% CI] from 3+ repeats; mean (min–max) from 2, whose t-interval (t = 12.7) says little."""
+    if ci["n"] >= 3:
+        return f"{fmt(metric, ci['mean'])} [{fmt(metric, ci['ci_low'])}, {fmt(metric, ci['ci_high'])}]"
+    if ci["n"] == 2:
+        half = ci["std"] / math.sqrt(2)  # two values sit at mean ± std/sqrt(2)
+        return f"{fmt(metric, ci['mean'])} ({fmt(metric, ci['mean'] - half)}–{fmt(metric, ci['mean'] + half)})"
+    return fmt(metric, ci["mean"])
 
 
 def table(header: list[str], rows: list[list[str]]) -> list[str]:
@@ -95,16 +130,11 @@ def experiment(name: str, metrics: list[str], result: dict[str, Any], entry: dic
     params = list(cells[0]["params"]) if cells else []
     shown = [m for m in metrics if any(m in c["metrics"] for c in cells)]
     rows = []
-    for c in cells:
-        row = [str(c["params"][p]) for p in params] or [c["cell_id"]]
+    for c in cell_order(cells, params):
+        row = [param_text(c["params"][p]) for p in params] or [c["cell_id"]]
         for m in shown:
             ci = c["metrics"].get(m)
-            if ci is None:
-                row.append("")
-            elif ci["n"] > 1:
-                row.append(f"{fmt(m, ci['mean'])} [{fmt(m, ci['ci_low'])}, {fmt(m, ci['ci_high'])}]")
-            else:
-                row.append(fmt(m, ci["mean"]))
+            row.append("" if ci is None else interval(m, ci))
         row.append(str(c["n_ok"]))
         rows.append(row)
     commit = (
@@ -116,7 +146,8 @@ def experiment(name: str, metrics: list[str], result: dict[str, Any], entry: dic
         "",
         result["description"].strip(),
         "",
-        f"Run `{entry['run_id']}`, {commit}. Mean [95% CI] over repeats; n = repeats.",
+        f"Run `{entry['run_id']}`, {commit}. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single"
+        " value for n = 1.",
         "",
         *table([*header, *shown, "n"], rows),
     ]

@@ -12,7 +12,14 @@ import pytest
 
 from memtrace.harness.compare import compare, load_result
 from memtrace.harness.planner import plan
-from memtrace.harness.results import ExperimentResult, TrialResult, from_dict, mean_ci
+from memtrace.harness.results import (
+    ExperimentResult,
+    TrialResult,
+    aggregate_cells,
+    from_dict,
+    mean_ci,
+    metric_bounds,
+)
 from memtrace.harness.runner import run_experiment
 from memtrace.harness.schema_export import SCHEMA_PATH, result_json_schema, schema_text
 from memtrace.harness.spec import parse_spec
@@ -80,6 +87,32 @@ def test_mean_ci_student_t() -> None:
     assert ci.ci_high - ci.mean == pytest.approx(4.303 / 3**0.5, rel=1e-4)
     single = mean_ci([5.0])
     assert (single.ci_low, single.ci_high, single.n) == (5.0, 5.0, 1)
+
+
+def test_metric_bounds() -> None:
+    assert metric_bounds("prefix_cache_hit_ratio") == (0.0, 1.0)
+    assert metric_bounds("slo_attainment") == (0.0, 1.0)
+    assert metric_bounds("error_rate") == (0.0, 1.0)
+    assert metric_bounds("duration_s") == (0.0, float("inf"))  # not a "ratio"
+    assert metric_bounds("ttft_p95_ms") == (0.0, float("inf"))
+    assert metric_bounds("crag_score") == (float("-inf"), float("inf"))
+
+
+def test_cell_intervals_stay_in_range() -> None:
+    def trial(repeat: int, metrics: dict[str, float]) -> TrialResult:
+        return TrialResult(
+            trial_id=f"c/{repeat}", cell_id="c", repeat=repeat, seed=repeat, status="ok", started_at="",
+            duration_s=1.0, host_load_1m_before=0.0, quiet_host_ok=True, metrics=metrics,
+            requests_per_endpoint=[], target={}, error=None,
+        )  # fmt: skip
+
+    trials = [trial(0, {"slo_attainment": 0.17, "errors": 0.0}), trial(1, {"slo_attainment": 0.92, "errors": 9.0})]
+    (cell,) = aggregate_cells(trials, {"c": {}})
+    share, errors = cell.metrics["slo_attainment"], cell.metrics["errors"]
+    assert share.mean == pytest.approx(0.545)
+    assert (share.ci_low, share.ci_high) == (0.0, 1.0)  # the raw t-interval (n=2) runs far past both ends
+    assert errors.ci_low == 0.0 and errors.ci_high > 9.0
+    assert mean_ci([-0.5, 0.1]).ci_low < -0.5  # paired differences are not clipped
 
 
 def test_committed_schema_matches_result_model() -> None:

@@ -13,17 +13,17 @@ real engines and what was simulated, with 95% confidence intervals where runs we
 
 | Question | Finding |
 | --- | --- |
-| Which engine serves the GPU tier? | `vllm-metal`: 455 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server`; tool-call accuracy unchanged (81.0–81.5% on BFCL) across engines and batch sizes (E7) |
-| Does cache-aware routing pay? | 1.8–2.3× the throughput of random routing on agent sessions (llm-d over simulated replicas calibrated to the real engine, E8) |
-| How should a GPU + CPU pool be routed? | A capacity-aware scorer gives 1.6–2.3× the default's throughput where the GPU is not cache-bound and removes the timeouts caused by the 11× slower tier (E9) |
-| Does hosted overflow help? | An overloaded local pool goes from 1.77 to 5.1–5.7 req/s and TTFT p95 from 13.5 s to ~5 s, at $0.27–0.30 per 1k requests (Gemini Flash-Lite in the llm-d pool, E10) |
-| Which policy for real agent traffic? | On replayed Copilot sessions, capacity scorers finish 11–14% sooner but double TTFT p95; with Qwen3-4B they win both (E11) |
+| Which engine serves the GPU tier? | `vllm-metal`: 455 tok/s on ShareGPT at concurrency 8, 2.2× `mlx_lm.server` (one run per cell, E7); on the same Q8 GGUF it is within run-to-run noise of llama.cpp on Metal (3 repeats, E1); tool-call accuracy 81.0–81.5% on every engine and batch size (BFCL, 600 cases) |
+| Does cache-aware routing pay? | 1.8–2.3× the throughput of random routing on agent sessions (llm-d over simulated replicas calibrated to the real engine; one run per cell, E8) |
+| How should a GPU + CPU pool be routed? | Where the GPU is not cache-bound, a capacity-aware scorer gives 1.6–2.3× the default's throughput (single-run sweeps, E9b–c); over 6 repeats on agent sessions at concurrency 8 the two are within noise (62.7 vs 57.4 tok/s, E9) |
+| Does hosted overflow help? | An overloaded local pool goes from 1.77 to 5.1–5.7 req/s and TTFT p95 from 13.5 s to ~5 s, at $0.27–0.30 per 1k requests (Gemini Flash-Lite in the llm-d pool; 3 repeats, E10) |
+| Which policy for real agent traffic? | On replayed Copilot sessions, no routing policy is clearly better with Qwen3-0.6B (3 repeats, overlapping CIs, E11); with Qwen3-4B at 16 sessions, capacity-aware scorers cut errors from 11 to about 1 per run (E11b) |
 | What do production agents send? | A 57k-token median prompt across 9.1M Copilot calls; tool output is 48% of prompt tokens |
-| Should agents trim their context? | Naive trimming makes the engine recompute up to 2.6× more prefill; trimming only past a token budget keeps the prompt append-only (K6–K8, C1) |
-| Can the gateway do it for every client? | −14% to −39% prefill recompute in all 4 paired runs of Copilot traffic on Qwen3-8B, and 17% → 92% of requests under 5 s to first token on the overloaded run (K9); in front of Gemini, −50% prompt tokens with no accuracy loss (C2) |
+| Should agents trim their context? | Naive trimming makes the engine recompute up to 2.6× more prefill; trimming only past a token budget keeps the prompt append-only (simulation, 3 repeats; ranking checked once through llm-d and once on `vllm-metal`; K6–K8, C1) |
+| Can the gateway do it for every client? | On Copilot traffic onto Qwen3-8B, the gateway's `window+cache` cut recomputed prefill by 14–39% in all 4 paired runs (2 days × 2 repeats); `mask+cache` ranged from −31% to +37% (K9, K9b). In front of Gemini on 100 paired agent tasks: −50% prompt tokens [−80%, −20%], but cost only −12% [−36%, +13%] because trimmed prompts lose the provider's cache; accuracy 52% vs 44%, not a significant difference (C2) |
 | How long should agent KV be kept? | The provider recomputed 8–12% of reusable prompt tokens. With every call routed to its cache, a 5 min / 1 h / 24 h lifetime serves 96 / 99.4 / 100% of the reusable prefix for about 1× / 4× / 30× the memory |
-| What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache); retention policy matters least (a 1 h lifetime keeps as much as none) (K10) |
-| Is the simulator right? | Within 0.7 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache (K11) |
+| What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache); retention policy matters least, as expected once capacity evicts blocks long before a 1 h lifetime ends (K10) |
+| Is the simulator right? | Within 0.7 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache (one run, K11) |
 
 Details, definitions, and every run: [full results](results/README.md) and the [dashboard](https://htang7415.github.io/MEMTRACE/).
 
@@ -84,7 +84,8 @@ memtrace evaluate gate --help
 
 - One machine: no datacenter GPUs, no multi-node scale; small models (Qwen3-0.6B to 8B).
 - The CPU tier is simulated; the host often paged, so differences under ~15% are not claimed.
-- `vllm-metal` cannot offload KV, so RAM and SSD cache tiers were studied in simulation only.
+- The `vllm-metal` release used here (0.30.0) cannot offload KV, so RAM and SSD cache tiers were studied in
+  simulation only. SSD offload has since landed in `vllm-metal`; measuring it is the next step.
 - The KV simulator assumes append-only prompts for the Copilot traces and idealized placement; it is checked
   against a real engine for one replica's GPU cache.
 

@@ -10,9 +10,9 @@ traffic: no prompts, outputs, or trace records. The memory-risk benchmark has it
 
 ### e7-engines-sharegpt
 
-E7: which engine serves each tier? vllm-metal (GPU), mlx_lm.server (GPU) and vLLM CPU (Docker) serve Qwen3-0.6B bf16 with a ~2 GiB KV budget (scripts/engines.sh), one engine at a time, on ShareGPT first turns (100 requests, up to 128 output tokens) at closed-loop concurrency 1-8. Each trial starts a fresh engine, so prefix caches start empty. Was MEMTRACE's Phase 1 engine baseline (scripts/run_engine_baselines.sh).
+E7: which engine serves each tier? vllm-metal (GPU), mlx_lm.server (GPU) and vLLM CPU (Docker) serve Qwen3-0.6B bf16 with a ~2 GiB KV budget (scripts/engines.sh), one engine at a time, on ShareGPT first turns (100 requests, up to 128 output tokens) at closed-loop concurrency 1-8. Each trial starts a fresh engine, so prefix caches start empty. Was MEMTRACE's Phase 1 engine baseline (recorded with the engine bench).
 
-Run `20261005T213145Z-e7-engines-sharegpt-r2-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261005T213145Z-e7-engines-sharegpt-r2-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | variant | concurrency | output_tokens_per_s | ttft_p95_ms | tpot_p50_ms | n |
 |---|---|---|---|---|---|
@@ -31,9 +31,9 @@ Run `20261005T213145Z-e7-engines-sharegpt-r2-imported`, imported (recorded befor
 
 ### e7b-engines-mooncake
 
-E7b: E7's three engines on the first 100 Mooncake tool-agent records instead of ShareGPT (prefix blocks rendered as 32 words, at most 100 blocks; up to 128 output tokens), closed-loop concurrency 1-8, a fresh engine per trial. Was MEMTRACE's Phase 1 engine baseline (scripts/run_engine_baselines.sh).
+E7b: E7's three engines on the first 100 Mooncake tool-agent records instead of ShareGPT (prefix blocks rendered as 32 words, at most 100 blocks; up to 128 output tokens), closed-loop concurrency 1-8, a fresh engine per trial. Was MEMTRACE's Phase 1 engine baseline (recorded with the engine bench).
 
-Run `20261005T213740Z-e7b-engines-mooncake-r2-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261005T213740Z-e7b-engines-mooncake-r2-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | variant | concurrency | output_tokens_per_s | ttft_p95_ms | tpot_p50_ms | n |
 |---|---|---|---|---|---|
@@ -54,37 +54,37 @@ Run `20261005T213740Z-e7b-engines-mooncake-r2-imported`, imported (recorded befo
 
 E1: vLLM (vllm-metal) vs llama.cpp on the Apple Silicon GPU, same Qwen3-0.6B Q8_0 GGUF file, closed-loop concurrency sweep. Fixed 128 output tokens (ignore_eos), prefix caching off on both engines so trials are independent and servers can be reused within a repeat. Thinking disabled. Qwen3-0.6B so each engine fits the memory left on a shared machine (another project's kind cluster and desktop apps); larger models are deferred, not dropped.
 
-Run `20261006T043437Z-e1-engines-gpu`, `161a0da`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T043437Z-e1-engines-gpu`, `161a0da`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | variant | concurrency | output_tokens_per_s | ttft_p95_ms | tpot_p50_ms | n |
 |---|---|---|---|---|---|
+| llamacpp_metal | 1 | 107.2 [99.2, 115.2] | 213.6 [200.8, 226.3] | 8.21 [7.55, 8.87] | 3 |
 | llamacpp_metal | 2 | 113.5 [65.5, 161.5] | 369.3 [305.1, 433.4] | 15.6 [5.09, 26.0] | 3 |
+| llamacpp_metal | 4 | 133.4 [103.8, 162.9] | 1,062 [0, 2,368] | 26.5 [19.1, 34.0] | 3 |
 | llamacpp_metal | 8 | 162.9 [147.9, 178.0] | 1,277 [802.2, 1,751] | 42.9 [37.2, 48.6] | 3 |
 | llamacpp_metal | 16 | 282.2 [208.4, 356.0] | 2,478 [2,195, 2,762] | 46.3 [28.0, 64.6] | 3 |
-| llamacpp_metal | 4 | 133.4 [103.8, 162.9] | 1,062 [-244.1, 2,368] | 26.5 [19.1, 34.0] | 3 |
-| llamacpp_metal | 1 | 107.2 [99.2, 115.2] | 213.6 [200.8, 226.3] | 8.21 [7.55, 8.87] | 3 |
-| vllm_metal | 16 | 290.7 [262.3, 319.2] | 3,208 [1,944, 4,472] | 35.4 [26.0, 44.8] | 3 |
-| vllm_metal | 8 | 181.2 [167.0, 195.5] | 1,902 [1,735, 2,069] | 32.5 [30.1, 34.9] | 3 |
-| vllm_metal | 4 | 170.9 [166.1, 175.7] | 1,159 [1,038, 1,280] | 17.3 [16.7, 17.9] | 3 |
 | vllm_metal | 1 | 79.2 [68.4, 89.9] | 305.1 [190.5, 419.7] | 11.0 [9.47, 12.6] | 3 |
-| vllm_metal | 2 | 133.3 [115.6, 150.9] | 669.0 [-165.7, 1,504] | 11.9 [10.9, 13.0] | 3 |
+| vllm_metal | 2 | 133.3 [115.6, 150.9] | 669.0 [0, 1,504] | 11.9 [10.9, 13.0] | 3 |
+| vllm_metal | 4 | 170.9 [166.1, 175.7] | 1,159 [1,038, 1,280] | 17.3 [16.7, 17.9] | 3 |
+| vllm_metal | 8 | 181.2 [167.0, 195.5] | 1,902 [1,735, 2,069] | 32.5 [30.1, 34.9] | 3 |
+| vllm_metal | 16 | 290.7 [262.3, 319.2] | 3,208 [1,944, 4,472] | 35.4 [26.0, 44.8] | 3 |
 
 ### e1-engines-cpu
 
 E1 (CPU lane): llama.cpp CPU-only on the same Qwen3-0.6B Q8_0 file and workload as e1-engines-gpu, at concurrency 1 and 4 (CPU throughput makes higher concurrency impractical). Prefix caching off.
 
-Run `20261006T050553Z-e1-engines-cpu`, `161a0da`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T050553Z-e1-engines-cpu`, `161a0da`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | concurrency | output_tokens_per_s | ttft_p95_ms | n |
 |---|---|---|---|
-| 4 | 68.5 [55.5, 81.5] | 5,030 [4,602, 5,459] | 3 |
 | 1 | 41.8 [34.6, 49.0] | 1,551 [355.1, 2,748] | 3 |
+| 4 | 68.5 [55.5, 81.5] | 5,030 [4,602, 5,459] | 3 |
 
 ### e2-prefix-caching
 
 E2: effect of prefix caching on multi-turn RAG sessions (3 turns share a 5-paragraph HotpotQA context) for vLLM automatic prefix caching (vllm-metal) and llama.cpp prompt caching, Qwen3-0.6B Q8, closed loop at concurrency 4. Fresh server per trial (no reuse) so no warm cache carries across trials.
 
-Run `20261006T051532Z-e2-prefix-caching`, `161a0da`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T051532Z-e2-prefix-caching`, `161a0da`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | variant | ttft_p50_ms | prefix_cache_hit_ratio | n |
 |---|---|---|---|
@@ -97,19 +97,19 @@ Run `20261006T051532Z-e2-prefix-caching`, `161a0da`. Mean [95% CI] over repeats;
 
 E6 caching economics on Gemini: implicit caching vs explicit context caching vs the Batch API.
 
-Run `20261006T194427Z-e6-gemini-caching`, `534df39`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T194427Z-e6-gemini-caching`, `534df39`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | arm | usd_per_1k_requests | cached_token_ratio | ttft_p50_ms | n |
 |---|---|---|---|---|
 | implicit | 1.78 [1.72, 1.85] | 38.4% [34.1%, 42.7%] | 658.0 [596.0, 720.1] | 3 |
 | explicit | 0.427 [0.406, 0.448] | 99.7% [99.7%, 99.8%] | 678.3 [628.1, 728.6] | 3 |
-| batch | 1.31 [1.21, 1.42] | 1.5% [-2.7%, 5.8%] |  | 3 |
+| batch | 1.31 [1.21, 1.42] | 1.5% [0.0%, 5.8%] |  | 3 |
 
 ### e8-routing-kind-sims
 
 E8: does cache-aware routing pay on agent sessions? llm-d on kind (make up) over 4 llm-d-inference-sim replicas calibrated to vllm-metal (deploy/kind/sim-args-vllm-metal.json), EPP policies random, queue, prefix and combined (deploy/kind/epp/), each applied with a cold restart of EPP and pool. 32 synthetic agent sessions x 8 turns resending their growing history, 32 output tokens (ignore_eos), closed-loop concurrency 8-32. Was MEMTRACE's Phase 2 routing study (routing_study_v2).
 
-Run `20261006T202210Z-e8-routing-kind-sims-v2-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T202210Z-e8-routing-kind-sims-v2-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | concurrency | output_tokens_per_s | prefix_cache_hit_ratio | ttft_p95_ms | n |
 |---|---|---|---|---|---|
@@ -130,20 +130,20 @@ Run `20261006T202210Z-e8-routing-kind-sims-v2-imported`, imported (recorded befo
 
 E9: how should a GPU + CPU pool be routed? llm-d on kind over the host's vllm-metal (GPU tier, via a relay pod) and a CPU-tier simulator about 11x slower (calibrated by scripts/stack.sh calibrate; capacity weights on the pods), with the custom EPP (epp-plugins/). Policies: combined (llm-d default scorers), capacity (load per unit of capacity), capacity-prefix, cache-cost (capacity discounted by the expected prefix hit). 16 agent sessions x 8 turns, 32 output tokens, concurrency 8; caches emptied before each trial. Was MEMTRACE's Phase 3 heterogeneous-pool comparison (hetero_reps).
 
-Run `20261006T152954Z-e9-hetero-pool-reps-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T152954Z-e9-hetero-pool-reps-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | output_tokens_per_s | ttft_p95_ms | slo_attainment | errors | n |
 |---|---|---|---|---|---|
-| combined | 57.4 [42.5, 72.3] | 4,933 [846.7, 9,020] | 71.0% [63.0%, 78.9%] | 0.167 [-0.262, 0.595] | 6 |
-| capacity | 62.7 [44.6, 80.7] | 10,153 [2,807, 17,499] | 73.4% [69.3%, 77.6%] | 0.333 [-0.524, 1.19] | 6 |
-| capacity-prefix | 46.9 [43.5, 50.2] | 11,494 [-7,082, 30,070] | 71.4% [58.7%, 84.0%] | 2.33 [0.899, 3.77] | 3 |
-| cache-cost | 72.7 [40.0, 105.4] | 2,855 [1,090, 4,621] | 67.2% [38.5%, 95.9%] | 0.333 [-1.1, 1.77] | 3 |
+| combined | 57.4 [42.5, 72.3] | 4,933 [846.7, 9,020] | 71.0% [63.0%, 78.9%] | 0.167 [0, 0.595] | 6 |
+| capacity | 62.7 [44.6, 80.7] | 10,153 [2,807, 17,499] | 73.4% [69.3%, 77.6%] | 0.333 [0, 1.19] | 6 |
+| capacity-prefix | 46.9 [43.5, 50.2] | 11,494 [0, 30,070] | 71.4% [58.7%, 84.0%] | 2.33 [0.899, 3.77] | 3 |
+| cache-cost | 72.7 [40.0, 105.4] | 2,855 [1,090, 4,621] | 67.2% [38.5%, 95.9%] | 0.333 [0, 1.77] | 3 |
 
 ### e9b-hetero-policies-agent
 
 E9b: every routing policy on the GPU + CPU pool (E9's setup), agent sessions (16 x 8 turns, 32 output tokens) at concurrency 4 and 8: llm-d's random, queue and combined scorers, hardware-weighted random and combined (capacity labels as static weights), and the custom capacity and capacity-prefix scorers. One repeat; where the GPU is not cache-bound a capacity-aware scorer avoids queueing on the 11x slower tier.
 
-Run `20261006T141122Z-e9b-hetero-policies-agent-sweep-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T141122Z-e9b-hetero-policies-agent-sweep-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | concurrency | output_tokens_per_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|---|
@@ -166,7 +166,7 @@ Run `20261006T141122Z-e9b-hetero-policies-agent-sweep-imported`, imported (recor
 
 E9c: every routing policy on the GPU + CPU pool (E9's setup), the first 128 Mooncake tool-agent records (32 output tokens) at concurrency 4 and 8: llm-d's random, queue and combined scorers, hardware-weighted random and combined (capacity labels as static weights), and the custom capacity and capacity-prefix scorers. One repeat; where the GPU is not cache-bound a capacity-aware scorer avoids queueing on the 11x slower tier.
 
-Run `20261006T143937Z-e9c-hetero-policies-mooncake-sweep-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T143937Z-e9c-hetero-policies-mooncake-sweep-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | concurrency | output_tokens_per_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|---|
@@ -189,7 +189,7 @@ Run `20261006T143937Z-e9c-hetero-policies-mooncake-sweep-imported`, imported (re
 
 E3 (mode A): llm-d EPP v0.11.0 scorer profiles over 8 llm-d-inference-sim workers with a small per-worker KV cache (512 blocks x 16 tokens) to create cache pressure. Multi-turn HotpotQA RAG sessions, closed loop at concurrency 16. Sim latencies are calibrated roughly to vllm-metal on Qwen3-0.6B (E1/E2: ~1.4 ms/prompt token prefill, ~11 ms/output token) and are synthetic by design; the result is the scheduler's routing behaviour, not engine speed.
 
-Run `20261006T133118Z-e3-llmd-sim`, `7115c9b`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T133118Z-e3-llmd-sim`, `7115c9b`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | scorer_profile | goodput_rps | ttft_p95_ms | prefix_cache_hit_ratio | n |
 |---|---|---|---|---|
@@ -201,97 +201,97 @@ Run `20261006T133118Z-e3-llmd-sim`, `7115c9b`. Mean [95% CI] over repeats; n = r
 
 E11: which policy for real agent traffic? 64 GitHub Copilot coding-agent sessions (day 2026-06-06) replayed open loop on E9's GPU + CPU pool: each session's calls in order with their recorded gaps (x0.1, capped at 30 s), prompts scaled x1/40 with the provider's cached prefixes reproduced, sessions starting over 5 minutes. Policies combined, capacity and cache-cost (capacity discounted by the expected prefix hit). Was MEMTRACE's Phase 4a Copilot replay (copilot).
 
-Run `20261006T211309Z-e11-copilot-replay-runs-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T211309Z-e11-copilot-replay-runs-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | duration_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|
-| combined | 71817.1% [63536.2%, 80098.0%] | 4,501 [-981.2, 9,983] | 22.3 [-7.51, 52.2] | 3 |
-| capacity | 63661.7% [53469.4%, 73854.0%] | 9,362 [4,741, 13,984] | 23.3 [15.3, 31.3] | 3 |
-| cache-cost | 62106.2% [58916.7%, 65295.7%] | 9,153 [4,952, 13,354] | 19.3 [-0.9, 39.6] | 3 |
+| combined | 718.2 [635.4, 801.0] | 4,501 [0, 9,983] | 22.3 [0, 52.2] | 3 |
+| capacity | 636.6 [534.7, 738.5] | 9,362 [4,741, 13,984] | 23.3 [15.3, 31.3] | 3 |
+| cache-cost | 621.1 [589.2, 653.0] | 9,153 [4,952, 13,354] | 19.3 [0, 39.6] | 3 |
 
 ### e11b-copilot-replay-4b
 
 E11b: E11 with Qwen3-4B (MLX 4-bit) on the GPU tier and the CPU simulator scaled to it (overlay qwen3-4b; run scripts/stack.sh calibrate with MODEL_4B=1 first), at 16 and 32 sessions. Was MEMTRACE's Phase 4b.
 
-Run `20261007T023642Z-e11b-copilot-replay-4b-runs-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261007T023642Z-e11b-copilot-replay-4b-runs-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | sessions | duration_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|---|
-| combined | 16 | 45344.8% [29868.4%, 60821.3%] | 3,450 [1,310, 5,590] | 11.0 [3.55, 18.5] | 3 |
-| combined | 32 | 96412.2% | 20,110 | 278.0 | 1 |
-| capacity | 16 | 37046.8% [36762.8%, 37330.8%] | 2,096 [590.6, 3,602] | 1.33 [-0.101, 2.77] | 3 |
-| capacity | 32 | 93641.2% | 18,776 | 264.0 | 1 |
-| cache-cost | 16 | 37079.7% [36796.0%, 37363.4%] | 2,151 [1,524, 2,778] | 1 [-1.48, 3.48] | 3 |
-| cache-cost | 32 | 115988.4% | 18,541 | 392.0 | 1 |
+| combined | 16 | 453.4 [298.7, 608.2] | 3,450 [1,310, 5,590] | 11.0 [3.55, 18.5] | 3 |
+| combined | 32 | 964.1 | 20,110 | 278.0 | 1 |
+| capacity | 16 | 370.5 [367.6, 373.3] | 2,096 [590.6, 3,602] | 1.33 [0, 2.77] | 3 |
+| capacity | 32 | 936.4 | 18,776 | 264.0 | 1 |
+| cache-cost | 16 | 370.8 [368.0, 373.6] | 2,151 [1,524, 2,778] | 1 [0, 3.48] | 3 |
+| cache-cost | 32 | 1,160 | 18,541 | 392.0 | 1 |
 
 ### e11c-copilot-precise-index
 
 E11c: does a precise prefix index (fed by the engines' KV-cache events) beat llm-d's approximate one? E11's replay with the combined policy, approximate vs precise (deploy/kind/epp/precise.yaml); the CPU simulator tokenizes through vllm-render (overlay precise) so its events match. Was MEMTRACE's Phase 4c.
 
-Run `20261007T051020Z-e11c-copilot-precise-index-runs-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261007T051020Z-e11c-copilot-precise-index-runs-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | duration_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|
-| combined | 68142.6% [57508.8%, 78776.4%] | 4,185 [-895.4, 9,265] | 15.3 [3.08, 27.6] | 3 |
-| precise | 72848.2% [64821.6%, 80874.8%] | 4,387 [-1,102, 9,876] | 19.0 [2.71, 35.3] | 3 |
+| combined | 681.4 [575.1, 787.8] | 4,185 [0, 9,265] | 15.3 [3.08, 27.6] | 3 |
+| precise | 728.5 [648.2, 808.7] | 4,387 [0, 9,876] | 19.0 [2.71, 35.3] | 3 |
 
 ### e10-hosted-overflow
 
 E10: does hosted overflow help an overloaded local pool? E9's GPU + CPU pool under the capacity policy at concurrency 16 (more than the GPU alone carries), alone and with Gemini 2.5 Flash-Lite in the pool through the hosted adapter pod at capacity 2 or 4. Paid: the adapter enforces its own spend cap (HOSTED_BUDGET_USD, default 2 USD) and reports spend per pod. Was MEMTRACE's Phase 3 overflow study (hosted).
 
-Run `20261006T165006Z-e10-hosted-overflow-runs-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261006T165006Z-e10-hosted-overflow-runs-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | variant | requests_per_s | ttft_p95_ms | errors | n |
 |---|---|---|---|---|
 | local | 1.77 [1.52, 2.03] | 13,519 [11,073, 15,965] | 4.67 [0.872, 8.46] | 3 |
 | hosted2 | 5.06 [3.98, 6.13] | 4,947 [3,805, 6,089] | 0 [0, 0] | 3 |
-| hosted4 | 5.7 [5.02, 6.38] | 5,326 [4,890, 5,762] | 0.333 [-1.1, 1.77] | 3 |
+| hosted4 | 5.7 [5.02, 6.38] | 5,326 [4,890, 5,762] | 0.333 [0, 1.77] | 3 |
 
 ### e4-hybrid-gateway
 
 E4: Go AI gateway policies in front of a self-hosted fleet (real llm-d EPP over 4 inference-sim workers, ~16 concurrent slots) with overflow to Gemini 3.5 Flash-Lite under the shared $10 cap. local_only vs local_first (overflow beyond 12 in flight) vs remote_only, swept over concurrency. Local latencies are simulated (calibrated to E1/E2); Gemini latency and spend are real.
 
-Run `20261006T161707Z-e4-hybrid-gateway`, `7121c5d`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T161707Z-e4-hybrid-gateway`, `7121c5d`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | concurrency | slo_attainment | goodput_rps | ttft_p99_ms | n |
 |---|---|---|---|---|---|
 | local_first | 4 | 94.4% [89.9%, 99.0%] | 7.59 [6.87, 8.32] | 1,301 [1,024, 1,578] | 3 |
-| local_only | 12 | 76.6% [68.1%, 85.1%] | 11.1 [10.4, 11.8] | 1,932 [1,265, 2,599] | 3 |
-| local_only | 4 | 93.3% [88.0%, 98.6%] | 7.34 [6.47, 8.21] | 1,334 [915.7, 1,753] | 3 |
 | local_first | 12 | 75.5% [65.7%, 85.3%] | 11.0 [8.4, 13.6] | 2,134 [1,898, 2,369] | 3 |
 | local_first | 24 | 67.8% [60.9%, 74.8%] | 15.1 [11.8, 18.3] | 1,985 [1,386, 2,585] | 3 |
+| local_only | 4 | 93.3% [88.0%, 98.6%] | 7.34 [6.47, 8.21] | 1,334 [915.7, 1,753] | 3 |
+| local_only | 12 | 76.6% [68.1%, 85.1%] | 11.1 [10.4, 11.8] | 1,932 [1,265, 2,599] | 3 |
 | local_only | 24 | 58.8% [43.1%, 74.4%] | 9.52 [5.67, 13.4] | 2,645 [2,455, 2,836] | 3 |
-| remote_only | 12 | 83.1% [79.5%, 86.7%] | 13.0 [11.7, 14.3] | 1,690 [1,315, 2,066] | 3 |
 | remote_only | 4 | 83.6% [79.2%, 87.9%] | 4.55 [3.88, 5.23] | 1,961 [1,346, 2,577] | 3 |
+| remote_only | 12 | 83.1% [79.5%, 86.7%] | 13.0 [11.7, 14.3] | 1,690 [1,315, 2,066] | 3 |
 | remote_only | 24 | 84.3% [76.1%, 92.4%] | 24.8 [15.9, 33.7] | 1,650 [1,028, 2,272] | 3 |
 
 ### e4b-slo-overflow
 
 E4b (Phase 4h): E4's fleet and workload, comparing the fixed overflow threshold (local_first: overflow beyond 12 in flight) with SLO-aware overflow (local_first_slo: overflow when in-flight x recent per-request service time exceeds the 1 s TTFT SLO; same 12 in-flight cap). E4 found the fixed threshold never triggered at concurrency 12 while local SLO attainment was 77 %. Local latencies are simulated (calibrated to E1/E2); Gemini latency and spend are real.
 
-Run `20261006T194001Z-e4b-slo-overflow`, `534df39`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T194001Z-e4b-slo-overflow`, `534df39`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | concurrency | slo_attainment | goodput_rps | ttft_p99_ms | n |
 |---|---|---|---|---|---|
 | local_first | 4 | 93.3% [89.0%, 97.6%] | 7.5 [6.69, 8.31] | 1,268 [985.4, 1,551] | 3 |
-| local_first_slo | 24 | 79.2% [74.6%, 83.7%] | 20.2 [17.1, 23.2] | 1,824 [1,370, 2,278] | 3 |
 | local_first | 12 | 75.5% [69.9%, 81.0%] | 10.9 [8.79, 13.0] | 1,853 [1,745, 1,961] | 3 |
 | local_first | 24 | 75.5% [61.5%, 89.4%] | 17.9 [12.4, 23.4] | 1,860 [1,765, 1,955] | 3 |
 | local_first_slo | 4 | 94.0% [90.4%, 97.6%] | 7.19 [6.8, 7.57] | 1,279 [979.4, 1,579] | 3 |
 | local_first_slo | 12 | 76.6% [75.6%, 77.6%] | 11.4 [9.64, 13.1] | 1,821 [1,651, 1,992] | 3 |
+| local_first_slo | 24 | 79.2% [74.6%, 83.7%] | 20.2 [17.1, 23.2] | 1,824 [1,370, 2,278] | 3 |
 
 ### e5-gemini
 
 E5 Gemini side: gemini-3.5-flash-lite (reasoning minimal) on QA with provided context (CRAG-500 search snippets; HotpotQA gold paragraphs + distractors, so no retrieval is measured), BFCL v3 single-turn AST categories, and agentic HotpotQA over the MCP search/read server. Answers at concurrency 1; QA correctness from the Gemini judge (rubric qa-judge-v1; kappa 0.96 vs Claude labels, 0.86 on answered items). The local side (Qwen3-4B, e5_qwen3_4b.yaml) runs the same items in the GPU window.
 
-Run `20261006T192119Z-e5-gemini`, `534df39`. Mean [95% CI] over repeats; n = repeats.
+Run `20261006T192119Z-e5-gemini`, `534df39`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | suite | model | accuracy | latency_p50_ms | usd_per_correct | n |
 |---|---|---|---|---|---|
-| rag_crag | {'kind': 'gemini', 'params': {'model': 'gemini-3.5-flash-lite', 'reasoning_effort': 'minimal'}} | 32.6% [26.4%, 38.8%] | 566.5 [553.4, 579.5] | 0.000777 [0.000633, 0.000922] | 5 |
-| rag_hotpot | {'kind': 'gemini', 'params': {'model': 'gemini-3.5-flash-lite', 'reasoning_effort': 'minimal'}} | 88.0% [83.1%, 92.9%] | 571.5 [552.8, 590.2] | 0.000233 [0.000216, 0.00025] | 5 |
-| bfcl | {'kind': 'gemini', 'params': {'model': 'gemini-3.5-flash-lite', 'reasoning_effort': 'minimal'}} | 86.2% [84.3%, 88.2%] | 700.0 [675.5, 724.6] | 0.000272 [0.000237, 0.000307] | 5 |
-| agent | {'kind': 'gemini', 'params': {'model': 'gemini-3.5-flash-lite', 'reasoning_effort': 'minimal'}} | 38.0% [13.3%, 62.7%] | 4,590 [3,695, 5,484] | 0.00923 [0.00107, 0.0174] | 5 |
+| rag_crag | kind=gemini, model=gemini-3.5-flash-lite, reasoning_effort=minimal | 32.6% [26.4%, 38.8%] | 566.5 [553.4, 579.5] | 0.000777 [0.000633, 0.000922] | 5 |
+| rag_hotpot | kind=gemini, model=gemini-3.5-flash-lite, reasoning_effort=minimal | 88.0% [83.1%, 92.9%] | 571.5 [552.8, 590.2] | 0.000233 [0.000216, 0.00025] | 5 |
+| bfcl | kind=gemini, model=gemini-3.5-flash-lite, reasoning_effort=minimal | 86.2% [84.3%, 88.2%] | 700.0 [675.5, 724.6] | 0.000272 [0.000237, 0.000307] | 5 |
+| agent | kind=gemini, model=gemini-3.5-flash-lite, reasoning_effort=minimal | 38.0% [13.3%, 62.7%] | 4,590 [3,695, 5,484] | 0.00923 [0.00107, 0.0174] | 5 |
 
 ## Agent context
 
@@ -299,7 +299,7 @@ Run `20261006T192119Z-e5-gemini`, `534df39`. Mean [95% CI] over repeats; n = rep
 
 Context policies on agentic BrowseComp-Plus (pool of 10 queries' pages per task, search returns the top 3 pages): gemini-3.5-flash-lite (reasoning minimal) as the agent, the calibrated judge (qa-judge-v1) for correctness. Policy settings are scaled to this suite (3-10 model calls, median peak ~45k tokens).
 
-Run `20261007T221717Z-c1-context-policies`, `0e20d7e`. Mean [95% CI] over repeats; n = repeats.
+Run `20261007T221717Z-c1-context-policies`, `0e20d7e`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | accuracy | cost_usd_per_task | cached_share | n |
 |---|---|---|---|---|
@@ -315,7 +315,7 @@ Run `20261007T221717Z-c1-context-policies`, `0e20d7e`. Mean [95% CI] over repeat
 
 K6 (v0.4 Step 4): serving cost of context policies on production agent traffic. 600 sessions of the GitHub Copilot coding-agent traces (June 6, 2026), each replayed under one context policy (full, truncate tool results to 2k, window of 8 exchanges, mask results older than 4 exchanges, summarize at 64k, and cache-aware window/mask that re-render only past 100k), as prefix-chained 64-token KV blocks (memtrace.kv.policy_traces). Counterfactual: Copilot's trajectories under each policy's prompts. 4 replicas, 32 active sessions, llm-d-style prefix+load routing, LRU; KV capacity per replica from tight (512k tokens) to effectively unlimited (64M).
 
-Run `20261008T001729Z-k6-copilot-context-policies`, `5e46ede`. Mean [95% CI] over repeats; n = repeats.
+Run `20261008T001729Z-k6-copilot-context-policies`, `5e46ede`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | trace | capacity_tokens | recomputed_tokens_per_request | token_hit_rate | n |
 |---|---|---|---|---|
@@ -345,7 +345,7 @@ Run `20261008T001729Z-k6-copilot-context-policies`, `5e46ede`. Mean [95% CI] ove
 
 K7 (v0.4 Step 4, live check of K6): the K6 Copilot policy traces replayed live (open loop, 32 active sessions, trace time compressed 4x) through llm-d EPP v0.11 + Envoy over 4 llm-d-inference-sim workers, at K6's tight KV capacity (512k trace tokens per replica = 8,000 sim blocks of 16 scaled tokens). Each 64-token trace block is 16 token ids; worker latencies are per scaled token and divided by the time scale (prefill 50 us, decode 25 ms). All policies replay the same session schedule. TTFT and SLO are in compressed time. One repeat: a check that K6's ranking holds through the real router.
 
-Run `20261008T002108Z-k7-llmd-copilot-context-policies`, `befbe06`. Mean [95% CI] over repeats; n = repeats.
+Run `20261008T002108Z-k7-llmd-copilot-context-policies`, `befbe06`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | trace | scorer_profile | cpu_kv_blocks | recomputed_tokens_per_request | n |
 |---|---|---|---|---|
@@ -361,7 +361,7 @@ Run `20261008T002108Z-k7-llmd-copilot-context-policies`, `befbe06`. Mean [95% CI
 
 K8 (v0.4 Step 4, real-engine check of K6): the K6 Copilot policy traces replayed live through llm-d EPP v0.11 + Envoy over 1 native vllm-metal replica of Qwen3-0.6B Q8 (Apple GPU, prefix caching on). Each 64-token trace block is 2 token ids (prompts 1/32 of their size: median 1.9k tokens; max_model_len 12,288 rejects the longest ~0.3%, counted as errors) so the workload fits one machine shared with other work; 8 active sessions, trace time compressed 4x, outputs scaled to 5% (max 32 tokens). Server-side prefix-cache hit ratio and TTFT come from the real engine; the replica gets 30% of unified memory (vllm-metal reports a 1.67 GB KV budget, ~15k tokens, ~480k trace tokens for 8 sessions: K6's tight 512k per 8 sessions). A second replica does not fit next to it on this machine. TTFT and SLO are in compressed time. One repeat.
 
-Run `20261008T023909Z-k8-vllm-metal-copilot-context-policies`, `9cff5ab`. Mean [95% CI] over repeats; n = repeats.
+Run `20261008T023909Z-k8-vllm-metal-copilot-context-policies`, `9cff5ab`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | trace | scorer_profile | recomputed_tokens_per_request | n |
 |---|---|---|---|
@@ -377,47 +377,47 @@ Run `20261008T023909Z-k8-vllm-metal-copilot-context-policies`, `9cff5ab`. Mean [
 
 K9 (v0.5 Step 2): the gateway's cache-aware context management measured on a real engine. Copilot coding-agent sessions (a Saturday and a Tuesday, 200 seeded sessions each) replayed as full chat histories (message text is deterministic filler at 1/16 of each message's tokens) through the Go gateway onto one vllm-metal replica of Qwen3-8B (MLX 4-bit, Apple Silicon GPU, 24.7k-token KV cache, prefix caching on). Arms: context management off (the client's full history), mask+cache (mask tool results older than 4 exchanges once the view passes 100k full-scale tokens), window+cache (keep 8 exchanges), and mask+cache with the pause trigger (trim at the first call after 120 s idle). The engine reports cached prompt tokens and TTFT. Open loop in real trace time (idle gaps capped at 300 s); the first sessions join at a random point of their life so the replica holds sessions of mixed ages from the start.
 
-Run `20261008T160744Z-k9-gateway-context-qwen3-8b`, `4c9faf1`. Mean [95% CI] over repeats; n = repeats.
+Run `20261008T160744Z-k9-gateway-context-qwen3-8b`, `4c9faf1`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | day | arm | recomputed_tokens_per_request | slo_attainment | n |
 |---|---|---|---|---|
-| sat | off | 243.4 [-343.9, 830.7] | 26.9% [-103.4%, 157.3%] | 2 |
-| sat | mask+cache | 328.4 [-101.4, 758.2] | 24.0% [-176.0%, 223.9%] | 2 |
-| sat | window+cache | 193.1 [-500.1, 886.3] | 71.7% [-183.9%, 327.2%] | 2 |
-| sat | mask+cache+pause | 327.5 [-29.8, 684.8] | 21.8% [-145.3%, 189.0%] | 2 |
-| tue | off | 301.9 [293.5, 310.3] | 56.8% [-18.6%, 132.2%] | 2 |
-| tue | mask+cache | 245.8 [-24.8, 516.3] | 54.7% [-133.8%, 243.3%] | 2 |
-| tue | window+cache | 203.1 [-29.0, 435.1] | 74.6% [-13.1%, 162.3%] | 2 |
-| tue | mask+cache+pause | 251.9 [66.7, 437.1] | 74.5% [59.1%, 89.9%] | 2 |
+| sat | off | 243.4 (197.2–289.6) | 26.9% (16.7%–37.2%) | 2 |
+| sat | mask+cache | 328.4 (294.6–362.2) | 24.0% (8.2%–39.7%) | 2 |
+| sat | window+cache | 193.1 (138.5–247.6) | 71.7% (51.6%–91.8%) | 2 |
+| sat | mask+cache+pause | 327.5 (299.4–355.6) | 21.8% (8.7%–35.0%) | 2 |
+| tue | off | 301.9 (301.3–302.6) | 56.8% (50.9%–62.7%) | 2 |
+| tue | mask+cache | 245.8 (224.5–267.1) | 54.7% (39.9%–69.6%) | 2 |
+| tue | window+cache | 203.1 (184.8–221.4) | 74.6% (67.7%–81.5%) | 2 |
+| tue | mask+cache+pause | 251.9 (237.3–266.5) | 74.5% (73.3%–75.7%) | 2 |
 
 ### k9b-gateway-mask-min-growth-qwen3-8b
 
 K9b (v0.5 Step 2): K9's mask arms again after two fixes found in K9 repeat 1, on the same session schedules (same days, sessions, seed and repeats), so they pair with K9's off and window+cache arms. (1) min_growth: a trimmed view must grow by 25k full-scale tokens before the next trim; without it, a long session whose masked view is still over budget re-trimmed (and missed the cache) almost every call. (2) mask_text "[omitted]": the placeholder is scaled with the message text (the default ~19-token placeholder against ~44-token scaled tool results understated what masking removes at full scale).
 
-Run `20261008T230734Z-k9b-gateway-mask-min-growth-qwen3-8b`, `734e784`. Mean [95% CI] over repeats; n = repeats.
+Run `20261008T230734Z-k9b-gateway-mask-min-growth-qwen3-8b`, `734e784`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | day | arm | recomputed_tokens_per_request | slo_attainment | n |
 |---|---|---|---|---|
-| sat | mask+cache | 265.8 [214.9, 316.7] | 38.9% [-59.0%, 136.7%] | 2 |
-| sat | mask+cache+pause | 265.1 [231.0, 299.2] | 38.6% [-46.7%, 123.9%] | 2 |
-| tue | mask+cache | 226.0 [-7.16, 459.2] | 76.1% [49.0%, 103.3%] | 2 |
-| tue | mask+cache+pause | 201.7 [-74.0, 477.3] | 34.4% [-402.6%, 471.4%] | 2 |
+| sat | mask+cache | 265.8 (261.8–269.8) | 38.9% (31.2%–46.6%) | 2 |
+| sat | mask+cache+pause | 265.1 (262.4–267.8) | 38.6% (31.9%–45.3%) | 2 |
+| tue | mask+cache | 226.0 (207.7–244.4) | 76.1% (74.0%–78.3%) | 2 |
+| tue | mask+cache+pause | 201.7 (180.0–223.4) | 34.4% (0.0%–68.8%) | 2 |
 
 ### c2a-gateway-context
 
 Step 3a: the C1 tasks (same seed, pool and agent) with one new arm, the Go gateway's window+cache context manager in front of Gemini. The agent sends its full history; the gateway trims it. Paired against the C1 run's policies on the same tasks. The budget is set below C1's 96k so trimming fires on ~40% of tasks (C1 full: 20 of 50 peak above 48k); min_growth stops re-trimming on every call.
 
-Run `20261009T052742Z-c2a-gateway-context`, `c85f506`. Mean [95% CI] over repeats; n = repeats.
+Run `20261009T052742Z-c2a-gateway-context`, `c85f506`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | gateway | accuracy | prompt_tokens_per_task | cost_usd_per_task | n |
 |---|---|---|---|---|---|
-| gateway-window+cache | {'policy': 'window+cache', 'keep': 2, 'budget_tokens': 48000, 'min_growth': 16000} | 56.0% [35.2%, 76.8%] | 125,433 [106,430, 144,436] | 0.0269 [0.0246, 0.0291] | 5 |
+| gateway-window+cache | policy=window+cache, keep=2, budget_tokens=48000, min_growth=16000 | 56.0% [35.2%, 76.8%] | 125,433 [106,430, 144,436] | 0.0269 [0.0246, 0.0291] | 5 |
 
 ### c2b-gateway-context
 
 Step 3b: 50 new BrowseComp-Plus tasks (none of C1's), full vs the Go gateway's window+cache arm, same agent and gateway settings as c2a. Together with c2a this gives up to 100 tasks paired against full.
 
-Run `20261009T053830Z-c2b-gateway-context`, `8947fe3`. Mean [95% CI] over repeats; n = repeats.
+Run `20261009T053830Z-c2b-gateway-context`, `8947fe3`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | policy | accuracy | prompt_tokens_per_task | cost_usd_per_task | cached_share | n |
 |---|---|---|---|---|---|
@@ -430,86 +430,86 @@ Run `20261009T053830Z-c2b-gateway-context`, `8947fe3`. Mean [95% CI] over repeat
 
 K10a: how much of the reusable prompt prefix of a real day of agent traffic does each placement policy keep? GitHub Copilot coding-agent day 2026-06-03 (60k sessions) replayed in trace time over 64 replicas serving Qwen3-4B (147,456 KV bytes per token), GPU tier only, LRU. Prompts are append-only, as in the retention analysis (memtrace.kv.retention); 1,024-token blocks. GPU capacity per replica 128 / 256 / 512 GB: below 128 GB the in-flight calls of this traffic (66k tokens on average) no longer fit. At most 8 calls per replica; a busy preferred replica spills to the least-loaded one. Redoes MEMTRACE's M2 placement sweep on this simulator, which, unlike M2's, also holds the KV of running calls.
 
-Run `20261009T200216Z-k10a-copilot-reuse-routing`, `bf4e246`. Mean [95% CI] over repeats; n = repeats.
+Run `20261009T200216Z-k10a-copilot-reuse-routing`, `bf4e246`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | capacity_tokens | routing | hit_share_of_reusable | token_hit_rate | overflow_rate | n |
 |---|---|---|---|---|---|
-| 868055 | least_loaded | 5.0% | 4.7% | 0.1% | 1 |
-| 868055 | session | 88.5% | 83.2% | 0.9% | 1 |
-| 868055 | sticky | 91.3% | 85.8% | 0.6% | 1 |
-| 868055 | kv_aware | 92.0% | 86.5% | 0.1% | 1 |
-| 1736111 | least_loaded | 7.7% | 7.1% | 0.0% | 1 |
-| 1736111 | session | 93.8% | 88.1% | 0.0% | 1 |
-| 1736111 | sticky | 95.9% | 90.1% | 0.0% | 1 |
-| 1736111 | kv_aware | 96.1% | 90.4% | 0.0% | 1 |
-| 3472222 | least_loaded | 11.0% | 10.3% | 0.0% | 1 |
-| 3472222 | session | 95.8% | 90.1% | 0.0% | 1 |
-| 3472222 | sticky | 97.7% | 91.9% | 0.0% | 1 |
-| 3472222 | kv_aware | 97.9% | 92.1% | 0.0% | 1 |
+| 868055 | least_loaded | 0.05 | 4.7% | 0.1% | 1 |
+| 868055 | session | 0.885 | 83.2% | 0.9% | 1 |
+| 868055 | sticky | 0.913 | 85.8% | 0.6% | 1 |
+| 868055 | kv_aware | 0.92 | 86.5% | 0.1% | 1 |
+| 1736111 | least_loaded | 0.0765 | 7.1% | 0.0% | 1 |
+| 1736111 | session | 0.938 | 88.1% | 0.0% | 1 |
+| 1736111 | sticky | 0.959 | 90.1% | 0.0% | 1 |
+| 1736111 | kv_aware | 0.961 | 90.4% | 0.0% | 1 |
+| 3472222 | least_loaded | 0.11 | 10.3% | 0.0% | 1 |
+| 3472222 | session | 0.958 | 90.1% | 0.0% | 1 |
+| 3472222 | sticky | 0.977 | 91.9% | 0.0% | 1 |
+| 3472222 | kv_aware | 0.979 | 92.1% | 0.0% | 1 |
 
 ### k10b-copilot-reuse-tiers
 
 K10b: what do host-RAM and SSD KV tiers add on a real day of agent traffic? K10a's setting with sticky placement and LRU, plus per-replica lower tiers: none, 256 GB RAM, 1 TB RAM, 1 TB RAM + 4 TB SSD. Loaded tokens cost 0.03 (RAM) and 0.21 (SSD) of a recomputed one: Qwen3-4B KV over 50 GB/s and 7 GB/s against a 10k tokens/s prefill (nominal figures, assumptions; loaded shares are reported so other ratios apply).
 
-Run `20261009T202315Z-k10b-copilot-reuse-tiers`, `8848147`. Mean [95% CI] over repeats; n = repeats.
+Run `20261009T202315Z-k10b-copilot-reuse-tiers`, `8848147`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | capacity_tokens | cpu_capacity_tokens | ssd_capacity_tokens | hit_share_of_reusable | cpu_loaded_share | ssd_loaded_share | n |
 |---|---|---|---|---|---|---|
-| 868055 | 0 | 0 | 91.3% | 0.0% | 0.0% | 1 |
-| 868055 | 0 | 27126736 | 99.3% | 0.0% | 7.6% | 1 |
-| 868055 | 1736111 | 0 | 97.1% | 5.5% | 0.0% | 1 |
-| 868055 | 1736111 | 27126736 | 99.3% | 5.5% | 2.1% | 1 |
-| 868055 | 6944444 | 0 | 98.7% | 7.0% | 0.0% | 1 |
-| 868055 | 6944444 | 27126736 | 99.4% | 7.0% | 0.6% | 1 |
-| 1736111 | 0 | 0 | 95.9% | 0.0% | 0.0% | 1 |
-| 1736111 | 0 | 27126736 | 99.3% | 0.0% | 3.3% | 1 |
-| 1736111 | 1736111 | 0 | 97.7% | 1.8% | 0.0% | 1 |
-| 1736111 | 1736111 | 27126736 | 99.4% | 1.8% | 1.5% | 1 |
-| 1736111 | 6944444 | 0 | 98.8% | 2.8% | 0.0% | 1 |
-| 1736111 | 6944444 | 27126736 | 99.4% | 2.8% | 0.6% | 1 |
-| 3472222 | 0 | 0 | 97.7% | 0.0% | 0.0% | 1 |
-| 3472222 | 0 | 27126736 | 99.4% | 0.0% | 1.5% | 1 |
-| 3472222 | 1736111 | 0 | 98.3% | 0.6% | 0.0% | 1 |
-| 3472222 | 1736111 | 27126736 | 99.4% | 0.6% | 1.0% | 1 |
-| 3472222 | 6944444 | 0 | 98.9% | 1.1% | 0.0% | 1 |
-| 3472222 | 6944444 | 27126736 | 99.4% | 1.1% | 0.5% | 1 |
+| 868055 | 0 | 0 | 0.913 | 0.0% | 0.0% | 1 |
+| 868055 | 0 | 27126736 | 0.993 | 0.0% | 7.6% | 1 |
+| 868055 | 1736111 | 0 | 0.971 | 5.5% | 0.0% | 1 |
+| 868055 | 1736111 | 27126736 | 0.993 | 5.5% | 2.1% | 1 |
+| 868055 | 6944444 | 0 | 0.987 | 7.0% | 0.0% | 1 |
+| 868055 | 6944444 | 27126736 | 0.994 | 7.0% | 0.6% | 1 |
+| 1736111 | 0 | 0 | 0.959 | 0.0% | 0.0% | 1 |
+| 1736111 | 0 | 27126736 | 0.993 | 0.0% | 3.3% | 1 |
+| 1736111 | 1736111 | 0 | 0.977 | 1.8% | 0.0% | 1 |
+| 1736111 | 1736111 | 27126736 | 0.994 | 1.8% | 1.5% | 1 |
+| 1736111 | 6944444 | 0 | 0.988 | 2.8% | 0.0% | 1 |
+| 1736111 | 6944444 | 27126736 | 0.994 | 2.8% | 0.6% | 1 |
+| 3472222 | 0 | 0 | 0.977 | 0.0% | 0.0% | 1 |
+| 3472222 | 0 | 27126736 | 0.994 | 0.0% | 1.5% | 1 |
+| 3472222 | 1736111 | 0 | 0.983 | 0.6% | 0.0% | 1 |
+| 3472222 | 1736111 | 27126736 | 0.994 | 0.6% | 1.0% | 1 |
+| 3472222 | 6944444 | 0 | 0.989 | 1.1% | 0.0% | 1 |
+| 3472222 | 6944444 | 27126736 | 0.994 | 1.1% | 0.5% | 1 |
 
 ### k10c-copilot-reuse-retention
 
 K10c: does the retention policy matter on a real day of agent traffic? K10a's setting with sticky placement and the GPU tier only, under LRU and turn-aware eviction (KV of sessions waiting for their user goes first), each without a lifetime and with a 5-minute or 1-hour one (unreferenced KV dropped).
 
-Run `20261009T211446Z-k10c-copilot-reuse-retention`, `db2f953`. Mean [95% CI] over repeats; n = repeats.
+Run `20261009T211446Z-k10c-copilot-reuse-retention`, `db2f953`. n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | capacity_tokens | eviction | ttl_s | hit_share_of_reusable | token_hit_rate | n |
 |---|---|---|---|---|---|
-| 868055 | lru | None | 91.3% | 85.8% | 1 |
-| 868055 | lru | 300 | 91.1% | 85.6% | 1 |
-| 868055 | lru | 3600 | 91.3% | 85.8% | 1 |
-| 868055 | turn | None | 90.0% | 84.6% | 1 |
-| 868055 | turn | 300 | 90.8% | 85.4% | 1 |
-| 868055 | turn | 3600 | 90.0% | 84.6% | 1 |
-| 1736111 | lru | None | 95.9% | 90.1% | 1 |
-| 1736111 | lru | 300 | 94.9% | 89.3% | 1 |
-| 1736111 | lru | 3600 | 95.9% | 90.1% | 1 |
-| 1736111 | turn | None | 91.5% | 86.0% | 1 |
-| 1736111 | turn | 300 | 94.7% | 89.0% | 1 |
-| 1736111 | turn | 3600 | 91.7% | 86.2% | 1 |
-| 3472222 | lru | None | 97.7% | 91.9% | 1 |
-| 3472222 | lru | 300 | 95.3% | 89.6% | 1 |
-| 3472222 | lru | 3600 | 97.7% | 91.9% | 1 |
-| 3472222 | turn | None | 91.8% | 86.3% | 1 |
-| 3472222 | turn | 300 | 95.3% | 89.6% | 1 |
-| 3472222 | turn | 3600 | 93.6% | 88.0% | 1 |
+| 868055 | lru | None | 0.913 | 85.8% | 1 |
+| 868055 | lru | 300 | 0.911 | 85.6% | 1 |
+| 868055 | lru | 3600 | 0.913 | 85.8% | 1 |
+| 868055 | turn | None | 0.9 | 84.6% | 1 |
+| 868055 | turn | 300 | 0.908 | 85.4% | 1 |
+| 868055 | turn | 3600 | 0.9 | 84.6% | 1 |
+| 1736111 | lru | None | 0.959 | 90.1% | 1 |
+| 1736111 | lru | 300 | 0.949 | 89.3% | 1 |
+| 1736111 | lru | 3600 | 0.959 | 90.1% | 1 |
+| 1736111 | turn | None | 0.915 | 86.0% | 1 |
+| 1736111 | turn | 300 | 0.947 | 89.0% | 1 |
+| 1736111 | turn | 3600 | 0.917 | 86.2% | 1 |
+| 3472222 | lru | None | 0.977 | 91.9% | 1 |
+| 3472222 | lru | 300 | 0.953 | 89.6% | 1 |
+| 3472222 | lru | 3600 | 0.977 | 91.9% | 1 |
+| 3472222 | turn | None | 0.918 | 86.3% | 1 |
+| 3472222 | turn | 300 | 0.953 | 89.6% | 1 |
+| 3472222 | turn | 3600 | 0.936 | 88.0% | 1 |
 
 ### k11-engine-kv-check
 
 K11: does the KV-cache simulator predict a real engine's prefix-cache hits? One vllm-metal replica of Qwen3-0.6B with its KV cache fixed at 1,024 blocks of 16 tokens, so evictions happen; 120 Copilot sessions (4 shards of 2026-06-06, 10 calls each) replayed append-only (reuse full) with real gaps capped at 10 minutes. Then: memtrace report kv-validate --run <run>/requests.jsonl --kv-tokens 16384. Was MEMTRACE's M3 pilot.
 
-Run `20261007T231754Z-k11-engine-kv-check-pilot-imported`, imported (recorded before the harness). Mean [95% CI] over repeats; n = repeats.
+Run `20261007T231754Z-k11-engine-kv-check-pilot-imported`, imported (recorded before the harness). n = repeats: mean [95% CI] for n ≥ 3, mean (range) for n = 2, the single value for n = 1.
 
 | cell | prefix_cache_hit_ratio | duration_s | n |
 |---|---|---|---|
-| default | 75.6% | 251746.5% | 1 |
+| default | 75.6% | 2,517 | 1 |
 
 ## Analyses
 
