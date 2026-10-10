@@ -11,7 +11,9 @@ from memtrace.kv import resume_decision
 from memtrace.kv.resume_decision import decide, grade, next_step
 
 
-def trial(arm: str, seed: int, recompute: float, p50: float, *, swapouts: float = 0.0) -> dict[str, Any]:
+def trial(
+    arm: str, seed: int, recompute: float, p50: float, *, swapouts: float = 0.0, measured: float | None = None
+) -> dict[str, Any]:
     metrics = {
         "resumed_recompute_share": recompute,
         "resumed_ttft_p50_ms": p50,
@@ -19,6 +21,7 @@ def trial(arm: str, seed: int, recompute: float, p50: float, *, swapouts: float 
         "all_ttft_p50_ms": 140.0,
         "host_slept_s": 0.0,
         "host_swapouts": swapouts,
+        **({} if measured is None else {"host_swapouts_measured": measured}),
     }
     return {"cell_id": f"arm={arm}", "seed": seed, "status": "ok", "metrics": metrics}
 
@@ -37,7 +40,14 @@ R1 = run(
         *(trial("host-pool+ssd", s, 0.05, 380.0) for s in (1, 2)),
     ],
 )
-RERUN = run("rerun", [trial("stock-equal-memory", 0, 0.35, 410.0), trial("host-pool+ssd", 0, 0.05, 400.0)])
+# The rerun paged while its engines started, not while it measured.
+RERUN = run(
+    "rerun",
+    [
+        trial("stock-equal-memory", 0, 0.35, 410.0, swapouts=3_000, measured=0.0),
+        trial("host-pool+ssd", 0, 0.05, 400.0, swapouts=3_000, measured=0.0),
+    ],
+)
 
 
 def test_paged_trials_need_a_rerun_and_a_valid_rerun_replaces_them() -> None:
@@ -58,7 +68,7 @@ def test_paged_trials_need_a_rerun_and_a_valid_rerun_replaces_them() -> None:
 
 
 def test_an_invalid_rerun_does_not_replace_a_valid_trial() -> None:
-    later = run("later", [trial("host-pool+ssd", 1, 0.9, 9000.0, swapouts=10)])
+    later = run("later", [trial("host-pool+ssd", 1, 0.9, 9000.0, swapouts=10, measured=10)])
     result = decide([R1, RERUN, later], "stock-equal-memory", "host-pool+ssd", repeats=3)
     assert result["to_rerun"] == [] and result["repeats"][1]["runs"]["host-pool+ssd"] == "r1"
 

@@ -3,7 +3,8 @@
 Pairs two arms' trials by seed across one or more resume runs (each repeat replays one seeded session order, the
 same for every arm). A later run's trial replaces an earlier one with the same arm and seed (a rerun), unless the
 later one is invalid and the earlier one is not. A trial counts only if it ran, the host slept at most 5 s and
-paged nothing out; paging is read from `host_swapouts`, since runs older than the paging flag did not mark it.
+paged nothing out while it measured (`host_swapouts_measured`, or the whole trial's `host_swapouts` in runs older
+than that counter); paging is read from the metrics, since runs older than the paging flag did not mark it.
 Per metric (lower is better) the treatment gets
 
     A  ≥ 15% better than the baseline in every repeat
@@ -24,7 +25,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from memtrace.harness.bundle import MAX_SLEEP_S
+from memtrace.harness.bundle import MAX_SLEEP_S, paged_out
 
 METRICS = ("resumed_recompute_share", "resumed_ttft_p50_ms", "resumed_ttft_all_p95_ms")
 COST_METRIC = "all_ttft_p50_ms"
@@ -37,8 +38,8 @@ def invalid_reason(trial: dict[str, Any]) -> str | None:
     m = trial["metrics"]
     if m.get("host_slept_s", 0.0) > MAX_SLEEP_S:
         return f"host slept {m['host_slept_s']:.0f} s"
-    if m.get("host_swapouts", 0.0) > 0:
-        return f"host paged out {m['host_swapouts']:.0f} pages"
+    if paged_out(m) > 0:
+        return f"host paged out {paged_out(m):.0f} pages"
     return None
 
 
