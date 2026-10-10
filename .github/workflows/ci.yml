@@ -1,7 +1,7 @@
 name: ci
 
-# Lint, types, tests, the result-schema check, the Go gateway and llm-d plugins, the dashboard, the memory-risk
-# regression gate, and a CPU performance smoke gate. No paid API calls except the scheduled canary.
+# Lint, types, tests, the result-schema check, the Go gateway and llm-d plugins, the dashboard, and a CPU
+# performance smoke gate. No paid API calls.
 
 on:
   push:
@@ -121,36 +121,6 @@ jobs:
       - run: npx vitest run
       - run: npm run build  # tsc type check + production bundle (data is exported locally, not in CI)
 
-  regression-gate:
-    # The memory-risk benchmark's deterministic pilot slice against a frozen baseline.
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      MEMTRACE_ROOT: /tmp/memtrace-regression-ci
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: requirements/dev.lock
-      - name: Install
-        run: |
-          python -m pip install --require-hashes -r requirements/dev.lock
-          python -m pip install --no-deps -e .
-      - name: Build deterministic assets (profile backend, lexical retrieval)
-        run: |
-          memtrace --config configs/memrisk/profile.toml assets corpus
-          memtrace --config configs/memrisk/profile.toml assets episodes
-          memtrace --config configs/memrisk/profile.toml assets verify
-      - name: Run deterministic pilot slice
-        run: memtrace --config configs/memrisk/profile.toml run pilot --out-dir "$MEMTRACE_ROOT/pilot" --force
-      - name: Gate against frozen regression baseline
-        run: |
-          memtrace evaluate gate \
-            --baseline tests/fixtures/regression/metrics.json \
-            --candidate "$MEMTRACE_ROOT/pilot/metrics.json"
-
   perf-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -204,36 +174,3 @@ jobs:
           name: perf-smoke-results
           retention-days: 14
           path: artifacts/ci/**
-
-  canary:
-    # The memory-risk benchmark's dense-retrieval + hosted-model path (configs/memrisk/gemini.toml), which the
-    # regression gate never touches. A signal, not a merge gate: scheduled or manual only, never blocking, and
-    # skipped without the repository secret (forks).
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    continue-on-error: true
-    env:
-      MEMTRACE_ROOT: /tmp/memtrace-canary-ci
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - name: Install
-        run: |
-          python -m pip install -r requirements/canary.lock  # pinned, not hashed (see CONTRIBUTING)
-          python -m pip install --no-deps -e .
-      - name: Skip if no GEMINI_API_KEY configured
-        if: env.GEMINI_API_KEY == ''
-        run: echo "GEMINI_API_KEY not set (e.g. on a fork); skipping canary." && exit 0
-      - name: Build assets (dense retrieval)
-        if: env.GEMINI_API_KEY != ''
-        run: |
-          memtrace --config configs/memrisk/gemini.toml assets corpus
-          memtrace --config configs/memrisk/gemini.toml assets episodes
-          memtrace --config configs/memrisk/gemini.toml assets index
-          memtrace --config configs/memrisk/gemini.toml assets verify
-      - name: Run small pilot slice against the gemini backend
-        if: env.GEMINI_API_KEY != ''
-        run: memtrace --config configs/memrisk/gemini.toml run pilot --limit 5 --out-dir "$MEMTRACE_ROOT/pilot" --force

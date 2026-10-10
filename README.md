@@ -1,6 +1,6 @@
 # MEMTRACE
 
-**[View the results dashboard →](https://htang7415.github.io/MEMTRACE/)** · [Full results](results/README.md) · [Architecture](ARCHITECTURE.md) · [Memory-risk benchmark report](https://htang7415.github.io/MEMTRACE/results/benchmark/memtrace_results.html)
+**[View the results dashboard →](https://htang7415.github.io/MEMTRACE/)** · [Full results](results/README.md) · [Architecture](ARCHITECTURE.md)
 
 MEMTRACE studies how to serve LLM agents efficiently on one Apple Silicon Mac. Agents re-send a growing history
 every step, and engines are fast only when that history is already in the KV cache. MEMTRACE measures that
@@ -57,15 +57,6 @@ GGUF files go in `models/gguf/`.
 Paid-API runs read the key only at runtime (`GEMINI_API_KEY`) and reserve each request's worst-case cost against
 a hard cap before sending it (`configs/pricing/gemini.yaml`).
 
-The memory-risk benchmark, where the project started, follows a poisoned document through an agent's persistent
-memory to find where the attack breaks:
-
-```bash
-memtrace assets build
-memtrace run pilot --help
-memtrace evaluate gate --help
-```
-
 ## Upgrading components
 
 `components.lock` pins every external component: `vllm-metal` and vLLM, the llm-d router, container images and
@@ -85,7 +76,6 @@ and rerun the experiments it affects; CI checks that `deploy/`, `scripts/` and `
 | `src/memtrace/kv` | Provider-cache retention analysis, KV-cache simulator, live replays onto real engines |
 | `src/memtrace/agents`, `evals` | Agent loops and context policies; accuracy and cost studies with a calibrated LLM judge |
 | `src/memtrace/datasets`, `serving` | Pinned datasets and loaders; prompt generators, BFCL engine gate, hosted adapter |
-| `src/memtrace/memrisk` | The memory-risk benchmark |
 | `gateway/`, `epp-plugins/` | Go AI gateway; custom llm-d scorers |
 | `deploy/`, `scripts/` | kind and Docker Compose stacks, observability; stack and drill scripts |
 | `experiments/` | Every study as a spec |

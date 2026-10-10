@@ -1,5 +1,0 @@
-[memtrace]
-memory_writer_backend = "mlx"
-planner_backend = "mlx"
-retrieval_backend = "dense"
-memory_trust_visibility = true

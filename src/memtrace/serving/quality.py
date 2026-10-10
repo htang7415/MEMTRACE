@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -23,7 +24,6 @@ from typing import Any
 
 from memtrace.datasets.loaders.public import BfclCase, load_bfcl
 from memtrace.evals.graders import bfcl
-from memtrace.memrisk.evaluation.metrics import wilson_ci
 
 CATEGORIES = ("simple", "multiple")
 # Grader messages by prefix -> the reason codes reported in summary.json
@@ -34,6 +34,17 @@ _REASONS = (
     ("missing", "missing_parameter"),
     ("unexpected parameter", "unexpected_parameter"),
 )
+
+
+def wilson_ci(k: int, n: int, z: float = 1.96) -> list[float]:
+    """Wilson score interval for k successes in n trials ([0, 1] when n is 0)."""
+    if n == 0:
+        return [0.0, 1.0]
+    p = k / n
+    denominator = n + z**2
+    center = (k + z**2 / 2) / denominator
+    margin = z * math.sqrt(n * p * (1 - p) + z**2 / 4) / denominator
+    return [max(0.0, center - margin), min(1.0, center + margin)]
 
 
 def load_cases(data_dir: Path | None, categories: tuple[str, ...]) -> list[BfclCase]:

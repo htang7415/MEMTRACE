@@ -32,13 +32,6 @@ agents = [
 ]
 inference = [
   "mlx-lm>=0.21",
-  "sentence-transformers>=3.0",
-]
-retrieval = [
-  "sentence-transformers>=3.0",
-]
-gemini = [
-  "google-genai>=1.0",
 ]
 
 [dependency-groups]
@@ -71,13 +64,6 @@ files = [
   "src/memtrace/components.py",
   "src/memtrace/kv/resume.py",
   "src/memtrace/kv/restore_bench.py",
-  "src/memtrace/memrisk/config.py",
-  "src/memtrace/memrisk/core/schema.py",
-  "src/memtrace/memrisk/core/pipeline.py",
-  "src/memtrace/memrisk/backends/store/memory.py",
-  "src/memtrace/memrisk/backends/store/systems.py",
-  "src/memtrace/memrisk/backends/models/gemini_runner.py",
-  "src/memtrace/memrisk/backends/models/openai_runner.py",
   "src/memtrace/serving",
   "src/memtrace/kv/retention.py",
   "src/memtrace/kv/costs.py",
@@ -90,8 +76,3 @@ files = [
 ]
 python_version = "3.12"
 strict = true
-
-[[tool.mypy.overrides]]
-# google-genai is an optional extra (`.[gemini]`) and is not installed in CI.
-module = ["google", "google.*"]
-ignore_missing_imports = true

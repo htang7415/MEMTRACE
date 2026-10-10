@@ -1,12 +1,11 @@
 name: pages
 
 # Publishes the results dashboard (dashboard/) to GitHub Pages from the committed data snapshot in
-# dashboard/public/data (refresh it locally with `npm run data`, which writes aggregates only), with the
-# memory-risk benchmark report at its existing path, results/benchmark/memtrace_results.html.
+# dashboard/public/data (refresh it locally with `npm run data`, which writes aggregates only).
 on:
   push:
     branches: [main]
-    paths: ["dashboard/**", "results/benchmark/memtrace_results.html", ".github/workflows/pages.yml"]
+    paths: ["dashboard/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -32,9 +31,6 @@ jobs:
         working-directory: dashboard
       - run: npm run build
         working-directory: dashboard
-      - run: |
-          mkdir -p dashboard/dist/results/benchmark
-          cp results/benchmark/memtrace_results.html dashboard/dist/results/benchmark/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dashboard/dist

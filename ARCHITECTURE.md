@@ -106,12 +106,6 @@ holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are 
   appears in metrics or traces. Prometheus metrics (`memtrace_gateway_*`) and OpenTelemetry tracing (W3C
   `traceparent` always propagated; spans exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
 
-## Memory-risk benchmark (`memtrace/memrisk`)
-
-Follows a poisoned document through an agent's persistent memory (planner, writer, retrieval, memory store) to
-find where an attack breaks; configs in `configs/memrisk/`, a deterministic regression gate in CI, and its own
-report in `results/benchmark/`.
-
 ## Observability and dashboard
 
 - `deploy/observability/`: OpenTelemetry collector → Jaeger, Prometheus scraping the gateway, the llm-d EPP,
@@ -134,5 +128,5 @@ simulator image K5 and K7 used (`deploy/inference-sim`), kept only to reproduce 
 
 Git-ignored, next to the code: `data/public/` (pinned datasets), `data/runs/` (every result bundle), `data/` analyses
 (retention, BFCL gate, drills), and `models/` (model weights: `HF_HOME` is `models/huggingface` when unset, set by
-`memtrace` and the shell scripts; GGUF files in `models/gguf/`). Only the dashboard's exported snapshot, the results
-page, and the benchmark report are published.
+`memtrace` and the shell scripts; GGUF files in `models/gguf/`). Only the dashboard's exported snapshot and the
+results page are published.

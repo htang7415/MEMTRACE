@@ -1,4 +1,4 @@
-"""MEMTRACE: serving LLM agents efficiently: engines, routing, gateway, agent context, KV-cache memory, memory risk."""
+"""MEMTRACE: serving LLM agents efficiently: engines, routing, gateway, agent context, and KV-cache memory."""
 
 import os
 from pathlib import Path

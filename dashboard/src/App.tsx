@@ -156,7 +156,6 @@ export default function App() {
           <span>Every number comes from a saved result bundle; intervals are 95% CIs.</span>
           {latest && <span>Latest run {latest.slice(0, 10)}</span>}
           <a href={`${REPO}/blob/main/results/README.md`}>Full results</a>
-          <a href="results/benchmark/memtrace_results.html">Memory-risk benchmark report</a>
           <a href={`${REPO}/blob/main/ARCHITECTURE.md`}>Architecture</a>
           <a href={`${REPO}/blob/main/LICENSE`}>License</a>
         </div>

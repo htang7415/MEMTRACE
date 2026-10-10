@@ -1,4 +1,0 @@
-[memtrace]
-memory_writer_backend = "openai"
-planner_backend = "openai"
-retrieval_backend = "dense"
