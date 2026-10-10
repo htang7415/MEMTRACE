@@ -9,8 +9,8 @@
 
 Every trial waits for a quiet host when the spec asks for one, and records `host_slept_s` and `host_swapouts`.
 A trial during which the host slept is not on a quiet host: client and engine pause together, but resume
-throttled, so latencies across a sleep are not comparable. A trial that raises is recorded as failed, with its
-error, and the run continues.
+throttled, so latencies across a sleep are not comparable. Nor is one during which the host paged anything out.
+A trial that raises is recorded as failed, with its error, and the run continues.
 """
 
 from __future__ import annotations
@@ -95,6 +95,9 @@ class RunBundle:
         if trial.metrics["host_slept_s"] > MAX_SLEEP_S:
             quiet = False
             self.log(f"{label}: WARNING the host slept {trial.metrics['host_slept_s']:.0f} s during the trial")
+        if trial.metrics.get("host_swapouts", 0.0) > 0:
+            quiet = False
+            self.log(f"{label}: WARNING the host paged out {trial.metrics['host_swapouts']:.0f} pages during the trial")
         if error is None:
             self.log(f"{label}: " + " ".join(f"{k}={v:.4g}" for k, v in trial.metrics.items()))
         self.trials.append(
