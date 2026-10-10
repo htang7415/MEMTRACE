@@ -51,10 +51,11 @@ class _Recorder(BaseHTTPRequestHandler):
                 time.sleep(0.01)
             usage = {"prompt_tokens": 1000, "completion_tokens": 4, "prompt_tokens_details": {"cached_tokens": 200}}
             self.wfile.write(f"data: {json.dumps({'choices': [], 'usage': usage})}\n\n".encode())
-            self.wfile.write(b"data: [DONE]\n\n")
         finally:
+            # Leave before [DONE]: once the client has it, its next request may arrive before this handler returns.
             with cls.lock:
                 cls.active -= 1
+        self.wfile.write(b"data: [DONE]\n\n")
 
     def log_message(self, *args: object) -> None:
         pass
