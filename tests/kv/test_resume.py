@@ -204,7 +204,7 @@ def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_swapouts_count_only_from_the_measured_window(monkeypatch: pytest.MonkeyPatch) -> None:
-    pages = iter([{"swapouts": 100}, {"swapouts": 130}])
+    pages = iter([{"swapouts": 100}, {"swapouts": 130}, {"swapouts": 140}])
     monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: next(pages))
     assert swapouts_from(0.0)() == 30.0
     assert swapouts_from(3600.0)() is None  # ended before the window opened
