@@ -59,8 +59,9 @@ llm-d's own kind environment (pinned v0.11.0) with an InferencePool over the hos
 macOS cannot reach the Metal GPU, so a relay pod fronts it), a CPU-tier llm-d-inference-sim calibrated to an
 11× slower engine, and optionally Gemini Flash-Lite through the hosted adapter pod
 (`serving/adapters/hosted.py`), which exports vLLM-style metrics so the EPP can score it. `epp-plugins/` adds
-capacity-aware scorers (load per unit of capacity, cache-discounted capacity, overflow filter) built into a
-custom EPP image. `make up` brings the stack up; experiments switch policies per trial; `scripts/drills.sh`
+capacity-aware scorers (load per unit of capacity, cache-discounted capacity, overflow filter) in its own Go module:
+`cmd/epp` registers them in the EPP's public plugin registry and runs llm-d's runner unchanged, so no upstream file
+is edited. `make up` brings the stack up; experiments switch policies per trial; `scripts/drills.sh`
 holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are in `deploy/kind/`.
 
 ## Agent context policies (`memtrace/agents`, `memtrace/evals`)

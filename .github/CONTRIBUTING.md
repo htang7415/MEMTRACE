@@ -74,7 +74,7 @@ and manual dispatch.
 | --- | --- |
 | `python` | Ruff (lint and format), mypy, result schema is current, pytest on Python 3.12 and 3.13 with hash-locked dependencies (Go installed so the gateway end-to-end tests run); the wheel builds and installs |
 | `go` | `gofmt`, `go vet`, `go test -race ./...` in `gateway/` |
-| `epp-plugins` | The llm-d scorers vetted and tested inside the pinned llm-d-router tree |
+| `epp-plugins` | The EPP module (MEMTRACE's scorers registered on llm-d's unmodified runner): `gofmt`, `go vet`, `go test`, the binary builds |
 | `shellcheck` | The stack and drill scripts |
 | `dashboard` | `npm ci`; generated TypeScript types match the result schema; Vitest; production build |
 | `regression-gate` | The memory-risk benchmark's deterministic pilot slice against a frozen baseline |
