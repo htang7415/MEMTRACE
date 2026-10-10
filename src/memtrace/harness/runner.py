@@ -151,6 +151,7 @@ def _run_trial(
             ttft_slo_s=spec.slo.ttft_s,
             e2e_slo_s=spec.slo.e2e_s,
             tpot_slo_s=spec.slo.tpot_s,
+            failed_ttft_s=workload.timeout_s,
         )
         for r in records:
             row = {"trial_id": trial.trial_id, "cell_id": trial.cell_id, **asdict(r)}
@@ -349,7 +350,7 @@ def flatten_summary(summary: dict[str, Any]) -> dict[str, float]:
         "requests_per_s": float(summary["requests_per_s"]),
         "output_tokens_per_s": float(summary["output_tokens_per_s"]),
     }
-    for group in ("ttft", "e2e", "tpot"):
+    for group in ("ttft", "ttft_all", "e2e", "tpot"):
         for key, value in (summary.get(group) or {}).items():
             metrics[f"{group}_{key}"] = float(value)
     return metrics

@@ -257,7 +257,11 @@ def summarize(
     ttft_slo_s: float,
     e2e_slo_s: float,
     tpot_slo_s: float | None = None,
+    failed_ttft_s: float | None = None,
 ) -> dict[str, Any]:
+    """Request-level summary of a trial. With `failed_ttft_s` (the request timeout), `ttft_all` adds TTFT
+    percentiles over every request, a failed or rejected one counted as waiting that long, so an overloaded
+    trial's tail is not computed over its survivors only."""
     ok = [r for r in records if r.status == "ok"]
     good = [
         r
@@ -291,6 +295,9 @@ def summarize(
     if ttfts:
         out["ttft"] = {k: round(v, 1) for k, v in latency_summary(ttfts).items()}
         out["e2e"] = {k: round(v, 1) for k, v in latency_summary([r.e2e_s * 1000 for r in ok]).items()}
+    if failed_ttft_s is not None and records:
+        waited = [r.ttft_s if r.status == "ok" and r.ttft_s is not None else failed_ttft_s for r in records]
+        out["ttft_all"] = {k: round(v, 1) for k, v in latency_summary([w * 1000 for w in waited]).items()}
     # Time per output token after the first: decode speed as the client sees it.
     tpots = [
         (r.e2e_s - r.ttft_s) * 1000 / (r.completion_tokens - 1)
