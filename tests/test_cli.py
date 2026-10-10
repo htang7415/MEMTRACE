@@ -49,3 +49,11 @@ def test_cli_builds_assets_in_order(monkeypatch) -> None:
 
     assert result == 0
     assert calls == [(module_name, []) for module_name in cli._ASSET_BUILD_ORDER]
+
+
+def test_cli_dispatches_components_check(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(cli, "_invoke", lambda module_name, arguments: calls.append((module_name, arguments)))
+
+    assert cli.main(["components", "check", "--static"]) == 0
+    assert calls == [("memtrace.components", ["check", "--static"])]

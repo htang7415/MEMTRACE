@@ -39,10 +39,16 @@ _COMMANDS = {
     ("report", "retention"): "memtrace.kv.retention",
     ("report", "kv-validate"): "memtrace.kv.validate",
     ("report", "dashboard"): "memtrace.harness.dashboard_export",
+    ("components", "check"): "memtrace.components",
 }
 
 # Commands whose module takes a subcommand of its own
-_LEADING_ARGS = {("data", "fetch"): ["fetch"], ("data", "verify"): ["verify"], ("run", "experiment"): ["run"]}
+_LEADING_ARGS = {
+    ("data", "fetch"): ["fetch"],
+    ("data", "verify"): ["verify"],
+    ("run", "experiment"): ["run"],
+    ("components", "check"): ["check"],
+}
 
 _ASSET_BUILD_ORDER = (
     "memtrace.memrisk.commands.build_corpus",
@@ -94,6 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("tables", "figures", "explore", "retention", "kv-validate", "dashboard"),
     )
     report.add_argument("arguments", nargs=argparse.REMAINDER)
+
+    components = groups.add_parser(
+        "components", help="Check installed engines, images, models and tools against components.lock."
+    )
+    components.add_argument("action", choices=("check",))
+    components.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 
 

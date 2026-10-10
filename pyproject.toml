@@ -68,6 +68,7 @@ select = ["E4", "E7", "E9", "F"]
 [tool.mypy]
 files = [
   "src/memtrace/cli.py",
+  "src/memtrace/components.py",
   "src/memtrace/memrisk/config.py",
   "src/memtrace/memrisk/core/schema.py",
   "src/memtrace/memrisk/core/pipeline.py",

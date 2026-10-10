@@ -1,0 +1,51 @@
+# Every external component MEMTRACE runs against, in one place. Shell scripts source this file; Python reads it
+# with memtrace.components; `memtrace components check` compares it with what is installed, and CI fails when a
+# file in deploy/, scripts/ or epp-plugins/go.mod names a different version.
+#
+# To upgrade a component: change it here, run `memtrace components check`, rerun the qualification scenario, and
+# keep the change only if the scenario passes (README: "Upgrading components").
+
+# Engine on the Apple GPU: vllm-metal and the vLLM it runs on (Python venv at VLLM_METAL_VENV).
+VLLM_METAL_VERSION=0.30.0
+VLLM_METAL_VLLM_VERSION=0.30.0
+# The development build under test (venv at VLLM_METAL_DEV_VENV, default ~/.venv-vllm-metal-dev): the first with
+# SSD KV offload and KV events for the disk tier. Wheels: github.com/vllm-project/vllm-metal and vllm releases.
+VLLM_METAL_DEV_VERSION=0.31.0.dev20261010042608
+VLLM_METAL_DEV_VLLM_VERSION=0.31.0
+
+# llm-d router (EPP): the version epp-plugins/go.mod builds against and whose kind dev environment `make up` runs.
+LLMD_ROUTER_TAG=v0.11.0
+
+# Container images (tag and the digest every result was measured with).
+VLLM_CPU_IMAGE=vllm/vllm-openai-cpu:latest-arm64
+VLLM_CPU_DIGEST=sha256:045fb648a61cfcd32d4b9ca5d0c391013afadae0178d2e23ac292597f2f64036
+SIM_IMAGE=ghcr.io/llm-d/llm-d-inference-sim:v0.10.2
+SIM_DIGEST=sha256:7f3a1f72875c5dd5d00299ad358dc1f6e17041a5124609a43aa17ad318bbed32
+RELAY_IMAGE=alpine/socat:1.8.0.3
+RELAY_DIGEST=sha256:beb4a68d9e4fe6b0f21ea774a0fde6c31f580dde6368939ed70100c5385b015e
+PYTHON_IMAGE=python:3.12-slim
+PYTHON_DIGEST=sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
+LLMD_EPP_IMAGE=ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.11.0
+ENVOY_IMAGE=docker.io/envoyproxy/envoy:distroless-v1.33.2
+OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector-contrib:0.131.0
+JAEGER_IMAGE=jaegertracing/jaeger:2.8.0
+PROMETHEUS_IMAGE=prom/prometheus:v3.5.0
+GRAFANA_IMAGE=grafana/grafana:12.1.0
+# Built by MEMTRACE: llm-d's EPP plus epp-plugins (scripts/build_epp.sh), and the patched simulator that K5 and K7
+# used (deploy/inference-sim; a source patch, kept only to reproduce those runs).
+EPP_CUSTOM_IMAGE=memtrace/llm-d-epp:v0.11.0-capacity5
+SIM_CPUKV_IMAGE=memtrace/llm-d-inference-sim:v0.11.4-cpukv
+
+# Helm charts.
+KUBE_PROMETHEUS_STACK_CHART=91.9.0
+KEDA_CHART=2.21.0
+
+# Model weights (Hugging Face revisions, under models/huggingface).
+QWEN3_0_6B_REVISION=c1899de289a04d12100db370d81485cdf75e47ca
+QWEN3_4B_4BIT_REVISION=4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25
+QWEN3_8B_4BIT_REVISION=545dc4251c05440727734bcd94334791f6ab0192
+
+# Tools the stack was last run with (checked, not installed, by `memtrace components check`).
+KIND_VERSION=v0.33.0
+KUBECTL_VERSION=v1.36.1
+HELM_VERSION=v4.3.0

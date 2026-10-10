@@ -121,6 +121,15 @@ report in `results/benchmark/`.
   the analyses that are not harness runs; TypeScript types are generated from the result JSON Schema, so schema
   drift fails the build.
 
+## Components (`components.lock`)
+
+Every external component MEMTRACE runs against is pinned in one KEY=value file: the `vllm-metal` and vLLM versions,
+the llm-d router tag, container images with their digests, Helm charts, model revisions, and the tool versions last
+used. Scripts source it (`scripts/images.sh`); `memtrace components check` compares it with this machine, and CI
+fails when a manifest, script, or `epp-plugins/go.mod` names another version. Upstream packages are used through
+their public interfaces only: flags, metrics, KV events, plugin registries. Nothing in them is patched, except the
+simulator image K5 and K7 used (`deploy/inference-sim`), kept only to reproduce those runs.
+
 ## Local files
 
 Git-ignored, next to the code: `data/public/` (pinned datasets), `data/runs/` (every result bundle), `data/` analyses

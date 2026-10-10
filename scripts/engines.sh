@@ -14,7 +14,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/images.sh"
 start_engine() {
   case "$1" in
     vllm-metal)
-      VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve "$MODEL" --port 8200 \
+      VLLM_SERVER_DEV_MODE=1 nohup "$VLLM_METAL_BIN" serve "$MODEL" --port 8200 \
         --max-model-len 4096 --enable-prefix-caching --gpu-memory-utilization 0.31 $VLLM_TOOL_FLAGS \
         >"$LOG_DIR/vllm-metal.log" 2>&1 &
       PORT=8200 ;;
@@ -25,7 +25,7 @@ start_engine() {
       docker run -d --name memtrace-vllm-cpu -p 8100:8000 -m 6g --shm-size 1g \
         -v "$HF_HOME:/root/.cache/huggingface" \
         -e VLLM_CPU_KVCACHE_SPACE=2 -e VLLM_SERVER_DEV_MODE=1 \
-        vllm/vllm-openai-cpu:latest-arm64 --model "$MODEL" --max-model-len 4096 --enable-prefix-caching $VLLM_TOOL_FLAGS \
+        "$VLLM_CPU_IMAGE" --model "$MODEL" --max-model-len 4096 --enable-prefix-caching $VLLM_TOOL_FLAGS \
         >/dev/null
       PORT=8100 ;;
     mlx-lm)

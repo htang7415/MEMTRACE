@@ -66,6 +66,17 @@ memtrace run pilot --help
 memtrace evaluate gate --help
 ```
 
+## Upgrading components
+
+`components.lock` pins every external component: `vllm-metal` and vLLM, the llm-d router, container images and
+their digests, Helm charts, and model revisions. To try a new release, change it there, then:
+
+```bash
+memtrace components check   # this machine against the lock (engines, images, models, tools)
+```
+
+and rerun the experiments it affects; CI checks that `deploy/`, `scripts/` and `epp-plugins/go.mod` agree with the lock.
+
 ## Layout
 
 | Path | What it is |

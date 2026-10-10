@@ -72,7 +72,7 @@ and manual dispatch.
 
 | Job | What it checks |
 | --- | --- |
-| `python` | Ruff (lint and format), mypy, result schema is current, pytest on Python 3.12 and 3.13 with hash-locked dependencies (Go installed so the gateway end-to-end tests run); the wheel builds and installs |
+| `python` | Ruff (lint and format), mypy, result schema is current, pytest (including deploy/ and scripts/ naming the versions in `components.lock`) on Python 3.12 and 3.13 with hash-locked dependencies (Go installed so the gateway end-to-end tests run); the wheel builds and installs |
 | `go` | `gofmt`, `go vet`, `go test -race ./...` in `gateway/` |
 | `epp-plugins` | The EPP module (MEMTRACE's scorers registered on llm-d's unmodified runner): `gofmt`, `go vet`, `go test`, the binary builds |
 | `shellcheck` | The stack and drill scripts |
