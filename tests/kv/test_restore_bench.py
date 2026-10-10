@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import random
 from typing import Any
 
 import pytest
 
+from memtrace.harness import bundle as bundle_mod
 from memtrace.kv import restore_bench
 
 
@@ -77,3 +80,45 @@ def test_each_tier_repetition_gets_its_own_engine_and_store() -> None:
         ("tier", [(1024, 0)]),
         ("tier", [(1024, 1)]),
     ]
+
+
+def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[list[str]] = []
+
+    class FakeEngine:
+        base_urls = ["http://fake"]
+
+        def __init__(self, kind: str, params: dict[str, Any], log_dir: Any) -> None:
+            started.append(list(params.get("extra_args", [])))
+
+        def __enter__(self) -> "FakeEngine":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def describe(self) -> dict[str, Any]:
+            return {"kind": "fake"}
+
+    def fake_measure(*args: Any, restore: bool, **kw: Any) -> dict[str, float]:
+        return {"ttft_cold_ms": 10.0, "ttft_gpu_hit_ms": 1.0, **({"ttft_restore_ms": 2.0} if restore else {})}
+
+    monkeypatch.setattr(restore_bench, "make_target", FakeEngine)
+    monkeypatch.setattr(restore_bench, "complete", lambda *a, **k: (0.0, ""))
+    monkeypatch.setattr(restore_bench, "measure", fake_measure)
+    monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
+    spec = tmp_path / "s.yaml"
+    spec.write_text(restore_bench.yaml.safe_dump({
+        "schema_version": restore_bench.SPEC_SCHEMA, "name": "e2e", "repeats": 2, "prefix_tokens": [1024],
+        "kv_store_dir": str(tmp_path / "store"), "kv_tier": {"host_pool_gib": 0.5, "max_size_gib": 1},
+        "target": {"vllm": "x"},
+        "models": {"m": {"target": {"model": "M"}, "gpu_blocks": 64, "kv_bytes_per_token": 1024}},
+    }))  # fmt: skip
+    out = restore_bench.run(spec, tmp_path / "runs")
+    result = json.loads((out / "results.json").read_text())
+    assert len(started) == 3  # one stock engine, then one tier engine per repetition
+    assert "--kv-offloading-size" not in started[0] and all("--kv-transfer-config" in a for a in started[1:])
+    assert {c["cell_id"]: c["n_ok"] for c in result["cells"]} == {
+        "model=m/engine=stock/prefix_tokens=1024": 2, "model=m/engine=tier/prefix_tokens=1024": 2
+    }  # fmt: skip
+    assert all("host_slept_s" in t["metrics"] for t in result["trials"])

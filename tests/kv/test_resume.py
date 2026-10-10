@@ -7,7 +7,10 @@ import time
 from typing import Any
 
 import pytest
+import yaml
 
+from memtrace.harness import bundle as bundle_mod
+from memtrace.kv import resume as resume_mod
 from memtrace.kv.gateway_replay import ChatCall
 from memtrace.kv.resume import (
     SPEC_SCHEMA,
@@ -142,3 +145,56 @@ def test_arm_params_turn_a_kv_tier_into_vllm_metal_offload_flags(tmp_path: Path)
     assert target["extra_args"] == ["--block-size", "16"]  # the shared target is not mutated
     pool_only = arm_params(target, {"kv_tier": {"host_pool_gib": 1}}, tmp_path)["extra_args"]
     assert pool_only == ["--block-size", "16", "--kv-offloading-size", "1"]
+
+
+def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[list[str]] = []
+
+    class FakeEngine:
+        base_urls = ["http://fake"]
+
+        def __init__(self, kind: str, params: dict[str, Any], log_dir: Path) -> None:
+            args = list(params.get("extra_args", []))
+            started.append(args)
+            if "--kv-transfer-config" in args:  # the disk tier writes blocks during the trial
+                config = json.loads(args[args.index("--kv-transfer-config") + 1])
+                store = Path(config["kv_connector_extra_config"]["secondary_tiers"][0]["root_dir"])
+                store.mkdir(parents=True)
+                (store / "block").write_bytes(b"x" * 1024)
+
+        def __enter__(self) -> "FakeEngine":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def describe(self) -> dict[str, Any]:
+            return {"kind": "fake"}
+
+    def fake_replay(sessions: Any, **kw: Any) -> list[CallRecord]:
+        return [_rec(None, 0, 0), _rec(120.0, 1000, 250)]
+
+    monkeypatch.setattr(resume_mod, "make_target", FakeEngine)
+    monkeypatch.setattr(resume_mod, "replay", fake_replay)
+    monkeypatch.setattr(resume_mod, "load_sessions", lambda *a: [])
+    monkeypatch.setattr(resume_mod, "verified_path", lambda rel: Path(rel))
+    counters = {"prefix_cache_queries_total": 1000.0, "prefix_cache_hits_total": 750.0,
+                "external_prefix_cache_hits_total": 250.0}  # fmt: skip
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url: counters)
+    monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
+    spec = yaml.safe_load(Path("experiments/r1_resume_ssd.yaml").read_text())
+    spec.update(
+        name="e2e", repeats=1, kv_store_dir=str(tmp_path / "store"), quiet_host={"max_load_1m": 1e9, "wait_s": 0}
+    )
+    spec["replay"]["warmup_s"] = 0
+    path = tmp_path / "s.yaml"
+    path.write_text(yaml.safe_dump(spec))
+    out = resume_mod.run(path, tmp_path / "runs")
+    result = json.loads((out / "results.json").read_text())
+    assert len(started) == 4 and sum("--kv-transfer-config" in a for a in started) == 1  # only host-pool+ssd has a disk
+    trials = {t["cell_id"]: t for t in result["trials"]}
+    ssd = trials["arm=host-pool+ssd"]["metrics"]
+    assert ssd["resumed_recompute_share"] == pytest.approx(0.75) and ssd["engine_tier_share_of_served"] == 0.25
+    assert ssd["kv_store_gib"] > 0 and trials["arm=stock"]["metrics"]["kv_store_gib"] == 0
+    assert not list((tmp_path / "store").rglob("block"))  # every trial's store is removed after it
+    assert len((out / "requests.jsonl").read_text().splitlines()) == 8

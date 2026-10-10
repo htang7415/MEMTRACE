@@ -21,24 +21,19 @@ same cached-prefix path, so it should) and the cold one's.
 from __future__ import annotations
 
 from argparse import ArgumentParser
-from datetime import datetime, timezone
 import http.client
 import json
 from pathlib import Path
 import random
 import shutil
-import sys
 import time
-from typing import Any, Callable
+from typing import Any
 import urllib.request
 from urllib.parse import urlsplit
 
 import yaml
 
-from memtrace.harness.provenance import make_provenance
-from memtrace.harness.results import RESULT_SCHEMA_VERSION, ExperimentResult, TrialResult, aggregate_cells
-from memtrace.harness.stamps import utc_now_iso
-from memtrace.harness.system_info import host_swap_pages, keep_awake, sleep_clock
+from memtrace.harness.bundle import RunBundle
 from memtrace.harness.targets import make_target, scrape_vllm_counters
 from memtrace.kv.resume import arm_params, dir_gib, kv_store_root
 
@@ -175,87 +170,46 @@ def load_spec(path: Path) -> dict[str, Any]:
     return spec
 
 
-def run(spec_path: Path, out_root: Path, log: Callable[[str], None] = lambda m: print(m, file=sys.stderr)) -> Path:
+def run(spec_path: Path, out_root: Path) -> Path:
     spec = load_spec(spec_path)
-    started_at = utc_now_iso()
-    run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
-    out_dir = Path(out_root) / run_id
-    out_dir.mkdir(parents=True)
-    (out_dir / "spec.yaml").write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
     seed0 = int(spec.get("seed", 0))
-    cells: dict[str, dict[str, Any]] = {}
-    trials: list[TrialResult] = []
-    keep_awake()
+    bundle = RunBundle(spec, out_root)
     for name, model, engine_kind, items in engine_lifetimes(spec):
         tiered = engine_kind == "tier"
         target = {**spec["target"], **model["target"]}
-        store = kv_store_root(spec) / run_id / name
+        store = kv_store_root(spec) / bundle.run_id / name
         shutil.rmtree(store, ignore_errors=True)  # an empty store for every tier engine
         params = arm_params(target, {"kv_tier": spec["kv_tier"]} if tiered else None, store)
         gpu_tokens = int(model["gpu_blocks"]) * 16
         pool_tokens = int(spec["kv_tier"]["host_pool_gib"] * 1024**3 / model["kv_bytes_per_token"])
         flush = int((gpu_tokens + pool_tokens) * float(spec.get("flush_factor", 1.5)))
-        logs = (
-            out_dir / "logs" / f"{name}-{engine_kind}" / ("-".join(f"{n}r{rep}" for n, rep in items) if tiered else "")
-        )
-        with make_target("vllm_metal", params, logs) as engine:
+        engine_label = f"{name}-{engine_kind}" + ("-" + "-".join(f"{n}r{rep}" for n, rep in items) if tiered else "")
+        with make_target("vllm_metal", params, bundle.log_dir(engine_label)) as engine:
             base_url, described = engine.base_urls[0], engine.describe()
             complete(base_url, str(target["model"]), random_prompt(random.Random(-1), 64), 1, 600)  # warm up
             for n, rep in items:
                 cell_id = f"model={name}/engine={engine_kind}/prefix_tokens={n}"
-                cells[cell_id] = {"model": name, "engine": engine_kind, "prefix_tokens": n}
                 seed = seed0 * 1_000_000 + n * 100 + rep
-                t_start, trial_started, slept = time.perf_counter(), utc_now_iso(), sleep_clock()
-                swap_before = host_swap_pages()
-                metrics = measure(
-                    base_url,
-                    str(target["model"]),
-                    random.Random(seed),
-                    prefix_tokens=n,
-                    flush_tokens=flush,
-                    filler_tokens=int(spec.get("filler_tokens", 2048)),
-                    max_tokens=int(spec.get("max_tokens", 32)),
-                    timeout_s=float(spec.get("timeout_s", 900)),
-                    restore=tiered,
-                )
-                swap_after = host_swap_pages()
-                metrics["host_slept_s"] = slept()
-                if swap_before and swap_after:
-                    metrics["host_swapouts"] = float(swap_after["swapouts"] - swap_before["swapouts"])
-                if tiered:
-                    metrics["kv_store_gib"] = dir_gib(store)
-                log(f"{cell_id}/r{rep}: " + " ".join(f"{k}={v:.4g}" for k, v in metrics.items()))
-                trials.append(
-                    TrialResult(
-                        trial_id=f"{cell_id}/r{rep}",
-                        cell_id=cell_id,
-                        repeat=rep,
-                        seed=seed,
-                        status="ok",
-                        started_at=trial_started,
-                        duration_s=round(time.perf_counter() - t_start, 3),
-                        host_load_1m_before=0.0,
-                        quiet_host_ok=metrics["host_slept_s"] <= 5,
-                        metrics={k: round(v, 6) for k, v in metrics.items()},
-                        requests_per_endpoint=[],
-                        target=described,
-                        error=None,
+                params_cell = {"model": name, "engine": engine_kind, "prefix_tokens": n}
+                with bundle.trial(cell_id, params_cell, repeat=rep, seed=seed) as trial:
+                    trial.target = described
+                    trial.metrics.update(
+                        measure(
+                            base_url,
+                            str(target["model"]),
+                            random.Random(seed),
+                            prefix_tokens=n,
+                            flush_tokens=flush,
+                            filler_tokens=int(spec.get("filler_tokens", 2048)),
+                            max_tokens=int(spec.get("max_tokens", 32)),
+                            timeout_s=float(spec.get("timeout_s", 900)),
+                            restore=tiered,
+                        )
                     )
-                )
+                    if tiered:
+                        trial.metrics["kv_store_gib"] = dir_gib(store)
         shutil.rmtree(store, ignore_errors=True)
-    result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION,
-        run_id=run_id,
-        name=spec["name"],
-        description=spec.get("description", ""),
-        spec=spec,
-        provenance=make_provenance(spec, started_at, {"trials_completed": len(trials)}),
-        trials=trials,
-        cells=aggregate_cells(trials, cells),
-    )
-    (out_dir / "results.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
-    log(f"wrote {out_dir}")
-    return out_dir
+    return bundle.finish()
 
 
 def main(argv: list[str] | None = None) -> int:

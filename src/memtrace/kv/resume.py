@@ -24,14 +24,12 @@ from __future__ import annotations
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import http.client
 import json
 import math
 from pathlib import Path
 import random
 import shutil
-import sys
 import threading
 import time
 from typing import Any, Callable, Iterator, Sequence
@@ -42,12 +40,8 @@ import yaml
 
 from memtrace.datasets.loaders.copilot import iter_archive
 from memtrace.datasets.sources import verified_path
-from memtrace.harness.provenance import make_provenance
-from memtrace.harness.results import RESULT_SCHEMA_VERSION, ExperimentResult, TrialResult, aggregate_cells
-from memtrace.harness.runner import wait_for_quiet_host
+from memtrace.harness.bundle import RunBundle
 from memtrace.harness.spec import QuietHost
-from memtrace.harness.stamps import utc_now_iso
-from memtrace.harness.system_info import host_swap_pages, keep_awake, sleep_clock
 from memtrace.harness.targets import make_target, scrape_vllm_counters
 from memtrace.kv.gateway_replay import ChatCall, Renderer, stream_chat
 from memtrace.kv.policy_traces import _end_s, calls_of, history, sample_ids
@@ -353,10 +347,22 @@ def load_spec(path: Path) -> dict[str, Any]:
     return spec
 
 
-def run(spec_path: Path, out_root: Path, log: Callable[[str], None] = lambda m: print(m, file=sys.stderr)) -> Path:
+def engine_metrics(counters: dict[str, float]) -> dict[str, float]:
+    """Trial-wide engine counters: prefix-cache hit ratio, and tokens served from the GPU cache vs loaded back
+    from the KV tier."""
+    queries = counters.get("prefix_cache_queries_total", 0.0)
+    local = counters.get("prefix_cache_hits_total", 0.0)
+    tier = counters.get("external_prefix_cache_hits_total", 0.0)
+    return {
+        "engine_prefix_hit_ratio": local / queries if queries else 0.0,
+        "engine_tier_hit_tokens": tier,
+        "engine_tier_share_of_served": tier / (local + tier) if local + tier else 0.0,
+    }
+
+
+def run(spec_path: Path, out_root: Path) -> Path:
     spec = load_spec(spec_path)
     rp = spec["replay"]
-    started_at = utc_now_iso()
     n, seed0 = int(spec.get("sessions", 200)), int(spec.get("seed", 0))
     rel = spec["day"]
     cache = (
@@ -364,109 +370,55 @@ def run(spec_path: Path, out_root: Path, log: Callable[[str], None] = lambda m: 
     )
     sessions = load_sessions(verified_path(rel), n, seed0, cache)
     render = Renderer(float(rp["scale"]))
-    run_id = f"{datetime.now(tz=timezone.utc):%Y%m%dT%H%M%SZ}-{spec['name']}"
-    out_dir = Path(out_root) / run_id
-    out_dir.mkdir(parents=True)
-    (out_dir / "spec.yaml").write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
-    cells = {f"arm={arm}": {"arm": arm} for arm in spec["arms"]}
-    quiet_host = QuietHost(**spec.get("quiet_host", {}))
-    keep_awake()
-    trials: list[TrialResult] = []
+    bundle = RunBundle(spec, out_root, quiet_host=QuietHost(**spec.get("quiet_host", {})))
     for rep in range(int(spec.get("repeats", 1))):
         seed = seed0 * 1000 + rep
-        for cell_id, cell in cells.items():
+        for arm in spec["arms"]:
+            cell_id = f"arm={arm}"
             label = f"{cell_id}/r{rep}"
             # A fresh, empty disk tier per trial: a store left by another arm or repeat would serve its blocks.
-            store = kv_store_root(spec) / run_id / label.replace("/", "_")
+            store = kv_store_root(spec) / bundle.run_id / label.replace("/", "_")
             shutil.rmtree(store, ignore_errors=True)
-            params = arm_params(spec["target"], spec["arms"][cell["arm"]], store)
-            load, quiet, _ = wait_for_quiet_host(quiet_host)
-            t_start, trial_started = time.perf_counter(), utc_now_iso()
-            swap_before, slept = host_swap_pages(), sleep_clock()
-            with make_target("vllm_metal", params, out_dir / "logs" / label.replace("/", "_")) as target:
-                base_url, model = target.base_urls[0], str(params["model"])
-                t0 = time.perf_counter()
-                records = replay(
-                    sessions,
-                    send=make_sender(
-                        base_url,
-                        model,
-                        render,
-                        block_tokens=int(rp.get("block_tokens", 16)),
-                        output_scale=float(rp["output_scale"]),
-                        max_output_tokens=int(rp["max_output_tokens"]),
-                        timeout_s=float(rp["timeout_s"]),
-                        t0=t0,
-                    ),
-                    concurrency=int(rp["concurrency"]),
-                    horizon_s=float(rp["horizon_s"]),
-                    stagger_s=float(rp.get("stagger_s", 30.0)),
-                    idle_cap_s=float(spec.get("idle_cap_s", 3600.0)),
-                    time_scale=float(rp.get("time_scale", 1.0)),
-                    seed=seed,
+            params = arm_params(spec["target"], spec["arms"][arm], store)
+            records: list[CallRecord] = []
+            with bundle.trial(cell_id, {"arm": arm}, repeat=rep, seed=seed, label=label) as trial:
+                with make_target("vllm_metal", params, bundle.log_dir(label)) as target:
+                    base_url = target.base_urls[0]
+                    records = replay(
+                        sessions,
+                        send=make_sender(
+                            base_url,
+                            str(params["model"]),
+                            render,
+                            block_tokens=int(rp.get("block_tokens", 16)),
+                            output_scale=float(rp["output_scale"]),
+                            max_output_tokens=int(rp["max_output_tokens"]),
+                            timeout_s=float(rp["timeout_s"]),
+                            t0=time.perf_counter(),
+                        ),
+                        concurrency=int(rp["concurrency"]),
+                        horizon_s=float(rp["horizon_s"]),
+                        stagger_s=float(rp.get("stagger_s", 30.0)),
+                        idle_cap_s=float(spec.get("idle_cap_s", 3600.0)),
+                        time_scale=float(rp.get("time_scale", 1.0)),
+                        seed=seed,
+                    )
+                    counters = scrape_vllm_counters(base_url)
+                    trial.target = target.describe()
+                trial.metrics.update(
+                    resume_metrics(
+                        records,
+                        warmup_s=float(rp["warmup_s"]),
+                        resume_gap_s=float(spec.get("resume_gap_s", 60.0)),
+                        failed_ttft_s=float(rp["timeout_s"]),
+                    )
                 )
-                engine = scrape_vllm_counters(base_url)
-                described = target.describe()
-            swap_after = host_swap_pages()
-            metrics = resume_metrics(
-                records,
-                warmup_s=float(rp["warmup_s"]),
-                resume_gap_s=float(spec.get("resume_gap_s", 60.0)),
-                failed_ttft_s=float(rp["timeout_s"]),
-            )
-            queries = engine.get("prefix_cache_queries_total", 0.0)
-            metrics["engine_prefix_hit_ratio"] = (
-                engine.get("prefix_cache_hits_total", 0.0) / queries if queries else 0.0
-            )
-            # Tokens served from the GPU prefix cache vs loaded back from the KV tier, over the whole trial.
-            local, tier = (
-                engine.get("prefix_cache_hits_total", 0.0),
-                engine.get("external_prefix_cache_hits_total", 0.0),
-            )
-            metrics["engine_tier_hit_tokens"] = tier
-            metrics["engine_tier_share_of_served"] = tier / (local + tier) if local + tier else 0.0
-            metrics["kv_store_gib"] = dir_gib(store)
+                trial.metrics.update(engine_metrics(counters))
+                trial.metrics["kv_store_gib"] = dir_gib(store)
+                trial.requests_per_endpoint = [len(records)]
             shutil.rmtree(store, ignore_errors=True)
-            if swap_before and swap_after:
-                metrics["host_swapouts"] = float(swap_after["swapouts"] - swap_before["swapouts"])
-            metrics["host_slept_s"] = slept()
-            if metrics["host_slept_s"] > 5:  # latencies after a sleep come from a throttled dark wake
-                quiet = False
-                log(f"{label}: WARNING the host slept {metrics['host_slept_s']:.0f} s during the trial")
-            log(f"{label}: " + " ".join(f"{k}={v:.4g}" for k, v in metrics.items()))
-            trials.append(
-                TrialResult(
-                    trial_id=label,
-                    cell_id=cell_id,
-                    repeat=rep,
-                    seed=seed,
-                    status="ok",
-                    started_at=trial_started,
-                    duration_s=round(time.perf_counter() - t_start, 3),
-                    host_load_1m_before=load,
-                    quiet_host_ok=quiet,
-                    metrics={k: round(v, 6) for k, v in metrics.items()},
-                    requests_per_endpoint=[len(records)],
-                    target=described,
-                    error=None,
-                )
-            )
-            with (out_dir / "requests.jsonl").open("a", encoding="utf-8") as fh:
-                for r in records:
-                    fh.write(json.dumps({"trial": label, **asdict(r)}) + "\n")
-    result = ExperimentResult(
-        schema_version=RESULT_SCHEMA_VERSION,
-        run_id=run_id,
-        name=spec["name"],
-        description=spec.get("description", ""),
-        spec=spec,
-        provenance=make_provenance(spec, started_at, {"day": rel, "trials_completed": len(trials)}),
-        trials=trials,
-        cells=aggregate_cells(trials, cells),
-    )
-    (out_dir / "results.json").write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
-    log(f"wrote {out_dir}")
-    return out_dir
+            bundle.write_requests(label, (asdict(r) for r in records))
+    return bundle.finish({"day": rel})
 
 
 def main(argv: list[str] | None = None) -> int:
