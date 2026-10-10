@@ -1,0 +1,44 @@
+schema_version: memtrace-resume-v1
+name: r0-resume-baseline
+description: >
+  R0: the resume scenario on the stock stack. When a paused agent session returns, how much of its prefix does one
+  vllm-metal replica still hold? 200 seeded GitHub Copilot coding-agent sessions (Tuesday 2026-06-02) replayed
+  closed-loop per session as full chat histories (deterministic filler at 1/32 of each message's tokens): each call
+  goes out its recorded pause after the previous one returns (pauses capped at 1 h, then divided by 4). 12 sessions
+  run at once on one Qwen3-0.6B replica whose KV cache is fixed at 768 blocks of 16 tokens (12,288 tokens, about 7
+  median scaled prompts): a replica that holds a few agent prompts while serving more sessions, at about 75% of
+  its prefill capacity.
+  The engine's /tokenize gives each call's reusable prefix (shared with the session's previous call, whole blocks);
+  a call is resumed when its recorded pause is at least 60 s. Stock: prefix caching on, no KV offload.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 3
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+hardware:
+  # Rule 6: what the scenario represents, and the machine it ran on (no model or memory size in public files).
+  represents: one GPU replica whose KV cache holds about 7 median agent prompts while 12 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 2100
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  stock: {}
+target:
+  model: Qwen/Qwen3-0.6B
+  max_model_len: 12272  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.3
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "768"]

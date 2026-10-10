@@ -46,3 +46,15 @@ def test_malformed_lock_line_is_an_error(tmp_path: Path) -> None:
     lock.write_text("A=1\nA=2\n")
     with pytest.raises(ValueError, match="set twice"):
         read_lock(lock)
+
+
+def test_model_revisions_in_specs_are_locked(tmp_path: Path) -> None:
+    lock = read_lock()
+    checks = [c for c in static_checks(lock) if c.component.endswith("model revision")]
+    assert checks and all(c.ok for c in checks)
+    for d in ("deploy", "scripts", "experiments"):
+        (tmp_path / d).mkdir()
+    (tmp_path / "epp-plugins").mkdir()
+    shutil.copy(Path(components.ROOT) / "epp-plugins" / "go.mod", tmp_path / "epp-plugins" / "go.mod")
+    (tmp_path / "experiments" / "x.yaml").write_text("extra_args: [--revision, " + "a" * 40 + "]\n")
+    assert [c.found for c in static_checks(lock, tmp_path) if not c.ok] == ["a" * 40]

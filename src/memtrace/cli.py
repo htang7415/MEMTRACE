@@ -26,6 +26,8 @@ _COMMANDS = {
     ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
     ("run", "experiment"): "memtrace.harness.__main__",
     ("run", "kv-sim"): "memtrace.kv.__main__",
+    ("run", "resume"): "memtrace.kv.resume",
+    ("run", "restore-bench"): "memtrace.kv.restore_bench",
     ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
     ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
     ("evaluate", "validate"): "memtrace.memrisk.evaluation.validate",
@@ -86,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
             "adversarial-mutation",
             "experiment",
             "kv-sim",
+            "resume",
+            "restore-bench",
         ),
     )
     run.add_argument("arguments", nargs=argparse.REMAINDER)

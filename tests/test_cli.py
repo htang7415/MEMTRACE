@@ -57,3 +57,11 @@ def test_cli_dispatches_components_check(monkeypatch) -> None:
 
     assert cli.main(["components", "check", "--static"]) == 0
     assert calls == [("memtrace.components", ["check", "--static"])]
+
+
+def test_cli_dispatches_run_resume(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(cli, "_invoke", lambda module_name, arguments: calls.append((module_name, arguments)))
+
+    assert cli.main(["run", "resume", "experiments/r0_resume_baseline.yaml", "--out", "x"]) == 0
+    assert calls == [("memtrace.kv.resume", ["experiments/r0_resume_baseline.yaml", "--out", "x"])]
