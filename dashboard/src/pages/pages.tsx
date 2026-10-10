@@ -151,8 +151,8 @@ function findings(data: Data): Finding[] {
   }
   out.push({ stat: "up to 2.6×", head: "Naive trimming fights the prefix cache",
     body: "Rewriting earlier messages makes the server recompute more prefill despite sending 50–70% fewer tokens (Copilot replays, ample KV memory).", href: "#/context" });
-  out.push({ stat: "17% → 92%", head: "Cache-aware context management in the gateway",
-    body: "Requests under 5 s to first token on an overloaded Qwen3-8B engine (K9); in front of Gemini, half the prompt tokens with accuracy 52% vs 44% (C2).", href: "#/gateway" });
+  out.push({ stat: "−14% to −39%", head: "Cache-aware context management in the gateway",
+    body: "Prefill recomputed with the gateway's window+cache vs the client's full history, in all 4 paired runs of Copilot traffic on Qwen3-8B (K9); in front of Gemini, half the prompt tokens on 100 paired tasks with no significant accuracy difference (C2).", href: "#/gateway" });
   const k10 = r["k10a-copilot-reuse-routing"];
   if (k10) {
     const smallest = Math.min(...k10.cells.map((c) => Number(c.params.capacity_tokens)));
@@ -368,14 +368,14 @@ export function Replay({ data }: { data: Data }) {
     <Section title="Real agent traffic" intro="GitHub Copilot coding-agent sessions replayed on the GPU + CPU pool: each session's calls in order with their recorded gaps (×0.1), prompts scaled ×1/40 with the provider's cached prefixes reproduced. 64 sessions, 1,422 calls, 3 repeats.">
       {e11 ? (
         <Grid>
-          <BarCard r={e11} title="Time to finish the replay (E11)" subtitle="Seconds; capacity-aware scorers finish sooner" metric="duration_s" by={policy} format={sec} />
+          <BarCard r={e11} title="Time to finish the replay (E11)" subtitle="Seconds; 3 repeats, the intervals overlap" metric="duration_s" by={policy} format={sec} />
           <BarCard r={e11} title="Time to first token p95 (E11)" subtitle="Milliseconds; they roughly double the tail" metric="ttft_p95_ms" by={policy} format={ms} />
         </Grid>
       ) : <Missing what="E11" />}
       {e11b ? (
         <Grid>
           <BarCard r={e11b} title="Time to finish, Qwen3-4B on the GPU (E11b)" subtitle="Seconds" metric="duration_s" by={withSessions} format={sec} />
-          <BarCard r={e11b} title="Time to first token p95, Qwen3-4B (E11b)" subtitle="Milliseconds; with the larger model the capacity scorers win both" metric="ttft_p95_ms" by={withSessions} format={ms} />
+          <BarCard r={e11b} title="Time to first token p95, Qwen3-4B (E11b)" subtitle="Milliseconds; the intervals overlap at 16 sessions, and every policy overloads at 32" metric="ttft_p95_ms" by={withSessions} format={ms} />
         </Grid>
       ) : <Missing what="E11b" />}
       {e11c ? (
@@ -681,7 +681,7 @@ export function Simulator({ data }: { data: Data }) {
     "Real engine": p.bins.map((b) => b.engine_hit_share), Simulator: p.bins.map((b) => b.sim_hit_share),
   });
   return (
-    <Section title="Simulator vs a real engine" intro={`KV offloading cannot run on vllm-metal, so tiers and placement exist only in simulation. What can be checked is the core: one real vllm-metal replica (Qwen3-0.6B) with a cache of ${fmt(p.kv_tokens)} tokens, fed 120 Copilot sessions at their real gaps (up to 10 minutes), against the simulator replaying the same calls (K11).`}>
+    <Section title="Simulator vs a real engine" intro={`The vllm-metal release used here cannot offload KV, so tiers and placement exist only in simulation. What can be checked is the core: one real vllm-metal replica (Qwen3-0.6B) with a cache of ${fmt(p.kv_tokens)} tokens, fed 120 Copilot sessions at their real gaps (up to 10 minutes), against the simulator replaying the same calls (K11).`}>
       <PlainCard title="Reusable prefix served per gap" s={s} xLabel="Gap" format={pct1}
         subtitle={`Within ${fmt(worst, 1)} points in every gap bin; overall ${pct1(p.overall.sim_hit_share)} simulated vs ${pct1(p.overall.engine_hit_share)} measured`} />
       <Card title="Simulator vs engine" subtitle="Validates one replica's GPU-cache eviction only, not placement, tiers, or lifetimes">
@@ -720,7 +720,7 @@ export function Provenance({ data }: { data: Data }) {
           <li>One machine: no datacenter GPUs and no multi-node scale; small models (Qwen3-0.6B to 8B).</li>
           <li>The CPU tier is simulated in every mixed-pool result, and the host often paged, so differences under ~15% are not claimed.</li>
           <li>The provider's cache counts come from one unnamed provider, which also shares prefixes across sessions.</li>
-          <li>KV offloading does not run on vllm-metal, so RAM and SSD tiers are simulated; the simulator is checked against a real engine for one replica's GPU cache only.</li>
+          <li>The vllm-metal release used here cannot offload KV, so RAM and SSD tiers are simulated; the simulator is checked against a real engine for one replica's GPU cache only.</li>
         </ul>
       </Card>
     </Section>

@@ -59,8 +59,9 @@ llm-d's own kind environment (pinned v0.11.0) with an InferencePool over the hos
 macOS cannot reach the Metal GPU, so a relay pod fronts it), a CPU-tier llm-d-inference-sim calibrated to an
 11× slower engine, and optionally Gemini Flash-Lite through the hosted adapter pod
 (`serving/adapters/hosted.py`), which exports vLLM-style metrics so the EPP can score it. `epp-plugins/` adds
-capacity-aware scorers (load per unit of capacity, cache-discounted capacity, overflow filter) built into a
-custom EPP image. `make up` brings the stack up; experiments switch policies per trial; `scripts/drills.sh`
+capacity-aware scorers (load per unit of capacity, cache-discounted capacity, overflow filter) in its own Go module:
+`cmd/epp` registers them in the EPP's public plugin registry and runs llm-d's runner unchanged, so no upstream file
+is edited. `make up` brings the stack up; experiments switch policies per trial; `scripts/drills.sh`
 holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are in `deploy/kind/`.
 
 ## Agent context policies (`memtrace/agents`, `memtrace/evals`)
@@ -105,12 +106,6 @@ holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are 
   appears in metrics or traces. Prometheus metrics (`memtrace_gateway_*`) and OpenTelemetry tracing (W3C
   `traceparent` always propagated; spans exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set).
 
-## Memory-risk benchmark (`memtrace/memrisk`)
-
-Follows a poisoned document through an agent's persistent memory (planner, writer, retrieval, memory store) to
-find where an attack breaks; configs in `configs/memrisk/`, a deterministic regression gate in CI, and its own
-report in `results/benchmark/`.
-
 ## Observability and dashboard
 
 - `deploy/observability/`: OpenTelemetry collector → Jaeger, Prometheus scraping the gateway, the llm-d EPP,
@@ -120,9 +115,18 @@ report in `results/benchmark/`.
   the analyses that are not harness runs; TypeScript types are generated from the result JSON Schema, so schema
   drift fails the build.
 
+## Components (`components.lock`)
+
+Every external component MEMTRACE runs against is pinned in one KEY=value file: the `vllm-metal` and vLLM versions,
+the llm-d router tag, container images with their digests, Helm charts, model revisions, and the tool versions last
+used. Scripts source it (`scripts/images.sh`); `memtrace components check` compares it with this machine, and CI
+fails when a manifest, script, or `epp-plugins/go.mod` names another version. Upstream packages are used through
+their public interfaces only: flags, metrics, KV events, plugin registries. Nothing in them is patched, except the
+simulator image K5 and K7 used (`deploy/inference-sim`), kept only to reproduce those runs.
+
 ## Local files
 
 Git-ignored, next to the code: `data/public/` (pinned datasets), `data/runs/` (every result bundle), `data/` analyses
 (retention, BFCL gate, drills), and `models/` (model weights: `HF_HOME` is `models/huggingface` when unset, set by
-`memtrace` and the shell scripts; GGUF files in `models/gguf/`). Only the dashboard's exported snapshot, the results
-page, and the benchmark report are published.
+`memtrace` and the shell scripts; GGUF files in `models/gguf/`). Only the dashboard's exported snapshot and the
+results page are published.

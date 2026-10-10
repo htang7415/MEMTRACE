@@ -1,0 +1,49 @@
+schema_version: memtrace-restore-v1
+name: s1-restore-bench
+description: >
+  S1: restore vs recompute on Apple Silicon. For Qwen3-0.6B, Qwen3-4B and Qwen3-8B (MLX 4-bit) on the vllm-metal
+  development build with a 0.5 GiB host pool and an SSD tier on the internal SSD, each prefix length (1k to 16k
+  tokens) gets 3 fresh random prompts. Each is measured cold (recomputed), as a GPU prefix-cache hit, and restored
+  from the SSD after filler prompts (1.5x the GPU cache plus host pool) evict it and the tier's write-through goes
+  idle; the KV-connector counter confirms the tokens loaded. Each tier repetition runs on a fresh engine with an
+  empty store (the write-through of every computed token would otherwise fill the store to its cap and evict the
+  prompt under test); one stock engine per model gives the recompute baseline. The restored greedy continuation (32 tokens) is compared
+  with the GPU hit's (same cached path) and the cold one's.
+seed: 0
+repeats: 3
+prefix_tokens: [1024, 2048, 4096, 8192, 16384]
+filler_tokens: 2048
+flush_factor: 1.5
+max_tokens: 32
+timeout_s: 900
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS); see kv.resume.kv_store_root
+kv_tier: {host_pool_gib: 0.5, max_size_gib: 15}
+target:
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_num_seqs: 4
+  enable_prefix_caching: true
+models:
+  qwen3-0.6b:
+    target:
+      model: Qwen/Qwen3-0.6B
+      max_model_len: 16880  # one block under the fixed cache
+      gpu_memory_utilization: 0.3
+      extra_args: [--block-size, "16", --num-gpu-blocks-override, "1056"]
+    gpu_blocks: 1056
+    kv_bytes_per_token: 114688  # 28 layers x 8 KV heads x 128 x K,V x bf16
+  qwen3-4b-4bit:
+    target:
+      model: mlx-community/Qwen3-4B-4bit
+      max_model_len: 16880
+      gpu_memory_utilization: 0.4
+      extra_args: [--revision, 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25, --block-size, "16", --num-gpu-blocks-override, "1056"]
+    gpu_blocks: 1056
+    kv_bytes_per_token: 147456  # 36 layers x 8 KV heads x 128 x K,V x bf16
+  qwen3-8b-4bit:
+    target:
+      model: mlx-community/Qwen3-8B-4bit
+      max_model_len: 16880
+      gpu_memory_utilization: 0.5
+      extra_args: [--revision, 545dc4251c05440727734bcd94334791f6ab0192, --block-size, "16", --num-gpu-blocks-override, "1056"]
+    gpu_blocks: 1056
+    kv_bytes_per_token: 147456

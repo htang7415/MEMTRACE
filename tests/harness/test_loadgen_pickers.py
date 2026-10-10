@@ -91,6 +91,12 @@ def test_open_loop_admission_control_and_slo_accounting() -> None:
     assert summary["status_counts"] == {"ok": 2, "rejected": 4}
     assert summary["prefix_cache_hit_ratio"] == pytest.approx(0.4)
     assert summary["slo_attainment"] == pytest.approx(2 / 6, abs=1e-4)
+    assert "ttft_all" not in summary
+    # Counting the 4 rejected requests as waiting the 1 s timeout moves the tail from the survivors' ~50 ms to 1 s.
+    with_failed = summarize(records, duration_s=duration, ttft_slo_s=1.0, e2e_slo_s=1.0, failed_ttft_s=1.0)
+    assert with_failed["ttft"]["p95_ms"] < 500  # survivors: ~50 ms on an idle host
+    assert with_failed["ttft_all"]["p95_ms"] == pytest.approx(1000.0)
+    assert with_failed["ttft_all"]["p50_ms"] == pytest.approx(1000.0)
 
 
 def test_open_loop_marks_endpoint_down_on_transport_error() -> None:

@@ -9,17 +9,17 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 CLUSTER=memtrace
 CTX="kind-$CLUSTER"
-ROUTER_TAG=v0.11.0
 ROUTER_DIR="$HOME/.cache/memtrace/llm-d-router"
 # Model weights live in the repository's git-ignored models/ folder, not the user's cache (memtrace sets the same).
 export HF_HOME="${HF_HOME:-$PWD/models/huggingface}"
-MODEL_SNAPSHOT="$HF_HOME/hub/models--Qwen--Qwen3-0.6B/snapshots/c1899de289a04d12100db370d81485cdf75e47ca"
 EPP=qwen3-0-6b-endpoint-picker
 POOL_SELECTOR="app=qwen3-0-6b-inference-pool"
 GATEWAY=http://localhost:30080/v1
 k() { kubectl --context "$CTX" "$@"; }
 # shellcheck source=images.sh
 source scripts/images.sh
+ROUTER_TAG=$LLMD_ROUTER_TAG
+MODEL_SNAPSHOT="$HF_HOME/hub/models--Qwen--Qwen3-0.6B/snapshots/$QWEN3_0_6B_REVISION"
 
 GPU_PORT=8210
 # 0.31 = 2 GiB KV cache, as in Phase 1. (Next to a real ~5 GiB vLLM CPU pod the host paged heavily even at
@@ -30,7 +30,7 @@ OVERLAY="${OVERLAY:-hetero}"  # deploy/kind/overlays/<name>: the pool replicas f
 if [ -n "${MODEL_4B:-}" ]; then
   # Phase 4b: Qwen3-4B, MLX 4-bit, on the GPU tier; 0.35 gives a 1.37 GiB KV cache, as 0.31 gives with 0.6B.
   SERVED_MODEL=Qwen/Qwen3-4B
-  GPU_MODEL_ARGS="mlx-community/Qwen3-4B-4bit --revision 4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25 \
+  GPU_MODEL_ARGS="mlx-community/Qwen3-4B-4bit --revision $QWEN3_4B_4BIT_REVISION \
     --served-model-name $SERVED_MODEL --gpu-memory-utilization 0.35"
   OVERLAY=qwen3-4b  # CPU tier: the 0.6B simulator scaled to 4B
 fi

@@ -5,109 +5,56 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
-from pathlib import Path
 
 from memtrace import __version__
-from memtrace.memrisk.config import Settings, activate
-
 
 _COMMANDS = {
     ("data", "fetch"): "memtrace.datasets.sources",
     ("data", "verify"): "memtrace.datasets.sources",
-    ("assets", "corpus"): "memtrace.memrisk.commands.build_corpus",
-    ("assets", "episodes"): "memtrace.memrisk.commands.build_episodes",
-    ("assets", "index"): "memtrace.memrisk.commands.build_index",
-    ("assets", "verify"): "memtrace.memrisk.commands.verify_retrieval",
-    ("run", "benchmark"): "memtrace.memrisk.commands.run_experiments",
-    ("run", "pilot"): "memtrace.memrisk.commands.run_pilot",
-    ("run", "calibration"): "memtrace.memrisk.commands.run_oracle_memory_calibration",
-    ("run", "stateful-stress"): "memtrace.memrisk.commands.run_stateful_stress_suite",
-    ("run", "trusted-utility"): "memtrace.memrisk.commands.run_trusted_utility_suite",
-    ("run", "adversarial-mutation"): "memtrace.memrisk.commands.run_adversarial_mutation_suite",
     ("run", "experiment"): "memtrace.harness.__main__",
     ("run", "kv-sim"): "memtrace.kv.__main__",
-    ("evaluate", "score"): "memtrace.memrisk.evaluation.score",
-    ("evaluate", "recompute"): "memtrace.memrisk.evaluation.recompute",
-    ("evaluate", "validate"): "memtrace.memrisk.evaluation.validate",
-    ("evaluate", "gate"): "memtrace.memrisk.evaluation.gate",
-    ("evaluate", "attribute"): "memtrace.memrisk.evaluation.attribute_failures",
-    ("evaluate", "audit"): "memtrace.memrisk.evaluation.audit_report",
+    ("run", "resume"): "memtrace.kv.resume",
+    ("run", "restore-bench"): "memtrace.kv.restore_bench",
     ("evaluate", "bfcl"): "memtrace.serving.quality",
-    ("report", "tables"): "memtrace.memrisk.evaluation.tables",
-    ("report", "figures"): "memtrace.memrisk.evaluation.figures",
-    ("report", "explore"): "memtrace.memrisk.evaluation.trace_explorer",
     ("report", "retention"): "memtrace.kv.retention",
     ("report", "kv-validate"): "memtrace.kv.validate",
     ("report", "dashboard"): "memtrace.harness.dashboard_export",
+    ("components", "check"): "memtrace.components",
 }
 
 # Commands whose module takes a subcommand of its own
-_LEADING_ARGS = {("data", "fetch"): ["fetch"], ("data", "verify"): ["verify"], ("run", "experiment"): ["run"]}
+_LEADING_ARGS = {
+    ("data", "fetch"): ["fetch"],
+    ("data", "verify"): ["verify"],
+    ("run", "experiment"): ["run"],
+    ("components", "check"): ["check"],
+}
 
-_ASSET_BUILD_ORDER = (
-    "memtrace.memrisk.commands.build_corpus",
-    "memtrace.memrisk.commands.build_episodes",
-    "memtrace.memrisk.commands.build_index",
-    "memtrace.memrisk.commands.verify_retrieval",
-)
+
+_HELP = {
+    "data": "Download and verify the pinned public datasets (data/public/).",
+    "run": "Run experiments: harness specs, the KV-cache simulator, the resume scenario, the restore benchmark.",
+    "evaluate": "Gate engine changes on task accuracy (BFCL).",
+    "report": "Write analyses and the dashboard data.",
+    "components": "Check installed engines, images, models and tools against components.lock.",
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="memtrace", description="LLM serving and agent KV-cache research, and a memory-risk benchmark for agents."
+        prog="memtrace", description="Serving LLM agents efficiently: engines, routing, gateway, and KV-cache memory."
     )
-    parser.add_argument("--config", type=Path, help="TOML file containing a [memtrace] settings table.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     groups = parser.add_subparsers(dest="group", required=True)
-
-    data = groups.add_parser("data", help="Download and verify the pinned public datasets (data/public/).")
-    data.add_argument("action", choices=("fetch", "verify"))
-    data.add_argument("arguments", nargs=argparse.REMAINDER)
-
-    assets = groups.add_parser("assets", help="Build and verify benchmark assets.")
-    assets.add_argument("action", choices=("build", "corpus", "episodes", "index", "verify"))
-    assets.add_argument("arguments", nargs=argparse.REMAINDER)
-
-    run = groups.add_parser("run", help="Run benchmark and diagnostic workloads.")
-    run.add_argument(
-        "action",
-        choices=(
-            "benchmark",
-            "pilot",
-            "calibration",
-            "stateful-stress",
-            "trusted-utility",
-            "adversarial-mutation",
-            "experiment",
-            "kv-sim",
-        ),
-    )
-    run.add_argument("arguments", nargs=argparse.REMAINDER)
-
-    evaluate = groups.add_parser("evaluate", help="Score, validate, and audit results.")
-    evaluate.add_argument("action", choices=("score", "recompute", "validate", "gate", "attribute", "audit", "bfcl"))
-    evaluate.add_argument("arguments", nargs=argparse.REMAINDER)
-
-    report = groups.add_parser("report", help="Generate tables and figures.")
-    report.add_argument(
-        "action",
-        choices=("tables", "figures", "explore", "retention", "kv-validate", "dashboard"),
-    )
-    report.add_argument("arguments", nargs=argparse.REMAINDER)
+    for group, help_text in _HELP.items():
+        sub = groups.add_parser(group, help=help_text)
+        sub.add_argument("action", choices=[action for g, action in _COMMANDS if g == group])
+        sub.add_argument("arguments", nargs=argparse.REMAINDER)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    activate(Settings.load(args.config))
-
-    if args.group == "assets" and args.action == "build":
-        if args.arguments:
-            raise SystemExit("memtrace assets build does not accept additional arguments")
-        for module_name in _ASSET_BUILD_ORDER:
-            _invoke(module_name, [])
-        return 0
-
     module_name = _COMMANDS[(args.group, args.action)]
     _invoke(module_name, [*_LEADING_ARGS.get((args.group, args.action), []), *args.arguments])
     return 0

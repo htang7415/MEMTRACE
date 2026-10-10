@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import subprocess
-from typing import Any
+import time
+from typing import Any, Callable
 
 
 def collect_system_info() -> dict[str, Any]:
@@ -129,3 +131,25 @@ def host_swap_pages() -> dict[str, int] | None:
         if match:
             counters[key.lower()] = int(match.group(1))
     return counters or None
+
+
+def keep_awake() -> subprocess.Popen[bytes] | None:
+    """Keep the host fully awake for the life of this process (`caffeinate -dimsu -w PID`).
+
+    Blocking idle sleep (`-i`) is not enough on an unattended Mac: with nobody at it the system sits in dark wake,
+    where macOS puts it to sleep under GPU load ("Dark Wake Thermal Emergency"). `-u` declares the user active,
+    which leaves dark wake, and `-d` keeps the display, and so the system, in full wake. A sleep mid-trial pauses
+    client and engine together but resumes throttled, so latencies across it are not comparable. None where
+    caffeinate does not exist."""
+    if shutil.which("caffeinate") is None:
+        return None
+    return subprocess.Popen(
+        ["caffeinate", "-dimsu", "-w", str(os.getpid())], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+
+def sleep_clock() -> Callable[[], float]:
+    """Start a clock of time the host spends asleep: the returned function gives the seconds slept since this
+    call, as wall-clock time minus monotonic time (which stops while macOS sleeps)."""
+    wall, mono = time.time(), time.monotonic()
+    return lambda: max(0.0, (time.time() - wall) - (time.monotonic() - mono))

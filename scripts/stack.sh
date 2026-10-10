@@ -33,7 +33,7 @@ up() {
   # EPP/sidecar `dev` tags are amd64-only; the release tags ship arm64. The render image is
   # set to the already-pulled vLLM CPU image to avoid a second ~1 GB download.
   (cd "$ROUTER_DIR" && CLUSTER_NAME=$CLUSTER MODEL_NAME=Qwen/Qwen3-0.6B EPP_TAG=$ROUTER_TAG SIDECAR_TAG=$ROUTER_TAG \
-    VLLM_RENDER_IMAGE=vllm/vllm-openai-cpu:latest-arm64 VLLM_REPLICA_COUNT_D=2 bash scripts/kind-dev-env.sh)
+    VLLM_RENDER_IMAGE="$VLLM_CPU_IMAGE" VLLM_REPLICA_COUNT_D=2 bash scripts/kind-dev-env.sh)
   # Weights for real vLLM pods: HF snapshot files are symlinks into the xet cache, so stream
   # them dereferenced (tar -h) into the node.
   docker exec "$CLUSTER-control-plane" mkdir -p /models/Qwen3-0.6B
@@ -92,7 +92,7 @@ hetero() {
   fi
   if ! curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; then
     # shellcheck disable=SC2086
-    VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve $GPU_ENGINE_ARGS > data/engine_logs/vllm-metal-pool.log 2>&1 &
+    VLLM_SERVER_DEV_MODE=1 nohup "$VLLM_METAL_BIN" serve $GPU_ENGINE_ARGS > data/engine_logs/vllm-metal-pool.log 2>&1 &
     until curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; do sleep 3; done
   fi
   pin_images
@@ -167,7 +167,7 @@ hosted_down() {
 }
 
 prometheus() {
-  helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 91.9.0 \
+  helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version "$KUBE_PROMETHEUS_STACK_CHART" \
     --kube-context "$CTX" --namespace monitoring --create-namespace \
     --set grafana.enabled=false --set alertmanager.enabled=false \
     --set kubeControllerManager.enabled=false --set kubeEtcd.enabled=false \
@@ -181,7 +181,7 @@ prometheus() {
 
 autoscaling() {
   prometheus
-  helm upgrade --install keda kedacore/keda --version 2.21.0 --kube-context "$CTX" \
+  helm upgrade --install keda kedacore/keda --version "$KEDA_CHART" --kube-context "$CTX" \
     --namespace keda --create-namespace --wait --timeout 600s
   k apply -f deploy/kind/autoscaling/pod-monitor.yaml
   k apply -f deploy/kind/autoscaling/scaledobject.yaml
@@ -215,7 +215,7 @@ print(next(p["status"]["podIP"] for p in json.load(sys.stdin)["items"] if not p[
   pkill -f "vllm serve .*--port $GPU_PORT" || true
   while pgrep -f "vllm serve .*--port $GPU_PORT" >/dev/null; do sleep 2; done
   # shellcheck disable=SC2086
-  VLLM_SERVER_DEV_MODE=1 nohup ~/.venv-vllm-metal/bin/vllm serve $GPU_ENGINE_ARGS --kv-events-config \
+  VLLM_SERVER_DEV_MODE=1 nohup "$VLLM_METAL_BIN" serve $GPU_ENGINE_ARGS --kv-events-config \
     "{\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://127.0.0.1:5557\",\"topic\":\"kv@$relay_ip:8000@$SERVED_MODEL\"}" \
     > data/engine_logs/vllm-metal-pool.log 2>&1 &
   until curl -sf -m 2 "http://127.0.0.1:$GPU_PORT/health" >/dev/null; do sleep 3; done

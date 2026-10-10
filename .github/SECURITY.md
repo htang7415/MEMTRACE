@@ -21,8 +21,7 @@ Include the affected version, reproduction steps, impact, and any known mitigati
   `configs/pricing/gemini.yaml`) before they are sent; the cap holds across threads, processes,
   and the Python and Go components. Committed cost counts thinking tokens, which Gemini's
   OpenAI-compatible usage reports only in `total_tokens`.
-- Pull-request CI never calls paid APIs and has no secrets. Only the scheduled `canary` job uses a
-  repository secret (`GEMINI_API_KEY`), on a five-item slice of the memory-risk benchmark.
+- CI never calls paid APIs and uses no secrets.
 
 ## Benchmark data
 

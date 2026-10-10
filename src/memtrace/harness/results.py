@@ -118,13 +118,35 @@ def mean_ci(values: Sequence[float]) -> MetricCI:
     return MetricCI(mean=mean, ci_low=mean - half, ci_high=mean + half, std=std, n=n)
 
 
+_PROPORTION_SUFFIXES = ("_share", "_ratio", "_rate", "attainment", "accuracy")
+_PROPORTIONS = ("em", "f1", "hit_rate_upper_bound")
+_SIGNED = ("crag_score",)  # CRAG scores a hallucination -1
+
+
+def metric_bounds(name: str) -> tuple[float, float]:
+    """The range a cell metric can take. Cell metrics are counts, rates, latencies, costs, or proportions, so they
+    are non-negative, and proportions are at most 1; a signed score is the listed exception. (Paired differences
+    are signed too, but they go through `mean_ci`, not here.)"""
+    if name in _SIGNED:
+        return (-math.inf, math.inf)
+    if name.endswith(_PROPORTION_SUFFIXES) or name in _PROPORTIONS:
+        return (0.0, 1.0)
+    return (0.0, math.inf)
+
+
+def bounded_ci(name: str, ci: MetricCI) -> MetricCI:
+    """`ci` with its interval clipped to the metric's range; a t-interval from a few repeats can cross it."""
+    lo, hi = metric_bounds(name)
+    return MetricCI(mean=ci.mean, ci_low=max(lo, ci.ci_low), ci_high=min(hi, ci.ci_high), std=ci.std, n=ci.n)
+
+
 def aggregate_cells(trials: Sequence[TrialResult], cell_params: Mapping[str, dict[str, Any]]) -> list[CellSummary]:
     cells: list[CellSummary] = []
     for cell_id, params in cell_params.items():
         ok = [t for t in trials if t.cell_id == cell_id and t.status == "ok"]
         failed = sum(1 for t in trials if t.cell_id == cell_id and t.status != "ok")
         names = sorted({m for t in ok for m in t.metrics})
-        metrics = {m: mean_ci([t.metrics[m] for t in ok if m in t.metrics]) for m in names}
+        metrics = {m: bounded_ci(m, mean_ci([t.metrics[m] for t in ok if m in t.metrics])) for m in names}
         cells.append(CellSummary(cell_id=cell_id, params=params, n_ok=len(ok), n_failed=failed, metrics=metrics))
     return cells
 

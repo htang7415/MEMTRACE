@@ -13,13 +13,14 @@ machine details (chip, memory) are left out.
 from __future__ import annotations
 
 from argparse import ArgumentParser
+from dataclasses import asdict
 import json
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from memtrace.harness.results import ExperimentResult, from_dict
+from memtrace.harness.results import ExperimentResult, aggregate_cells, from_dict
 
 # experiment name -> dashboard page
 EXPERIMENTS = {
@@ -179,6 +180,10 @@ def export(out_dir: Path, search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[s
     for name, path in sorted(latest.items()):
         data = json.loads(path.read_text(encoding="utf-8"))
         result: ExperimentResult = from_dict(ExperimentResult, data)  # strict schema check
+        # Re-aggregate so runs recorded before a fix to the aggregation are published under the current rules
+        # (means are unchanged; intervals are clipped to each metric's range).
+        cells = aggregate_cells(result.trials, {c.cell_id: c.params for c in result.cells})
+        data["cells"] = [asdict(c) for c in cells]
         text = publishable(data, descriptions)
         (out_dir / f"{name}.json").write_text(text + "\n", encoding="utf-8")
         entries.append(

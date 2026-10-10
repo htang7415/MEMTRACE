@@ -1,0 +1,49 @@
+schema_version: memtrace-resume-v1
+name: r1-resume-ssd
+description: >
+  R1: does vllm-metal's SSD KV tier make paused agent sessions cheap to resume? R0's scenario (200 Copilot sessions,
+  12 at once, closed-loop, 768 GPU KV blocks of 16 tokens) on the vllm-metal development build that adds KV offload,
+  with four arms on the same build: stock; stock with the tier arms' memory as GPU cache (1,353 blocks: 768 + the 1
+  GiB host pool); the 1 GiB host pool alone; and the host pool plus an SSD tier (capped at 10 GiB, on the internal
+  SSD). On unified memory the host pool is carved from the same memory as the GPU cache, so the equal-memory arm is
+  the fair stock baseline. Each trial starts with an empty disk store. Calls and their reusable prefixes are
+  measured as in R0.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 3
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: one GPU replica whose KV cache holds about 7 median agent prompts while 12 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 1800
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  stock: {}
+  stock-equal-memory:
+    target: {extra_args: [--block-size, "16", --num-gpu-blocks-override, "1353"]}
+  host-pool:
+    kv_tier: {host_pool_gib: 1}
+  host-pool+ssd:
+    kv_tier: {host_pool_gib: 1, max_size_gib: 10}
+target:
+  model: Qwen/Qwen3-0.6B
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 12272  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "768"]

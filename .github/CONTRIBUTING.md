@@ -54,16 +54,12 @@ Every measurement is an experiment spec in `experiments/`; results go to `data/r
 published run and commit it; the `pages` workflow redeploys the site. Experiments that call paid APIs must go
 through the spend ledger (`memtrace.harness.budget`) and never run in pull-request CI.
 
-After changing dependencies, regenerate the locks with Python 3.12:
+After changing dependencies, regenerate the lock with Python 3.12:
 
 ```bash
 python -m piptools compile --extra dev --extra agents --allow-unsafe --generate-hashes --strip-extras \
   --output-file requirements/dev.lock pyproject.toml
-python -m piptools compile --extra gemini --extra retrieval --allow-unsafe --strip-extras \
-  --output-file requirements/canary.lock pyproject.toml
 ```
-
-The canary lock pins versions without hashes: hashing every torch wheel downloads about 16 GB.
 
 ## CI
 
@@ -72,14 +68,12 @@ and manual dispatch.
 
 | Job | What it checks |
 | --- | --- |
-| `python` | Ruff (lint and format), mypy, result schema is current, pytest on Python 3.12 and 3.13 with hash-locked dependencies (Go installed so the gateway end-to-end tests run); the wheel builds and installs |
+| `python` | Ruff (lint and format), mypy, result schema is current, pytest (including deploy/ and scripts/ naming the versions in `components.lock`) on Python 3.12 and 3.13 with hash-locked dependencies (Go installed so the gateway end-to-end tests run); the wheel builds and installs |
 | `go` | `gofmt`, `go vet`, `go test -race ./...` in `gateway/` |
-| `epp-plugins` | The llm-d scorers vetted and tested inside the pinned llm-d-router tree |
+| `epp-plugins` | The EPP module (MEMTRACE's scorers registered on llm-d's unmodified runner): `gofmt`, `go vet`, `go test`, the binary builds |
 | `shellcheck` | The stack and drill scripts |
 | `dashboard` | `npm ci`; generated TypeScript types match the result schema; Vitest; production build |
-| `regression-gate` | The memory-risk benchmark's deterministic pilot slice against a frozen baseline |
 | `perf-smoke` | `experiments/ci_smoke_sim.yaml` (llm-d-inference-sim) and `experiments/ci_smoke_llamacpp.yaml` (pinned llama.cpp CPU build, Qwen3-0.6B Q8_0, both SHA-256 verified), then the performance gate |
-| `canary` | Scheduled or manual only, never blocking: the memory-risk benchmark's hosted-model path against Gemini, with the `GEMINI_API_KEY` repository secret (skipped without it) |
 
 `experiments/perf_baseline.yaml` bounds each smoke experiment's cell means. The inference simulator has a fixed
 latency model, so its bounds are tight; CPU inference on shared runners varies, so llama.cpp has a floor of 6
@@ -88,4 +82,4 @@ fails the gate. Recalibrate by running both experiments on the target runner and
 the file's comments.
 
 To protect `main`, require a pull request and the status checks `ci / python (3.12)`, `ci / python (3.13)`,
-`ci / go`, `ci / epp-plugins`, `ci / shellcheck`, `ci / dashboard`, `ci / regression-gate` and `ci / perf-smoke`.
+`ci / go`, `ci / epp-plugins`, `ci / shellcheck`, `ci / dashboard` and `ci / perf-smoke`.

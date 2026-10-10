@@ -4,7 +4,7 @@ import pytest
 
 from memtrace.datasets.loaders.public import BfclCase
 from memtrace.evals.graders.bfcl import to_openai_tools
-from memtrace.serving.quality import check_call, load_cases, summarize
+from memtrace.serving.quality import check_call, load_cases, summarize, wilson_ci
 
 
 def _call(name, **arguments):
@@ -93,3 +93,9 @@ def test_load_cases_joins_answers_and_summary_reports_accuracy(tmp_path) -> None
     assert case.ground_truth == tuple(GT) and case.category == "simple"
     assert summary["overall"]["accuracy"] == 0.5
     assert summary["reasons"] == {"correct": 1, "wrong_value": 1}
+
+
+def test_wilson_ci() -> None:
+    assert wilson_ci(0, 0) == [0.0, 1.0]
+    lo, hi = wilson_ci(486, 600)  # the BFCL gate's mlx-lm-c8 cell
+    assert round(lo, 3) == 0.777 and round(hi, 3) == 0.839
