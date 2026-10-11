@@ -1,0 +1,30 @@
+schema_version: memtrace-restore-v1
+name: s1b-restore-pool
+description: >
+  S1b: is the host pool the ceiling on what the SSD tier restores? In S1 (0.5 GiB pool) Qwen3-0.6B restored 1k-4k
+  token prefixes but not 8k (0% restored) or 16k (25%). vLLM's tiering manager stages every chunk restored from a
+  secondary tier in the host pool, and a request restores only a run of chunks from its start, so a prefix whose KV
+  (8k tokens = 0.94 GB) exceeds the pool cannot come back whole. Same build, model, cache and procedure as S1's
+  0.6B rows, with a 2 GiB pool (about 18.7k tokens): if the pool is the ceiling, 8k and 16k now restore fully.
+seed: 0
+repeats: 3
+prefix_tokens: [8192, 16384]
+filler_tokens: 2048
+flush_factor: 1.5
+max_tokens: 32
+timeout_s: 900
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS); see kv.resume.kv_store_root
+kv_tier: {host_pool_gib: 2, max_size_gib: 15}
+target:
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_num_seqs: 4
+  enable_prefix_caching: true
+models:
+  qwen3-0.6b:
+    target:
+      model: Qwen/Qwen3-0.6B
+      max_model_len: 16880  # one block under the fixed cache
+      gpu_memory_utilization: 0.3
+      extra_args: [--block-size, "16", --num-gpu-blocks-override, "1056"]
+    gpu_blocks: 1056
+    kv_bytes_per_token: 114688  # 28 layers x 8 KV heads x 128 x K,V x bf16
