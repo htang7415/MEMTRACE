@@ -1,0 +1,48 @@
+schema_version: memtrace-resume-v1
+name: r2-resume-prefix
+description: >
+  R2: does the SSD tier's resumed-call gain reach the median when prefixes are larger? R1 (scale 1/32) cut resumed
+  recompute by 57-95% against equal memory but moved resumed TTFT p50 by only 0-18%, since equal memory's median
+  resumed call was still mostly a GPU hit. R2 doubles every prompt (scale 1/16: p50 ~4.3k, p90 ~9.5k, max ~14k
+  tokens), so fewer prompts fit in the GPU cache and a miss costs more than a restore (S1/S1b: 8x at 8k, 14x at
+  16k). Same build, day, sessions, concurrency and pacing as R1; the GPU cache grows to admit the longest prompt
+  (1,024 blocks of 16 tokens). The host pool is 2 GiB, so the longest prefix fits in it: vLLM stages every chunk
+  restored from the SSD in the pool, and a larger prefix falls back to recompute (S1b). The equal-memory arm gets
+  the same total as GPU cache (1,024 + 1,170 blocks = 2 GiB of pool). The SSD cap (20 GiB) is in the same ratio to
+  a trial's writes as R1's. Each trial starts with an empty disk store.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 3
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: one GPU replica whose KV cache holds about 4 median agent prompts while 12 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 1800
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.0625
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  stock-equal-memory:
+    target: {extra_args: [--block-size, "16", --num-gpu-blocks-override, "2194"]}  # 1,024 + 2 GiB / 1,835,008 B
+  host-pool+ssd:
+    kv_tier: {host_pool_gib: 2, max_size_gib: 20}
+target:
+  model: Qwen/Qwen3-0.6B
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 16368  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "1024"]
