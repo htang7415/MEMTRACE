@@ -19,8 +19,10 @@ from memtrace.kv.resume import (
     arm_params,
     common_prefix,
     load_spec,
+    make_router,
     parse_session,
     replay,
+    replica_stores,
     resume_metrics,
     swapouts_from,
 )
@@ -126,6 +128,7 @@ def test_resume_metrics() -> None:
 
 def test_committed_specs_load() -> None:
     specs = [p for p in Path("experiments").glob("r*_resume_*.yaml") if not p.name.startswith("._")]
+    specs.append(Path("experiments/s2_shared_tier.yaml"))
     assert specs
     for path in specs:
         spec = load_spec(path)
@@ -210,3 +213,101 @@ def test_swapouts_count_only_from_the_measured_window(monkeypatch: pytest.Monkey
     assert swapouts_from(3600.0)() is None  # ended before the window opened
     monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: None)
     assert swapouts_from(0.0)() is None  # paging not readable (not macOS)
+
+
+def test_affinity_keeps_each_session_on_one_replica_and_is_deterministic() -> None:
+    route, again = make_router("affinity", 2), make_router("affinity", 2)
+    ids = [f"session-{i}" for i in range(200)]
+    homes = {sid: route(sid) for sid in ids}
+    assert all(route(sid) == homes[sid] for sid in ids for _ in range(3))  # every call of a session, same replica
+    assert all(again(sid) == homes[sid] for sid in ids)  # the same in every trial and arm
+    assert 60 < sum(homes.values()) < 140  # sessions spread over both replicas
+
+
+def test_round_robin_cycles_replicas_call_by_call() -> None:
+    route = make_router("round_robin", 2)
+    assert [route("s") for _ in range(4)] == [0, 1, 0, 1]  # one session's calls alternate
+    assert [route(sid) for sid in ("a", "b", "c")] == [0, 1, 0]
+    with pytest.raises(ValueError, match="unknown routing"):
+        make_router("random", 2)
+
+
+def test_a_shared_tier_gets_one_root_and_private_tiers_one_each(tmp_path: Path) -> None:
+    assert replica_stores(tmp_path, 2, shared=True) == [tmp_path, tmp_path]
+    private = replica_stores(tmp_path, 2, shared=False)
+    assert len(set(private)) == 2 and all(p.parent == tmp_path for p in private)
+    assert replica_stores(tmp_path, 1, shared=False) == [tmp_path]
+
+
+def test_run_with_two_replicas_routes_calls_and_roots_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    engines: list[dict[str, Any]] = []
+
+    class FakeEngine:
+        def __init__(self, kind: str, params: dict[str, Any], log_dir: Path) -> None:
+            args = list(params["extra_args"])
+            config = json.loads(args[args.index("--kv-transfer-config") + 1])
+            root = config["kv_connector_extra_config"]["secondary_tiers"][0]["root_dir"]
+            self.base_urls = [f"http://127.0.0.1:{params['base_port']}"]
+            engines.append({"root": root, "url": self.base_urls[0], "log_dir": log_dir})
+
+        def __enter__(self) -> "FakeEngine":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def describe(self) -> dict[str, Any]:
+            return {"kind": "fake", "replicas": 1}
+
+    served: list[str] = []
+
+    def fake_stream_chat(base_url: str, body: dict[str, Any], timeout_s: float) -> tuple[float, dict[str, Any], str]:
+        served.append(base_url)
+        return 0.1, {"prompt_tokens": 32, "prompt_tokens_details": {"cached_tokens": 16}}, ""
+
+    def fake_replay(sessions: Any, *, send: Any, **kw: Any) -> list[CallRecord]:
+        records = []
+        for sid in ("s0", "s1", "s2"):
+            s = ResumeSession(id=sid, calls=(ChatCall(t=0.0, dur=0.0, messages=(), out_tokens=1),) * 2,
+                              gaps=(None, 120.0))  # fmt: skip
+            prev = None
+            for k in range(2):
+                record, prev = send(s, k, prev)
+                record.gap_s = s.gaps[k]
+                records.append(record)
+        return records
+
+    monkeypatch.setattr(resume_mod, "make_target", FakeEngine)
+    monkeypatch.setattr(resume_mod, "replay", fake_replay)
+    monkeypatch.setattr(resume_mod, "tokenize", lambda url, model, messages, timeout_s: list(range(32)))
+    monkeypatch.setattr(resume_mod, "stream_chat", fake_stream_chat)
+    monkeypatch.setattr(resume_mod, "load_sessions", lambda *a: [])
+    monkeypatch.setattr(resume_mod, "verified_path", lambda rel: Path(rel))
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url: {"prefix_cache_hits_total": 10.0})
+    monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
+    monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: {"swapouts": 5})
+    spec = yaml.safe_load(Path("experiments/s2_shared_tier.yaml").read_text())
+    spec.update(repeats=1, kv_store_dir=str(tmp_path / "store"), quiet_host={"max_load_1m": 1e9, "wait_s": 0})
+    spec["replay"]["warmup_s"] = 0
+    path = tmp_path / "s.yaml"
+    path.write_text(yaml.safe_dump(spec))
+    out = resume_mod.run(path, tmp_path / "runs")
+    result = json.loads((out / "results.json").read_text())
+    assert len(engines) == 6  # two per arm
+    by_arm = dict(zip(spec["arms"], (engines[i : i + 2] for i in range(0, 6, 2))))
+    for arm, (a, b) in by_arm.items():
+        assert (a["url"], b["url"]) == ("http://127.0.0.1:8200", "http://127.0.0.1:8201")
+        assert a["log_dir"] != b["log_dir"]
+        assert (a["root"] == b["root"]) == arm.endswith("+shared")
+    trials = {t["cell_id"]: t for t in result["trials"]}
+    affinity = trials["arm=affinity+private"]
+    rr = trials["arm=round-robin+private"]
+    assert sum(affinity["requests_per_endpoint"]) == sum(rr["requests_per_endpoint"]) == 6
+    assert rr["requests_per_endpoint"] == [3, 3]  # round robin alternates
+    assert affinity["target"]["replicas"] == 2 and affinity["metrics"]["engine_prefix_hit_ratio"] == 0.0
+    rows = [json.loads(line) for line in (out / "requests.jsonl").read_text().splitlines()]
+    aff_rows = [r for r in rows if r["trial"].startswith("arm=affinity")]
+    assert len(aff_rows) == 6
+    for sid in ("s0", "s1", "s2"):  # affinity: both calls of a session on one replica
+        assert len({r["replica"] for r in aff_rows if r["session"] == sid}) == 1
+    assert served.count("http://127.0.0.1:8200") + served.count("http://127.0.0.1:8201") == 18

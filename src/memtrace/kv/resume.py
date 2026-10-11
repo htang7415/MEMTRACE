@@ -16,6 +16,11 @@ the engine recomputed, and their TTFT.
 Arms change the serving stack (`target` overrides); every arm replays the same sessions in the same order with the
 same pauses within a repeat. Timing is closed-loop, so it follows each arm's own speed.
 
+With `replicas` > 1 each trial starts that many engines, and the arm's `routing` picks the replica for every call:
+`affinity` keeps a session on one replica, `round_robin` cycles replicas call by call. An arm's disk tier is private
+to each replica, or with `kv_tier.shared` one store root that all replicas read and write (block files are named by
+content hash, so an engine finds blocks another one wrote).
+
     memtrace run resume experiments/r0_resume_baseline.yaml [--out data/runs]
 """
 
@@ -23,8 +28,11 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
+import hashlib
 import http.client
+import itertools
 import json
 import math
 from pathlib import Path
@@ -142,6 +150,7 @@ class CallRecord:
     cached_tokens: int = 0
     reusable_tokens: int = 0  # prefix shared with the previous replayed call, in whole KV blocks
     error: str | None = None
+    replica: int = 0
 
 
 def replay(
@@ -208,8 +217,26 @@ def replay(
     return sorted(records, key=lambda r: r.sent_s)
 
 
+def make_router(policy: str, replicas: int) -> Callable[[str], int]:
+    """The replica for a session's next call. `affinity` keeps every call of a session on one replica, chosen by a
+    hash of the session id, as a gateway hashing a session header would; `round_robin` cycles the replicas call by
+    call in the order calls are sent."""
+    if policy == "affinity":
+        return lambda sid: int.from_bytes(hashlib.sha256(sid.encode()).digest()[:8], "big") % replicas
+    if policy == "round_robin":
+        counter = itertools.count()
+        lock = threading.Lock()
+
+        def next_replica(sid: str) -> int:
+            with lock:
+                return next(counter) % replicas
+
+        return next_replica
+    raise ValueError(f"unknown routing {policy!r}: use affinity or round_robin")
+
+
 def make_sender(
-    base_url: str,
+    base_urls: Sequence[str],
     model: str,
     render: Renderer,
     *,
@@ -218,10 +245,13 @@ def make_sender(
     max_output_tokens: int,
     timeout_s: float,
     t0: float,
+    route: Callable[[str], int] = lambda sid: 0,
 ) -> Callable[[ResumeSession, int, list[int] | None], tuple[CallRecord, list[int] | None]]:
     def send(s: ResumeSession, k: int, prev: list[int] | None) -> tuple[CallRecord, list[int] | None]:
         call = s.calls[k]
         messages = render.messages(s.id, call)
+        replica = route(s.id)
+        base_url = base_urls[replica]
         sent = time.perf_counter() - t0
         try:
             tokens = tokenize(base_url, model, messages, timeout_s)
@@ -248,12 +278,13 @@ def make_sender(
                 prompt_tokens=int(usage.get("prompt_tokens", 0)),
                 cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)),
                 reusable_tokens=reusable,
+                replica=replica,
             )
             return record, tokens
         except Exception as exc:  # noqa: BLE001 - every failure is recorded, none stops the replay
             error = f"{type(exc).__name__}: {exc}"[:200]
             return CallRecord(
-                session=s.id, call=k, gap_s=None, sent_s=round(sent, 3), status="error", error=error
+                session=s.id, call=k, gap_s=None, sent_s=round(sent, 3), status="error", error=error, replica=replica
             ), None
 
     return send
@@ -334,6 +365,13 @@ def kv_store_root(spec: dict[str, Any]) -> Path:
     return Path(str(spec.get("kv_store_dir", "~/.cache/memtrace/kvstore"))).expanduser()
 
 
+def replica_stores(store: Path, replicas: int, shared: bool) -> list[Path]:
+    """Each replica's disk tier root: one root for all with a shared tier, else one per replica."""
+    if shared or replicas == 1:
+        return [store] * replicas
+    return [store / f"replica{i}" for i in range(replicas)]
+
+
 def dir_gib(path: Path) -> float:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) / 1024**3 if path.exists() else 0.0
 
@@ -393,6 +431,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
     sessions = load_sessions(verified_path(rel), n, seed0, cache)
     render = Renderer(float(rp["scale"]))
     bundle = RunBundle(spec, out_root, quiet_host=QuietHost(**spec.get("quiet_host", {})))
+    replicas = int(spec.get("replicas", 1))
     for rep in range(int(spec.get("repeats", 1))):
         seed = seed0 * 1000 + rep
         for arm in spec["arms"]:
@@ -401,24 +440,36 @@ def run(spec_path: Path, out_root: Path) -> Path:
             # A fresh, empty disk tier per trial: a store left by another arm or repeat would serve its blocks.
             store = kv_store_root(spec) / bundle.run_id / label.replace("/", "_")
             shutil.rmtree(store, ignore_errors=True)
-            params = arm_params(spec["target"], spec["arms"][arm], store)
+            arm_spec = spec["arms"][arm]
+            stores = replica_stores(store, replicas, bool((arm_spec.get("kv_tier") or {}).get("shared")))
+            params = [arm_params(spec["target"], arm_spec, s) for s in stores]
+            for i, p in enumerate(params):
+                p["base_port"] = int(p.get("base_port", 8200)) + i
             records: list[CallRecord] = []
             with bundle.trial(cell_id, {"arm": arm}, repeat=rep, seed=seed, label=label) as trial:
-                with make_target("vllm_metal", params, bundle.log_dir(label)) as target:
-                    base_url = target.base_urls[0]
+                with ExitStack() as stack:
+                    log_dir = bundle.log_dir(label)
+                    targets = [
+                        stack.enter_context(
+                            make_target("vllm_metal", p, log_dir if replicas == 1 else log_dir / f"r{i}")
+                        )
+                        for i, p in enumerate(params)
+                    ]
+                    base_urls = [t.base_urls[0] for t in targets]
                     # Engine start-up pages the host (weights, KV allocation); only the measured window must not.
                     measured_swapouts = swapouts_from(float(rp["warmup_s"]))
                     records = replay(
                         sessions,
                         send=make_sender(
-                            base_url,
-                            str(params["model"]),
+                            base_urls,
+                            str(params[0]["model"]),
                             render,
                             block_tokens=int(rp.get("block_tokens", 16)),
                             output_scale=float(rp["output_scale"]),
                             max_output_tokens=int(rp["max_output_tokens"]),
                             timeout_s=float(rp["timeout_s"]),
                             t0=time.perf_counter(),
+                            route=make_router(str(arm_spec.get("routing", "round_robin")), replicas),
                         ),
                         concurrency=int(rp["concurrency"]),
                         horizon_s=float(rp["horizon_s"]),
@@ -428,8 +479,11 @@ def run(spec_path: Path, out_root: Path) -> Path:
                         seed=seed,
                     )
                     swapouts = measured_swapouts()
-                    counters = scrape_vllm_counters(base_url)
-                    trial.target = target.describe()
+                    counters: dict[str, float] = {}
+                    for url in base_urls:
+                        for name, value in scrape_vllm_counters(url).items():
+                            counters[name] = counters.get(name, 0.0) + value
+                    trial.target = {**targets[0].describe(), "replicas": replicas}
                 trial.metrics.update(
                     resume_metrics(
                         records,
@@ -442,7 +496,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                 if swapouts is not None:
                     trial.metrics["host_swapouts_measured"] = swapouts
                 trial.metrics["kv_store_gib"] = dir_gib(store)
-                trial.requests_per_endpoint = [len(records)]
+                trial.requests_per_endpoint = [sum(r.replica == i for r in records) for i in range(replicas)]
             shutil.rmtree(store, ignore_errors=True)
             bundle.write_requests(label, (asdict(r) for r in records))
     return bundle.finish({"day": rel})
