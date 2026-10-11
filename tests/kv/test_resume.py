@@ -22,6 +22,7 @@ from memtrace.kv.resume import (
     parse_session,
     replay,
     resume_metrics,
+    swapouts_from,
 )
 
 
@@ -182,6 +183,7 @@ def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.M
                 "external_prefix_cache_hits_total": 250.0}  # fmt: skip
     monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url: counters)
     monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
+    monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: {"swapouts": 5})  # no paging while measured
     spec = yaml.safe_load(Path("experiments/r1_resume_ssd.yaml").read_text())
     spec.update(
         name="e2e", repeats=1, kv_store_dir=str(tmp_path / "store"), quiet_host={"max_load_1m": 1e9, "wait_s": 0}
@@ -198,3 +200,13 @@ def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.M
     assert ssd["kv_store_gib"] > 0 and trials["arm=stock"]["metrics"]["kv_store_gib"] == 0
     assert not list((tmp_path / "store").rglob("block"))  # every trial's store is removed after it
     assert len((out / "requests.jsonl").read_text().splitlines()) == 8
+    assert all(t["metrics"]["host_swapouts_measured"] == 0 and t["quiet_host_ok"] for t in result["trials"])
+
+
+def test_swapouts_count_only_from_the_measured_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = iter([{"swapouts": 100}, {"swapouts": 130}, {"swapouts": 140}])
+    monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: next(pages))
+    assert swapouts_from(0.0)() == 30.0
+    assert swapouts_from(3600.0)() is None  # ended before the window opened
+    monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: None)
+    assert swapouts_from(0.0)() is None  # paging not readable (not macOS)

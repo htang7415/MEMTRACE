@@ -1,0 +1,43 @@
+schema_version: memtrace-resume-v1
+name: r1-resume-ssd-rerun
+description: >
+  Rerun of R1's three repeats for the two arms its decision compares (equal memory, host pool + SSD): in the first
+  run the host paged in every repeat. Same build, replay, arms and seeds as R1, so each repeat replays the
+  same session order; these trials replace R1's for the comparison. Paging is now also counted over the measured
+  window alone, so the run shows whether it came from engine start-up or from the measured calls.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 3  # seeds 0 * 1000 + 0..2, R1's repeats
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: one GPU replica whose KV cache holds about 7 median agent prompts while 12 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 1800
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  stock-equal-memory:
+    target: {extra_args: [--block-size, "16", --num-gpu-blocks-override, "1353"]}
+  host-pool+ssd:
+    kv_tier: {host_pool_gib: 1, max_size_gib: 10}
+target:
+  model: Qwen/Qwen3-0.6B
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 12272  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "768"]

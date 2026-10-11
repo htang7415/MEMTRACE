@@ -18,6 +18,7 @@ _COMMANDS = {
     ("evaluate", "bfcl"): "memtrace.serving.quality",
     ("report", "retention"): "memtrace.kv.retention",
     ("report", "kv-validate"): "memtrace.kv.validate",
+    ("report", "resume-decision"): "memtrace.kv.resume_decision",
     ("report", "dashboard"): "memtrace.harness.dashboard_export",
     ("components", "check"): "memtrace.components",
 }

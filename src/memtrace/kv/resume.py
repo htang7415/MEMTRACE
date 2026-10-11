@@ -42,6 +42,7 @@ from memtrace.datasets.loaders.copilot import iter_archive
 from memtrace.datasets.sources import verified_path
 from memtrace.harness.bundle import RunBundle
 from memtrace.harness.spec import QuietHost
+from memtrace.harness.system_info import host_swap_pages
 from memtrace.harness.targets import make_target, scrape_vllm_counters
 from memtrace.kv.gateway_replay import ChatCall, Renderer, stream_chat
 from memtrace.kv.policy_traces import _end_s, calls_of, history, sample_ids
@@ -360,6 +361,27 @@ def engine_metrics(counters: dict[str, float]) -> dict[str, float]:
     }
 
 
+def swapouts_from(delay_s: float) -> Callable[[], float | None]:
+    """Count the host's swap-outs from `delay_s` from now (the measured window's start); the returned function ends
+    the count. None where paging is not readable, or when it ended before the window opened."""
+    start: list[dict[str, int] | None] = []
+    timer = threading.Timer(delay_s, lambda: start.append(host_swap_pages()))
+    timer.daemon = True
+    if delay_s <= 0:
+        start.append(host_swap_pages())
+    else:
+        timer.start()
+
+    def end() -> float | None:
+        timer.cancel()
+        last = host_swap_pages()
+        if not start or start[0] is None or last is None:
+            return None
+        return float(last["swapouts"] - start[0]["swapouts"])
+
+    return end
+
+
 def run(spec_path: Path, out_root: Path) -> Path:
     spec = load_spec(spec_path)
     rp = spec["replay"]
@@ -384,6 +406,8 @@ def run(spec_path: Path, out_root: Path) -> Path:
             with bundle.trial(cell_id, {"arm": arm}, repeat=rep, seed=seed, label=label) as trial:
                 with make_target("vllm_metal", params, bundle.log_dir(label)) as target:
                     base_url = target.base_urls[0]
+                    # Engine start-up pages the host (weights, KV allocation); only the measured window must not.
+                    measured_swapouts = swapouts_from(float(rp["warmup_s"]))
                     records = replay(
                         sessions,
                         send=make_sender(
@@ -403,6 +427,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                         time_scale=float(rp.get("time_scale", 1.0)),
                         seed=seed,
                     )
+                    swapouts = measured_swapouts()
                     counters = scrape_vllm_counters(base_url)
                     trial.target = target.describe()
                 trial.metrics.update(
@@ -414,6 +439,8 @@ def run(spec_path: Path, out_root: Path) -> Path:
                     )
                 )
                 trial.metrics.update(engine_metrics(counters))
+                if swapouts is not None:
+                    trial.metrics["host_swapouts_measured"] = swapouts
                 trial.metrics["kv_store_gib"] = dir_gib(store)
                 trial.requests_per_endpoint = [len(records)]
             shutil.rmtree(store, ignore_errors=True)
