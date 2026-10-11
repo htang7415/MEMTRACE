@@ -92,7 +92,7 @@ def decide(runs: list[dict[str, Any]], baseline: str, treatment: str, repeats: i
                 to_rerun.append({"arm": arm, "seed": seed, "reason": reason})
     rerun_seeds = {r["seed"] for r in to_rerun}
     paired = [seed for seed in seeds if seed not in rerun_seeds]
-    rows = [
+    rows: list[dict[str, Any]] = [
         {
             "seed": seed,
             "runs": {arm: trials[(arm, seed)]["run_id"] for arm in (baseline, treatment)},

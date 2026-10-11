@@ -65,6 +65,7 @@ files = [
   "src/memtrace/harness/bundle.py",
   "src/memtrace/kv/resume.py",
   "src/memtrace/kv/restore_bench.py",
+  "src/memtrace/kv/resume_decision.py",
   "src/memtrace/serving",
   "src/memtrace/kv/retention.py",
   "src/memtrace/kv/costs.py",

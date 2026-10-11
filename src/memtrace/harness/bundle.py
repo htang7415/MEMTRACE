@@ -104,9 +104,8 @@ class RunBundle:
             self.log(f"{label}: WARNING the host slept {trial.metrics['host_slept_s']:.0f} s during the trial")
         if paged_out(trial.metrics) > 0:
             quiet = False
-            self.log(
-                f"{label}: WARNING the host paged out {paged_out(trial.metrics):.0f} pages while the trial measured"
-            )
+            window = "the measured window" if "host_swapouts_measured" in trial.metrics else "the trial"
+            self.log(f"{label}: WARNING the host paged out {paged_out(trial.metrics):.0f} pages during {window}")
         if error is None:
             self.log(f"{label}: " + " ".join(f"{k}={v:.4g}" for k, v in trial.metrics.items()))
         self.trials.append(
