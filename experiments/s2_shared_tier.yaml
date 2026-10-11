@@ -1,0 +1,64 @@
+schema_version: memtrace-resume-v1
+name: s2-shared-tier
+description: >
+  Item 1: with two replicas, does one SSD tier shared by both recover what session affinity gets with a private tier
+  per replica? Two vllm-metal engines on one store root restore each other's blocks (1a check, 2026-10-11: 3 of 3
+  prompts fully restored, outputs identical). R1's sessions, concurrency and pacing, split over two replicas. Two
+  engines at R1's sizes page this host, so each replica runs the 4-bit build of the same model with 512 GPU blocks and
+  a 0.8 GiB host pool (~7.5k tokens of KV, above R1's longest prompt at 7.0k). The model differs from R1's, so the arms
+  are compared with each other only, not with R1 or R2. Each replica's disk cap is 5 GiB, half of R1's, as each serves
+  half the calls; a shared store gets both replicas' caps (each engine caps the blocks it wrote). Each trial starts
+  with empty stores. The affinity + shared arm is left out to fit one night.
+decision_rule: >
+  Fixed 2026-10-11, before any trial of this spec ran. Paired by seed within each repeat. (1) Affinity benefit:
+  affinity+private recomputes at least 15% less of the resumed prefix than round-robin+private in every repeat. If
+  not, there is no routing benefit to recover; item 2 then measures one replica with and without a tier. (2)
+  Recovery: round-robin+shared is within 15% of affinity+private (relative change vs affinity+private no worse than
+  -15%, the same relative measure as R1) on resumed recompute share and on resumed TTFT p95 with failed calls counted,
+  in every repeat. (1) and (2) both hold: the shared tier recovers the benefit, and item 2 measures capacity with a
+  shared tier. Otherwise item 2 measures one replica with and without a tier. Reported, not decided: resumed TTFT p50,
+  all-calls TTFT p50, calls per replica. Validity as R1: a trial that slept > 5 s or paged anything out while it
+  measured does not count, and a repeat counts only with valid trials in all three arms; R1's fallback for paged
+  repeats applies, across all three arms.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 3
+replicas: 2
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: two GPU replicas behind one gateway, each holding about 4 median agent prompts while 6 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 1800
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  affinity+private:
+    routing: affinity
+    kv_tier: {host_pool_gib: 0.8, max_size_gib: 5}
+  round-robin+private:
+    routing: round_robin
+    kv_tier: {host_pool_gib: 0.8, max_size_gib: 5}
+  round-robin+shared:
+    routing: round_robin
+    kv_tier: {host_pool_gib: 0.8, max_size_gib: 5, shared: true}
+target:
+  model: mlx-community/Qwen3-0.6B-4bit
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 8176  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "512"]
