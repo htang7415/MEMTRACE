@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useData, type Data } from "./data";
-import {
-  Caching, ContextPolicies, Engines, GatewayContext, Hybrid, Lifetimes, Overview, Provenance, ProviderCache, Quality,
-  Replay, Resume, Reuse, Routing, Simulator,
-} from "./pages/pages";
+import { Methods, System } from "./pages/about";
+import { Overview } from "./pages/overview";
+import { Context, EnginesCaching, Lifetime, Paused, Placement, Replay, RoutingOverflow } from "./pages/pages";
 
 const REPO = "https://github.com/htang7415/MEMTRACE";
 
@@ -13,43 +12,46 @@ interface PageDef {
   Page: (props: { data: Data }) => React.JSX.Element;
 }
 
-// Grouped by topic.
+// Grouped by topic: what the system is, the results by question, and how they were produced.
 const GROUPS: { label: string | null; pages: PageDef[] }[] = [
-  { label: null, pages: [{ id: "overview", title: "Overview", Page: Overview }] },
+  {
+    label: null,
+    pages: [
+      { id: "overview", title: "Overview", Page: Overview },
+      { id: "system", title: "System", Page: System },
+    ],
+  },
   {
     label: "Serving",
     pages: [
-      { id: "engines", title: "Engines", Page: Engines },
-      { id: "caching", title: "Caching", Page: Caching },
-      { id: "routing", title: "Routing", Page: Routing },
+      { id: "engines", title: "Engines & caching", Page: EnginesCaching },
+      { id: "routing", title: "Routing & overflow", Page: RoutingOverflow },
       { id: "replay", title: "Real agent traffic", Page: Replay },
-      { id: "hybrid", title: "Hosted overflow", Page: Hybrid },
-      { id: "quality", title: "Quality and cost", Page: Quality },
     ],
   },
-  {
-    label: "Agent context",
-    pages: [
-      { id: "context", title: "Context policies", Page: ContextPolicies },
-      { id: "gateway", title: "Gateway context", Page: GatewayContext },
-    ],
-  },
+  { label: "Agent context", pages: [{ id: "context", title: "Context management", Page: Context }] },
   {
     label: "KV memory",
     pages: [
-      { id: "provider", title: "Provider cache", Page: ProviderCache },
-      { id: "lifetime", title: "Cache lifetime", Page: Lifetimes },
-      { id: "reuse", title: "Reuse levers", Page: Reuse },
-      { id: "resume", title: "Paused sessions", Page: Resume },
-      { id: "simulator", title: "Simulator check", Page: Simulator },
+      { id: "lifetime", title: "Cache lifetime", Page: Lifetime },
+      { id: "placement", title: "Placement & tiers", Page: Placement },
+      { id: "paused", title: "Paused sessions", Page: Paused },
     ],
   },
-  { label: "Data", pages: [{ id: "provenance", title: "Provenance", Page: Provenance }] },
+  { label: "Reference", pages: [{ id: "methods", title: "Methods & runs", Page: Methods }] },
 ];
+/** Pages that were merged keep their links working. */
+const MOVED: Record<string, string> = {
+  caching: "engines", hybrid: "routing", quality: "routing", gateway: "context", provider: "lifetime",
+  reuse: "placement", simulator: "placement", resume: "paused", provenance: "methods",
+};
 const PAGES = GROUPS.flatMap((g) => g.pages);
 
 function useHashPage(): string {
-  const read = () => window.location.hash.replace("#/", "") || "overview";
+  const read = () => {
+    const id = window.location.hash.replace("#/", "") || "overview";
+    return MOVED[id] ?? id;
+  };
   const [page, setPage] = useState(read);
   useEffect(() => {
     const onHash = () => {
@@ -104,7 +106,9 @@ export default function App() {
   const { data, error } = useData();
   const page = useHashPage();
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
-  const latest = data?.index.map((e) => e.finished_at).sort().at(-1);
+  // Exported experiments carry finished_at; studies published as analyses carry run ids that start with a UTC date.
+  const runDates = (data?.analyses.resume ?? []).flatMap((s) => s.runs.map((r) => `${r.slice(0, 4)}-${r.slice(4, 6)}-${r.slice(6, 8)}`));
+  const latest = [...(data?.index.map((e) => e.finished_at) ?? []), ...runDates].sort().at(-1);
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b backdrop-blur"
