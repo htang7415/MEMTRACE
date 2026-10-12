@@ -510,6 +510,98 @@ Run `20261007T231754Z-k11-engine-kv-check-pilot-imported`, imported (recorded be
 |---|---|---|---|
 | default | 75.6% | 2,517 | 1 |
 
+## Resuming paused agent sessions
+
+Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×. A call is resumed when its pause was at least 60 s. Each study's decision rule was fixed in its spec (`../experiments/`) before it ran and reads the repeats one by one. A trial does not count when the host paged or slept while it measured: it is rerun, or under the fallback graded only if every copy agrees. Shown: the trial each rule counted per arm and repeat (a later valid copy replaces a paged one).
+
+### R1: host pool + SSD vs stock at equal memory, one replica
+
+Resumed recompute 87 / 57 / 95% lower and resumed TTFT p95 41–53% lower with the tier, but resumed TTFT p50 only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls TTFT p50 is 1–7% higher (the tier writes every computed block).
+
+Runs `20261010T214304Z-r1-resume-ssd-rerun`, `20261011T052531Z-r1-resume-ssd-rerun`.
+
+| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+|---|---|---|---|---|---|---|---|
+| stock-equal-memory | 0 | 32.6% | 415 | 2,451 | 144 | 818 | yes |
+| stock-equal-memory | 1 | 34.3% | 381 | 3,181 | 135 | 1,168 | yes |
+| stock-equal-memory | 2 | 42.9% | 451 | 2,378 | 141 | 1,236 | yes |
+| host-pool+ssd | 0 | 4.3% | 415 | 1,451 | 146 | 818 | yes |
+| host-pool+ssd | 1 | 14.8% | 355 | 1,500 | 145 | 1,162 | yes |
+| host-pool+ssd | 2 | 2.0% | 370 | 1,360 | 143 | 1,232 | yes |
+
+### R2: R1 with every prompt doubled
+
+Only repeat 1 ran without paging: recompute 63% lower, resumed TTFT p50 7% and p95 38% lower. The median misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not rerun.
+
+Runs `20261011T174012Z-r2-resume-prefix`.
+
+| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+|---|---|---|---|---|---|---|---|
+| stock-equal-memory | 0 | 37.7% | 1,252 | 6,592 | 217 | 828 | no: host paged out 140104 pages |
+| stock-equal-memory | 1 | 38.6% | 712 | 6,040 | 198 | 1,204 | yes |
+| stock-equal-memory | 2 | 39.1% | 798 | 5,695 | 201 | 1,259 | no: host paged out 10668 pages |
+| host-pool+ssd | 0 | 2.9% | 718 | 3,314 | 218 | 814 | no: host paged out 12080 pages |
+| host-pool+ssd | 1 | 14.4% | 664 | 3,727 | 204 | 1,186 | yes |
+| host-pool+ssd | 2 | 1.9% | 675 | 2,476 | 206 | 1,260 | no: host paged out 96732 pages |
+
+### Item 1: two replicas, round robin + one shared SSD tier vs session affinity + private tiers
+
+Affinity recomputes 45–89% less resumed prefix than round robin with private tiers. A shared tier wins back 91–100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat 2: 68% more resumed recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict is the rule's fallback (a paged repeat counts only if all its copies agree).
+
+Runs `20261011T224922Z-s2-shared-tier`, `20261012T032542Z-s2-shared-tier-rerun`.
+
+| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+|---|---|---|---|---|---|---|---|
+| affinity+private | 0 | 4.6% | 465 | 2,395 | 116 | 814 | no: host paged out 379620 pages |
+| affinity+private | 1 | 14.9% | 399 | 1,734 | 107 | 1,130 | no: host paged out 117420 pages |
+| affinity+private | 2 | 2.0% | 351 | 1,199 | 110 | 1,261 | no: host paged out 81712 pages |
+| round-robin+private | 0 | 15.8% | 492 | 2,409 | 166 | 818 | no: host paged out 43124 pages |
+| round-robin+private | 1 | 27.2% | 430 | 2,204 | 150 | 1,150 | no: host paged out 104180 pages |
+| round-robin+private | 2 | 17.4% | 483 | 1,765 | 150 | 1,247 | no: host paged out 53716 pages |
+| round-robin+shared | 0 | 5.5% | 503 | 1,543 | 130 | 814 | no: host paged out 140040 pages |
+| round-robin+shared | 1 | 14.8% | 416 | 1,741 | 123 | 1,130 | no: host paged out 35924 pages |
+| round-robin+shared | 2 | 3.3% | 435 | 1,660 | 121 | 1,254 | no: host paged out 729408 pages |
+
+### Item 2 probe: load levels for the capacity sweep (stock arm)
+
+Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes: every reusable prefix is recomputed and the median TTFT reaches 23–33 s. This set the sweep's levels (12, 24, 36) and its SLO: resumed TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.
+
+Runs `20261012T045950Z-item2-load-probe`.
+
+| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+|---|---|---|---|---|---|---|---|
+| stock-equal-memory, concurrency 12 | 0 | 33.6% | 783 | 2,623 | 144 | 327 | no: host paged out 257052 pages |
+| stock-equal-memory, concurrency 24 | 0 | 69.5% | 1,434 | 14,042 | 201 | 936 | no: host paged out 13020 pages |
+| stock-equal-memory, concurrency 36 | 0 | 100.0% | 22,960 | 28,329 | 22,872 | 481 | yes |
+| stock-equal-memory, concurrency 48 | 0 | 100.0% | 32,984 | 37,468 | 32,857 | 542 | yes |
+
+### Item 2: sessions served at once within the SLO, one replica
+
+Capacity (the highest level within the SLO in every repeat) is 12 for both arms: no win. The tier met 24 in two of three repeats (1.8–1.9 s against stock's 5.9–9.6 s) and missed repeat 2 (5.9 s; rerun 6.3 s; both copies paged and agree). One session there outgrows the context window and fails 9 calls in both arms. At 36 both arms miss; the tier serves 20–105% more calls.
+
+Runs `20261012T060631Z-item2-capacity`, `20261012T152348Z-item2-capacity-rerun`.
+
+| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+|---|---|---|---|---|---|---|---|
+| stock-equal-memory, concurrency 12 | 0 | 32.6% | 481 | 2,319 | 143 | 820 | yes |
+| stock-equal-memory, concurrency 12 | 1 | 34.3% | 396 | 2,817 | 136 | 1,170 | no: host paged out 39228 pages |
+| stock-equal-memory, concurrency 12 | 2 | 39.5% | 466 | 2,758 | 139 | 1,236 | no: host paged out 29908 pages |
+| host-pool+ssd, concurrency 12 | 0 | 0.0% | 424 | 1,156 | 149 | 818 | yes |
+| host-pool+ssd, concurrency 12 | 1 | 0.0% | 383 | 958 | 144 | 1,164 | yes |
+| host-pool+ssd, concurrency 12 | 2 | 0.0% | 421 | 1,323 | 144 | 1,231 | no: host paged out 36920 pages |
+| stock-equal-memory, concurrency 24 | 0 | 63.7% | 751 | 5,859 | 153 | 2,448 | yes |
+| stock-equal-memory, concurrency 24 | 1 | 65.6% | 899 | 9,632 | 205 | 2,044 | yes |
+| stock-equal-memory, concurrency 24 | 2 | 67.9% | 1,130 | 8,303 | 178 | 2,329 | yes |
+| host-pool+ssd, concurrency 24 | 0 | 9.4% | 490 | 1,823 | 164 | 2,526 | yes |
+| host-pool+ssd, concurrency 24 | 1 | 5.1% | 482 | 1,872 | 171 | 2,013 | yes |
+| host-pool+ssd, concurrency 24 | 2 | 7.8% | 587 | 6,268 | 179 | 2,411 | no: host paged out 192244 pages |
+| stock-equal-memory, concurrency 36 | 0 | 100.0% | 19,367 | 30,520 | 17,996 | 1,353 | yes |
+| stock-equal-memory, concurrency 36 | 1 | 100.0% | 18,257 | 25,726 | 17,278 | 1,438 | yes |
+| stock-equal-memory, concurrency 36 | 2 | 100.0% | 19,605 | 27,790 | 19,979 | 1,408 | yes |
+| host-pool+ssd, concurrency 36 | 0 | 53.7% | 12,086 | 28,636 | 11,034 | 1,934 | yes |
+| host-pool+ssd, concurrency 36 | 1 | 20.3% | 920 | 12,840 | 440 | 2,955 | yes |
+| host-pool+ssd, concurrency 36 | 2 | 67.8% | 16,167 | 28,016 | 14,671 | 1,694 | no: host paged out 58696 pages |
+
 ## Analyses
 
 ### Provider-cache retention over the Copilot week (`memtrace report retention --by-day`)

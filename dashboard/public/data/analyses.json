@@ -149,5 +149,528 @@
     0.8440320434185459
    ]
   }
+ ],
+ "resume": [
+  {
+   "title": "R1: host pool + SSD vs stock at equal memory, one replica",
+   "runs": [
+    "20261010T214304Z-r1-resume-ssd-rerun",
+    "20261011T052531Z-r1-resume-ssd-rerun"
+   ],
+   "verdict": "Resumed recompute 87 / 57 / 95% lower and resumed TTFT p95 41\u201353% lower with the tier, but resumed TTFT p50 only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls TTFT p50 is 1\u20137% higher (the tier writes every computed block).",
+   "rows": [
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 0,
+     "run_id": "20261011T052531Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.326465,
+     "resumed_ttft_p50_ms": 415.3705,
+     "resumed_ttft_all_p95_ms": 2451.219458,
+     "all_ttft_p50_ms": 143.510812,
+     "calls": 818.0
+    },
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 1,
+     "run_id": "20261010T214304Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.343278,
+     "resumed_ttft_p50_ms": 380.617417,
+     "resumed_ttft_all_p95_ms": 3180.906908,
+     "all_ttft_p50_ms": 134.929229,
+     "calls": 1168.0
+    },
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 2,
+     "run_id": "20261011T052531Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.428884,
+     "resumed_ttft_p50_ms": 451.478542,
+     "resumed_ttft_all_p95_ms": 2377.577981,
+     "all_ttft_p50_ms": 140.852729,
+     "calls": 1236.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 0,
+     "run_id": "20261011T052531Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.042772,
+     "resumed_ttft_p50_ms": 414.571166,
+     "resumed_ttft_all_p95_ms": 1450.878198,
+     "all_ttft_p50_ms": 146.465917,
+     "calls": 818.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 1,
+     "run_id": "20261011T052531Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.148399,
+     "resumed_ttft_p50_ms": 355.292583,
+     "resumed_ttft_all_p95_ms": 1500.226552,
+     "all_ttft_p50_ms": 144.673791,
+     "calls": 1162.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 2,
+     "run_id": "20261011T052531Z-r1-resume-ssd-rerun",
+     "excluded": null,
+     "resumed_recompute_share": 0.019695,
+     "resumed_ttft_p50_ms": 369.600312,
+     "resumed_ttft_all_p95_ms": 1359.648167,
+     "all_ttft_p50_ms": 142.718209,
+     "calls": 1232.0
+    }
+   ]
+  },
+  {
+   "title": "R2: R1 with every prompt doubled",
+   "runs": [
+    "20261011T174012Z-r2-resume-prefix"
+   ],
+   "verdict": "Only repeat 1 ran without paging: recompute 63% lower, resumed TTFT p50 7% and p95 38% lower. The median misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not rerun.",
+   "rows": [
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 0,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": "host paged out 140104 pages",
+     "resumed_recompute_share": 0.377144,
+     "resumed_ttft_p50_ms": 1251.707917,
+     "resumed_ttft_all_p95_ms": 6591.5356,
+     "all_ttft_p50_ms": 217.314083,
+     "calls": 828.0
+    },
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 1,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": null,
+     "resumed_recompute_share": 0.386473,
+     "resumed_ttft_p50_ms": 711.677583,
+     "resumed_ttft_all_p95_ms": 6040.011833,
+     "all_ttft_p50_ms": 198.314229,
+     "calls": 1204.0
+    },
+    {
+     "cell": "stock-equal-memory",
+     "repeat": 2,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": "host paged out 10668 pages",
+     "resumed_recompute_share": 0.390559,
+     "resumed_ttft_p50_ms": 797.729541,
+     "resumed_ttft_all_p95_ms": 5695.223617,
+     "all_ttft_p50_ms": 200.711208,
+     "calls": 1259.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 0,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": "host paged out 12080 pages",
+     "resumed_recompute_share": 0.028797,
+     "resumed_ttft_p50_ms": 717.816583,
+     "resumed_ttft_all_p95_ms": 3314.164062,
+     "all_ttft_p50_ms": 218.215625,
+     "calls": 814.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 1,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": null,
+     "resumed_recompute_share": 0.144259,
+     "resumed_ttft_p50_ms": 664.278708,
+     "resumed_ttft_all_p95_ms": 3726.527709,
+     "all_ttft_p50_ms": 204.46275,
+     "calls": 1186.0
+    },
+    {
+     "cell": "host-pool+ssd",
+     "repeat": 2,
+     "run_id": "20261011T174012Z-r2-resume-prefix",
+     "excluded": "host paged out 96732 pages",
+     "resumed_recompute_share": 0.018559,
+     "resumed_ttft_p50_ms": 675.065708,
+     "resumed_ttft_all_p95_ms": 2475.630874,
+     "all_ttft_p50_ms": 205.565563,
+     "calls": 1260.0
+    }
+   ]
+  },
+  {
+   "title": "Item 1: two replicas, round robin + one shared SSD tier vs session affinity + private tiers",
+   "runs": [
+    "20261011T224922Z-s2-shared-tier",
+    "20261012T032542Z-s2-shared-tier-rerun"
+   ],
+   "verdict": "Affinity recomputes 45\u201389% less resumed prefix than round robin with private tiers. A shared tier wins back 91\u2013100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat 2: 68% more resumed recompute, 38% higher p95), and its all-calls TTFT p50 is 10\u201326% higher, as calls affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict is the rule's fallback (a paged repeat counts only if all its copies agree).",
+   "rows": [
+    {
+     "cell": "affinity+private",
+     "repeat": 0,
+     "run_id": "20261012T032542Z-s2-shared-tier-rerun",
+     "excluded": "host paged out 379620 pages",
+     "resumed_recompute_share": 0.045706,
+     "resumed_ttft_p50_ms": 465.097479,
+     "resumed_ttft_all_p95_ms": 2394.756448,
+     "all_ttft_p50_ms": 115.739667,
+     "calls": 814.0
+    },
+    {
+     "cell": "affinity+private",
+     "repeat": 1,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 117420 pages",
+     "resumed_recompute_share": 0.149168,
+     "resumed_ttft_p50_ms": 399.21225,
+     "resumed_ttft_all_p95_ms": 1733.958762,
+     "all_ttft_p50_ms": 107.406208,
+     "calls": 1130.0
+    },
+    {
+     "cell": "affinity+private",
+     "repeat": 2,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 81712 pages",
+     "resumed_recompute_share": 0.019841,
+     "resumed_ttft_p50_ms": 350.77825,
+     "resumed_ttft_all_p95_ms": 1198.891083,
+     "all_ttft_p50_ms": 110.225792,
+     "calls": 1261.0
+    },
+    {
+     "cell": "round-robin+private",
+     "repeat": 0,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 43124 pages",
+     "resumed_recompute_share": 0.15831,
+     "resumed_ttft_p50_ms": 492.116666,
+     "resumed_ttft_all_p95_ms": 2409.072156,
+     "all_ttft_p50_ms": 165.734875,
+     "calls": 818.0
+    },
+    {
+     "cell": "round-robin+private",
+     "repeat": 1,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 104180 pages",
+     "resumed_recompute_share": 0.271831,
+     "resumed_ttft_p50_ms": 430.129208,
+     "resumed_ttft_all_p95_ms": 2204.274807,
+     "all_ttft_p50_ms": 149.936542,
+     "calls": 1150.0
+    },
+    {
+     "cell": "round-robin+private",
+     "repeat": 2,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 53716 pages",
+     "resumed_recompute_share": 0.174292,
+     "resumed_ttft_p50_ms": 483.164604,
+     "resumed_ttft_all_p95_ms": 1765.232121,
+     "all_ttft_p50_ms": 149.50825,
+     "calls": 1247.0
+    },
+    {
+     "cell": "round-robin+shared",
+     "repeat": 0,
+     "run_id": "20261012T032542Z-s2-shared-tier-rerun",
+     "excluded": "host paged out 140040 pages",
+     "resumed_recompute_share": 0.054835,
+     "resumed_ttft_p50_ms": 502.732604,
+     "resumed_ttft_all_p95_ms": 1542.946521,
+     "all_ttft_p50_ms": 129.976522,
+     "calls": 814.0
+    },
+    {
+     "cell": "round-robin+shared",
+     "repeat": 1,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 35924 pages",
+     "resumed_recompute_share": 0.148399,
+     "resumed_ttft_p50_ms": 416.114042,
+     "resumed_ttft_all_p95_ms": 1740.53521,
+     "all_ttft_p50_ms": 123.070083,
+     "calls": 1130.0
+    },
+    {
+     "cell": "round-robin+shared",
+     "repeat": 2,
+     "run_id": "20261011T224922Z-s2-shared-tier",
+     "excluded": "host paged out 729408 pages",
+     "resumed_recompute_share": 0.033346,
+     "resumed_ttft_p50_ms": 435.4895,
+     "resumed_ttft_all_p95_ms": 1660.433253,
+     "all_ttft_p50_ms": 121.412667,
+     "calls": 1254.0
+    }
+   ]
+  },
+  {
+   "title": "Item 2 probe: load levels for the capacity sweep (stock arm)",
+   "runs": [
+    "20261012T045950Z-item2-load-probe"
+   ],
+   "verdict": "Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes: every reusable prefix is recomputed and the median TTFT reaches 23\u201333 s. This set the sweep's levels (12, 24, 36) and its SLO: resumed TTFT p95 (failed calls counted) \u2264 5,300 ms, twice the value at 12.",
+   "rows": [
+    {
+     "cell": "stock-equal-memory,c=12",
+     "repeat": 0,
+     "run_id": "20261012T045950Z-item2-load-probe",
+     "excluded": "host paged out 257052 pages",
+     "resumed_recompute_share": 0.335934,
+     "resumed_ttft_p50_ms": 782.650917,
+     "resumed_ttft_all_p95_ms": 2622.696558,
+     "all_ttft_p50_ms": 143.519417,
+     "calls": 327.0
+    },
+    {
+     "cell": "stock-equal-memory,c=24",
+     "repeat": 0,
+     "run_id": "20261012T045950Z-item2-load-probe",
+     "excluded": "host paged out 13020 pages",
+     "resumed_recompute_share": 0.695209,
+     "resumed_ttft_p50_ms": 1433.689875,
+     "resumed_ttft_all_p95_ms": 14042.379938,
+     "all_ttft_p50_ms": 200.883396,
+     "calls": 936.0
+    },
+    {
+     "cell": "stock-equal-memory,c=36",
+     "repeat": 0,
+     "run_id": "20261012T045950Z-item2-load-probe",
+     "excluded": null,
+     "resumed_recompute_share": 1.0,
+     "resumed_ttft_p50_ms": 22959.867,
+     "resumed_ttft_all_p95_ms": 28328.557784,
+     "all_ttft_p50_ms": 22872.195083,
+     "calls": 481.0
+    },
+    {
+     "cell": "stock-equal-memory,c=48",
+     "repeat": 0,
+     "run_id": "20261012T045950Z-item2-load-probe",
+     "excluded": null,
+     "resumed_recompute_share": 1.0,
+     "resumed_ttft_p50_ms": 32984.252167,
+     "resumed_ttft_all_p95_ms": 37467.826491,
+     "all_ttft_p50_ms": 32857.079458,
+     "calls": 542.0
+    }
+   ]
+  },
+  {
+   "title": "Item 2: sessions served at once within the SLO, one replica",
+   "runs": [
+    "20261012T060631Z-item2-capacity",
+    "20261012T152348Z-item2-capacity-rerun"
+   ],
+   "verdict": "Capacity (the highest level within the SLO in every repeat) is 12 for both arms: no win. The tier met 24 in two of three repeats (1.8\u20131.9 s against stock's 5.9\u20139.6 s) and missed repeat 2 (5.9 s; rerun 6.3 s; both copies paged and agree). One session there outgrows the context window and fails 9 calls in both arms. At 36 both arms miss; the tier serves 20\u2013105% more calls.",
+   "rows": [
+    {
+     "cell": "stock-equal-memory,c=12",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.32627,
+     "resumed_ttft_p50_ms": 480.798312,
+     "resumed_ttft_all_p95_ms": 2319.400521,
+     "all_ttft_p50_ms": 143.001333,
+     "calls": 820.0
+    },
+    {
+     "cell": "stock-equal-memory,c=12",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": "host paged out 39228 pages",
+     "resumed_recompute_share": 0.34315,
+     "resumed_ttft_p50_ms": 396.079,
+     "resumed_ttft_all_p95_ms": 2817.320856,
+     "all_ttft_p50_ms": 135.701021,
+     "calls": 1170.0
+    },
+    {
+     "cell": "stock-equal-memory,c=12",
+     "repeat": 2,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": "host paged out 29908 pages",
+     "resumed_recompute_share": 0.395045,
+     "resumed_ttft_p50_ms": 466.038084,
+     "resumed_ttft_all_p95_ms": 2758.024316,
+     "all_ttft_p50_ms": 139.275021,
+     "calls": 1236.0
+    },
+    {
+     "cell": "host-pool+ssd,c=12",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.0,
+     "resumed_ttft_p50_ms": 424.257167,
+     "resumed_ttft_all_p95_ms": 1156.199343,
+     "all_ttft_p50_ms": 149.427854,
+     "calls": 818.0
+    },
+    {
+     "cell": "host-pool+ssd,c=12",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.0,
+     "resumed_ttft_p50_ms": 383.370791,
+     "resumed_ttft_all_p95_ms": 957.781136,
+     "all_ttft_p50_ms": 143.674209,
+     "calls": 1164.0
+    },
+    {
+     "cell": "host-pool+ssd,c=12",
+     "repeat": 2,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": "host paged out 36920 pages",
+     "resumed_recompute_share": 0.0,
+     "resumed_ttft_p50_ms": 420.925042,
+     "resumed_ttft_all_p95_ms": 1322.936596,
+     "all_ttft_p50_ms": 143.797959,
+     "calls": 1231.0
+    },
+    {
+     "cell": "stock-equal-memory,c=24",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.636953,
+     "resumed_ttft_p50_ms": 750.563438,
+     "resumed_ttft_all_p95_ms": 5858.817855,
+     "all_ttft_p50_ms": 153.155625,
+     "calls": 2448.0
+    },
+    {
+     "cell": "stock-equal-memory,c=24",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.656245,
+     "resumed_ttft_p50_ms": 898.85325,
+     "resumed_ttft_all_p95_ms": 9631.56825,
+     "all_ttft_p50_ms": 204.601125,
+     "calls": 2044.0
+    },
+    {
+     "cell": "stock-equal-memory,c=24",
+     "repeat": 2,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.679107,
+     "resumed_ttft_p50_ms": 1129.954771,
+     "resumed_ttft_all_p95_ms": 8302.5052,
+     "all_ttft_p50_ms": 178.494916,
+     "calls": 2329.0
+    },
+    {
+     "cell": "host-pool+ssd,c=24",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.094341,
+     "resumed_ttft_p50_ms": 489.520687,
+     "resumed_ttft_all_p95_ms": 1822.771829,
+     "all_ttft_p50_ms": 164.313021,
+     "calls": 2526.0
+    },
+    {
+     "cell": "host-pool+ssd,c=24",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.050638,
+     "resumed_ttft_p50_ms": 481.999458,
+     "resumed_ttft_all_p95_ms": 1871.785252,
+     "all_ttft_p50_ms": 171.355083,
+     "calls": 2013.0
+    },
+    {
+     "cell": "host-pool+ssd,c=24",
+     "repeat": 2,
+     "run_id": "20261012T152348Z-item2-capacity-rerun",
+     "excluded": "host paged out 192244 pages",
+     "resumed_recompute_share": 0.077612,
+     "resumed_ttft_p50_ms": 586.858458,
+     "resumed_ttft_all_p95_ms": 6267.979062,
+     "all_ttft_p50_ms": 178.569875,
+     "calls": 2411.0
+    },
+    {
+     "cell": "stock-equal-memory,c=36",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 1.0,
+     "resumed_ttft_p50_ms": 19366.975167,
+     "resumed_ttft_all_p95_ms": 30519.686367,
+     "all_ttft_p50_ms": 17995.8685,
+     "calls": 1353.0
+    },
+    {
+     "cell": "stock-equal-memory,c=36",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 1.0,
+     "resumed_ttft_p50_ms": 18257.273708,
+     "resumed_ttft_all_p95_ms": 25726.451104,
+     "all_ttft_p50_ms": 17277.552875,
+     "calls": 1438.0
+    },
+    {
+     "cell": "stock-equal-memory,c=36",
+     "repeat": 2,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 1.0,
+     "resumed_ttft_p50_ms": 19605.223271,
+     "resumed_ttft_all_p95_ms": 27789.870469,
+     "all_ttft_p50_ms": 19978.815521,
+     "calls": 1408.0
+    },
+    {
+     "cell": "host-pool+ssd,c=36",
+     "repeat": 0,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.537124,
+     "resumed_ttft_p50_ms": 12086.239625,
+     "resumed_ttft_all_p95_ms": 28635.764162,
+     "all_ttft_p50_ms": 11034.004521,
+     "calls": 1934.0
+    },
+    {
+     "cell": "host-pool+ssd,c=36",
+     "repeat": 1,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": null,
+     "resumed_recompute_share": 0.203417,
+     "resumed_ttft_p50_ms": 920.306375,
+     "resumed_ttft_all_p95_ms": 12839.941201,
+     "all_ttft_p50_ms": 439.722125,
+     "calls": 2955.0
+    },
+    {
+     "cell": "host-pool+ssd,c=36",
+     "repeat": 2,
+     "run_id": "20261012T060631Z-item2-capacity",
+     "excluded": "host paged out 58696 pages",
+     "resumed_recompute_share": 0.67773,
+     "resumed_ttft_p50_ms": 16166.55825,
+     "resumed_ttft_all_p95_ms": 28015.780156,
+     "all_ttft_p50_ms": 14670.815833,
+     "calls": 1694.0
+    }
+   ]
+  }
  ]
 }

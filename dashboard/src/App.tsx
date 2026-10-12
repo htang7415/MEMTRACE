@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useData, type Data } from "./data";
 import {
   Caching, ContextPolicies, Engines, GatewayContext, Hybrid, Lifetimes, Overview, Provenance, ProviderCache, Quality,
-  Replay, Reuse, Routing, Simulator,
+  Replay, Resume, Reuse, Routing, Simulator,
 } from "./pages/pages";
 
 const REPO = "https://github.com/htang7415/MEMTRACE";
@@ -40,6 +40,7 @@ const GROUPS: { label: string | null; pages: PageDef[] }[] = [
       { id: "provider", title: "Provider cache", Page: ProviderCache },
       { id: "lifetime", title: "Cache lifetime", Page: Lifetimes },
       { id: "reuse", title: "Reuse levers", Page: Reuse },
+      { id: "resume", title: "Resumed sessions", Page: Resume },
       { id: "simulator", title: "Simulator check", Page: Simulator },
     ],
   },

@@ -35,3 +35,25 @@ def test_interval_by_repeats() -> None:
     two = {"mean": 243.4, "ci_low": 0.0, "ci_high": 830.7, "std": 65.34, "n": 2}
     assert results_page.interval("recomputed_tokens_per_request", two) == "243.4 (197.2–289.6)"
     assert results_page.interval("errors", {**three, "n": 1}) == "2"
+
+
+def test_resume_section_lists_each_repeat_and_whether_it_counts() -> None:
+    row = {"resumed_ttft_p50_ms": 412.4, "resumed_ttft_all_p95_ms": 5909.0, "all_ttft_p50_ms": 174.0, "calls": 2417.0}
+    studies = [
+        {
+            "title": "Item 2",
+            "runs": ["r1", "r2"],
+            "verdict": "No win.",
+            "rows": [
+                {"cell": "tier,c=24", "repeat": 2, "excluded": "host paged out 24800 pages",
+                 "resumed_recompute_share": 0.081, **row},
+                {"cell": "tier,c=24", "repeat": 0, "excluded": None, "resumed_recompute_share": None, **row},
+            ],
+        }
+    ]  # fmt: skip
+    lines = results_page.resume_section(studies)
+    assert lines[0] == "## Resuming paused agent sessions" and "### Item 2" in lines and "No win." in lines
+    assert "Runs `r1`, `r2`." in lines
+    assert "| tier, concurrency 24 | 2 | 8.1% | 412 | 5,909 | 174 | 2,417 | no: host paged out 24800 pages |" in lines
+    assert "| tier, concurrency 24 | 0 |  | 412 | 5,909 | 174 | 2,417 | yes |" in lines
+    assert results_page.resume_section([]) == []

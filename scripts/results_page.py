@@ -1,4 +1,5 @@
-"""Write results/README.md: every published experiment's cells with 95% CIs, the analyses, and the platform drills.
+"""Write results/README.md: every published experiment's cells with 95% CIs, the resume track, the analyses, and the
+platform drills.
 
     python scripts/results_page.py      # after `memtrace report dashboard`; reads dashboard/public/data and data/
 
@@ -153,6 +154,57 @@ def experiment(name: str, metrics: list[str], result: dict[str, Any], entry: dic
     ]
 
 
+def resume_section(studies: list[dict[str, Any]]) -> list[str]:
+    """The resume track, repeat by repeat: a study's rule decides per repeat, so its trials are not averaged."""
+    if not studies:
+        return []
+    lines = [
+        "## Resuming paused agent sessions",
+        "",
+        "Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed"
+        " 4×. A call is resumed when its pause was at least 60 s. Each study's decision rule was fixed in its spec"
+        " (`../experiments/`) before it ran and reads the repeats one by one. A trial does not count when the host"
+        " paged or slept while it measured: it is rerun, or under the fallback graded only if every copy agrees."
+        " Shown: the trial each rule counted per arm and repeat (a later valid copy replaces a paged one).",
+        "",
+    ]
+    for study in studies:
+        rows = [
+            [
+                r["cell"].replace(",c=", ", concurrency "),
+                str(r["repeat"]),
+                "" if r["resumed_recompute_share"] is None else f"{100 * r['resumed_recompute_share']:.1f}%",
+                *("" if r[m] is None else f"{r[m]:,.0f}" for m in ("resumed_ttft_p50_ms", "resumed_ttft_all_p95_ms")),
+                "" if r["all_ttft_p50_ms"] is None else f"{r['all_ttft_p50_ms']:,.0f}",
+                "" if r["calls"] is None else f"{r['calls']:,.0f}",
+                "yes" if r["excluded"] is None else f"no: {r['excluded']}",
+            ]
+            for r in study["rows"]
+        ]
+        lines += [
+            f"### {study['title']}",
+            "",
+            study["verdict"],
+            "",
+            "Runs " + ", ".join(f"`{r}`" for r in study["runs"]) + ".",
+            "",
+            *table(
+                [
+                    "Arm",
+                    "Repeat",
+                    "Resumed prefix recomputed",
+                    "Resumed TTFT p50 (ms)",
+                    "Resumed TTFT p95, failed counted (ms)",
+                    "All-calls TTFT p50 (ms)",
+                    "Calls",
+                    "Counts",
+                ],
+                rows,
+            ),
+        ]
+    return lines
+
+
 def analyses_section(a: dict[str, Any]) -> list[str]:
     lines = ["## Analyses", ""]
     k = a.get("retention")
@@ -287,7 +339,9 @@ def main() -> None:
             if name in index:
                 result = json.loads((EXPORT / index[name]["file"]).read_text())
                 lines += experiment(name, metrics, result, index[name])
-    lines += analyses_section(json.loads((EXPORT / "analyses.json").read_text()))
+    analyses = json.loads((EXPORT / "analyses.json").read_text())
+    lines += resume_section(analyses.get("resume", []))
+    lines += analyses_section(analyses)
     lines += drills_section()
     OUT.write_text("\n".join(lines).rstrip() + "\n")
     print(f"wrote {OUT}")

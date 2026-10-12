@@ -1,6 +1,7 @@
 """Copy the latest results.json of each published experiment into the dashboard's static data dir, plus
 analyses.json: aggregates of the analyses that are not harness runs (provider-cache retention over the Copilot
-week, the simulator-vs-engine check, the BFCL engine gate).
+week, the simulator-vs-engine check, the BFCL engine gate), and the resume track: each study's trials as its fixed
+decision rule counted them, repeat by repeat, with its verdict.
 
 The dashboard reads only these files (plus index.json); nothing is fetched at runtime. Each result is
 validated against the result model first, so a stale or hand-edited bundle fails the export. The exported
@@ -21,6 +22,7 @@ from typing import Any
 import yaml
 
 from memtrace.harness.results import ExperimentResult, aggregate_cells, from_dict
+from memtrace.kv.resume_decision import invalid_reason, latest_trials
 
 # experiment name -> dashboard page
 EXPERIMENTS = {
@@ -66,6 +68,56 @@ WEEKEND = ("2026-06-06", "2026-06-07")
 GAP_BINS = ("<10s", "10-60s", "1-5min", "5-10min", "10-60min", ">1h")
 CAUSES = ("expiry", "short_gap_grew", "short_gap_shrank", "mid_gap", "compaction", "model_switch")
 LIFETIMES = ("5min", "1h", "24h")
+
+# The resume track (`memtrace run resume`): per study, its runs earliest first (a later valid trial replaces an
+# earlier one of the same arm and repeat, as the decision rule reads them) and the verdict of its fixed rule.
+RESUME_STUDIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    (
+        "R1: host pool + SSD vs stock at equal memory, one replica",
+        ("20261010T214304Z-r1-resume-ssd-rerun", "20261011T052531Z-r1-resume-ssd-rerun"),  # R1's own run paged
+        "Resumed recompute 87 / 57 / 95% lower and resumed TTFT p95 41–53% lower with the tier, but resumed TTFT p50"
+        " only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls"
+        " TTFT p50 is 1–7% higher (the tier writes every computed block).",
+    ),
+    (
+        "R2: R1 with every prompt doubled",
+        ("20261011T174012Z-r2-resume-prefix",),
+        "Only repeat 1 ran without paging: recompute 63% lower, resumed TTFT p50 7% and p95 38% lower. The median"
+        " misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not"
+        " rerun.",
+    ),
+    (
+        "Item 1: two replicas, round robin + one shared SSD tier vs session affinity + private tiers",
+        ("20261011T224922Z-s2-shared-tier", "20261012T032542Z-s2-shared-tier-rerun"),
+        "Affinity recomputes 45–89% less resumed prefix than round robin with private tiers. A shared tier wins back"
+        " 91–100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat"
+        " 2: 68% more resumed recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls"
+        " affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict"
+        " is the rule's fallback (a paged repeat counts only if all its copies agree).",
+    ),
+    (
+        "Item 2 probe: load levels for the capacity sweep (stock arm)",
+        ("20261012T045950Z-item2-load-probe",),
+        "Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes:"
+        " every reusable prefix is recomputed and the median TTFT reaches 23–33 s. This set the sweep's levels (12, 24, 36)"
+        " and its SLO: resumed TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.",
+    ),
+    (
+        "Item 2: sessions served at once within the SLO, one replica",
+        ("20261012T060631Z-item2-capacity", "20261012T152348Z-item2-capacity-rerun"),
+        "Capacity (the highest level within the SLO in every repeat) is 12 for both arms: no win. The tier met 24 in"
+        " two of three repeats (1.8–1.9 s against stock's 5.9–9.6 s) and missed repeat 2 (5.9 s; rerun 6.3 s; both"
+        " copies paged and agree). One session there outgrows the context window and fails 9 calls in both arms."
+        " At 36 both arms miss; the tier serves 20–105% more calls.",
+    ),
+)
+RESUME_METRICS = (
+    "resumed_recompute_share",
+    "resumed_ttft_p50_ms",
+    "resumed_ttft_all_p95_ms",
+    "all_ttft_p50_ms",
+    "calls",
+)
 
 
 def latest_results(search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[str, Path]:
@@ -152,6 +204,31 @@ def bfcl_gate(root: Path = BFCL) -> list[dict[str, Any]]:
     return rows
 
 
+def resume_track(runs_dir: Path = SEARCH_DIRS[0]) -> list[dict[str, Any]]:
+    """Each resume study's trials as its decision rule reads them: one per arm and repeat, flagged when it does not
+    count (paged or slept while it measured). Studies whose runs are not on disk are left out."""
+    studies = []
+    for title, run_ids, verdict in RESUME_STUDIES:
+        paths = [runs_dir / r / "results.json" for r in run_ids]
+        if not all(p.exists() for p in paths):
+            continue
+        runs = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
+        trials = latest_trials(runs)
+        order = list(dict.fromkeys(t["cell_id"].removeprefix("arm=") for run in runs for t in run["trials"]))
+        rows = [
+            {
+                "cell": cell,
+                "repeat": seed,
+                "run_id": trials[(cell, seed)]["run_id"],
+                "excluded": invalid_reason(trials[(cell, seed)]),
+                **{m: trials[(cell, seed)]["metrics"].get(m) for m in RESUME_METRICS},
+            }
+            for cell, seed in sorted(trials, key=lambda k: (order.index(k[0]), k[1]))
+        ]
+        studies.append({"title": title, "runs": list(run_ids), "verdict": verdict, "rows": rows})
+    return studies
+
+
 def spec_descriptions(experiments: Path = EXPERIMENTS_DIR) -> dict[str, str]:
     """Experiment name -> description of its spec in experiments/."""
     out = {}
@@ -203,6 +280,7 @@ def export(out_dir: Path, search_dirs: tuple[Path, ...] = SEARCH_DIRS) -> dict[s
         "retention": retention(),
         "simulator_check": simulator_check(latest.get("k11-engine-kv-check")),
         "bfcl_gate": bfcl_gate(),
+        "resume": resume_track(search_dirs[0]),
     }
     (out_dir / "analyses.json").write_text(json.dumps(analyses, indent=1) + "\n", encoding="utf-8")
     return index
