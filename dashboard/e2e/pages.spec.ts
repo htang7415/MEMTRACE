@@ -13,7 +13,7 @@ const PAGES = [
   ["provider", "Provider cache"],
   ["lifetime", "Cache lifetime"],
   ["reuse", "What buys the most reuse"],
-  ["resume", "Resuming paused agent sessions"],
+  ["resume", "Paused agent sessions"],
   ["simulator", "Simulator vs a real engine"],
   ["provenance", "Run provenance"],
 ] as const;

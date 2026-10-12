@@ -697,7 +697,7 @@ const secs = (v: number) => `${fmt(v, 1)} s`;
 const level = (cell: string) => cell.split(",c=")[1];
 const armOf = (cell: string) => cell.split(",c=")[0];
 
-/** A study's chart: resumed recompute per repeat, or in a load sweep the worst repeat's resumed p95 per level (what
+/** A study's chart: returning-call recompute per repeat, or in a load sweep the worst repeat's returning-call p95 per level (what
  * the capacity rule holds to the SLO). */
 function ResumeCard({ study }: { study: ResumeStudy }) {
   const rows = study.rows;
@@ -713,7 +713,7 @@ function ResumeCard({ study }: { study: ResumeStudy }) {
   };
   const s = plain(xs, Object.fromEntries(arms.map((a) => [a, xs.map((x) => value(a, x))])));
   const table = <DataTable
-    columns={["Arm", "Repeat", "Resumed recomputed", "Resumed p50", "Resumed p95 (failed counted)", "All-calls p50", "Calls", "Counts"]}
+    columns={["Arm", "Repeat", "Returning recomputed", "Returning p50", "Returning p95 (failed counted)", "All-calls p50", "Calls", "Counts"]}
     rows={rows.map((r) => [
       sweep ? `${armOf(r.cell)}, ${level(r.cell)} at once` : r.cell, r.repeat,
       r.resumed_recompute_share === null ? "" : pct1(r.resumed_recompute_share),
@@ -725,7 +725,7 @@ function ResumeCard({ study }: { study: ResumeStudy }) {
   return (
     <Card title={study.title} subtitle={study.verdict} table={table}>
       <p className="text-xs" style={{ color: "var(--muted)" }}>
-        {sweep ? "Worst repeat's resumed TTFT p95 (failed calls counted) per sessions at once" : "Share of resumed calls' reusable prefix recomputed, per repeat"}
+        {sweep ? "Worst repeat's returning-call TTFT p95 (failed calls counted) per sessions at once" : "Share of returning calls' reusable prefix recomputed, per repeat"}
       </p>
       <BarCI groups={s} format={sweep ? secs : pct1} axisFormat={sweep ? secs : pct} />
     </Card>
@@ -734,9 +734,9 @@ function ResumeCard({ study }: { study: ResumeStudy }) {
 
 export function Resume({ data }: { data: Data }) {
   const studies = data.analyses.resume ?? [];
-  if (!studies.length) return <Section title="Resuming paused agent sessions"><Missing what="the resume track" /></Section>;
+  if (!studies.length) return <Section title="Paused agent sessions"><Missing what="the paused-session study" /></Section>;
   return (
-    <Section title="Resuming paused agent sessions" intro="Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×; a call is resumed when its pause was at least 60 s. Each study's decision rule was fixed in its spec before it ran and reads the repeats one by one, so trials are shown per repeat, not averaged. A trial does not count when the host paged or slept while it measured (table view: Counts); it is rerun, or under the fallback graded only if every copy agrees.">
+    <Section title="Paused agent sessions" intro="Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×; a call is returning when its pause was at least 60 s. Each study's decision rule was fixed in its spec before it ran and reads the repeats one by one, so trials are shown per repeat, not averaged. A trial does not count when the host paged or slept while it measured (table view: Counts); it is rerun, or under the fallback graded only if every copy agrees.">
       {studies.map((study) => <ResumeCard key={study.title} study={study} />)}
     </Section>
   );

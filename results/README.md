@@ -510,17 +510,17 @@ Run `20261007T231754Z-k11-engine-kv-check-pilot-imported`, imported (recorded be
 |---|---|---|---|
 | default | 75.6% | 2,517 | 1 |
 
-## Resuming paused agent sessions
+## Paused agent sessions
 
-Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×. A call is resumed when its pause was at least 60 s. Each study's decision rule was fixed in its spec (`../experiments/`) before it ran and reads the repeats one by one. A trial does not count when the host paged or slept while it measured: it is rerun, or under the fallback graded only if every copy agrees. Shown: the trial each rule counted per arm and repeat (a later valid copy replaces a paged one).
+Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×. A call is returning when its pause was at least 60 s. Each study's decision rule was fixed in its spec (`../experiments/`) before it ran and reads the repeats one by one. A trial does not count when the host paged or slept while it measured: it is rerun, or under the fallback graded only if every copy agrees. Shown: the trial each rule counted per arm and repeat (a later valid copy replaces a paged one).
 
 ### R1: host pool + SSD vs stock at equal memory, one replica
 
-Resumed recompute 87 / 57 / 95% lower and resumed TTFT p95 41–53% lower with the tier, but resumed TTFT p50 only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls TTFT p50 is 1–7% higher (the tier writes every computed block).
+Returning-call recompute 87 / 57 / 95% lower and returning-call TTFT p95 41–53% lower with the tier, but returning-call TTFT p50 only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls TTFT p50 is 1–7% higher (the tier writes every computed block).
 
 Runs `20261010T214304Z-r1-resume-ssd-rerun`, `20261011T052531Z-r1-resume-ssd-rerun`.
 
-| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+| Arm | Repeat | Returning calls' prefix recomputed | Returning-call TTFT p50 (ms) | Returning-call TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
 |---|---|---|---|---|---|---|---|
 | stock-equal-memory | 0 | 32.6% | 415 | 2,451 | 144 | 818 | yes |
 | stock-equal-memory | 1 | 34.3% | 381 | 3,181 | 135 | 1,168 | yes |
@@ -531,11 +531,11 @@ Runs `20261010T214304Z-r1-resume-ssd-rerun`, `20261011T052531Z-r1-resume-ssd-rer
 
 ### R2: R1 with every prompt doubled
 
-Only repeat 1 ran without paging: recompute 63% lower, resumed TTFT p50 7% and p95 38% lower. The median misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not rerun.
+Only repeat 1 ran without paging: recompute 63% lower, returning-call TTFT p50 7% and p95 38% lower. The median misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not rerun.
 
 Runs `20261011T174012Z-r2-resume-prefix`.
 
-| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+| Arm | Repeat | Returning calls' prefix recomputed | Returning-call TTFT p50 (ms) | Returning-call TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
 |---|---|---|---|---|---|---|---|
 | stock-equal-memory | 0 | 37.7% | 1,252 | 6,592 | 217 | 828 | no: host paged out 140104 pages |
 | stock-equal-memory | 1 | 38.6% | 712 | 6,040 | 198 | 1,204 | yes |
@@ -546,11 +546,11 @@ Runs `20261011T174012Z-r2-resume-prefix`.
 
 ### Item 1: two replicas, round robin + one shared SSD tier vs session affinity + private tiers
 
-Affinity recomputes 45–89% less resumed prefix than round robin with private tiers. A shared tier wins back 91–100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat 2: 68% more resumed recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict is the rule's fallback (a paged repeat counts only if all its copies agree).
+Affinity recomputes 45–89% less returning-call prefix than round robin with private tiers. A shared tier wins back 91–100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat 2: 68% more returning-call recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict is the rule's fallback (a paged repeat counts only if all its copies agree).
 
 Runs `20261011T224922Z-s2-shared-tier`, `20261012T032542Z-s2-shared-tier-rerun`.
 
-| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+| Arm | Repeat | Returning calls' prefix recomputed | Returning-call TTFT p50 (ms) | Returning-call TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
 |---|---|---|---|---|---|---|---|
 | affinity+private | 0 | 4.6% | 465 | 2,395 | 116 | 814 | no: host paged out 379620 pages |
 | affinity+private | 1 | 14.9% | 399 | 1,734 | 107 | 1,130 | no: host paged out 117420 pages |
@@ -564,11 +564,11 @@ Runs `20261011T224922Z-s2-shared-tier`, `20261012T032542Z-s2-shared-tier-rerun`.
 
 ### Item 2 probe: load levels for the capacity sweep (stock arm)
 
-Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes: every reusable prefix is recomputed and the median TTFT reaches 23–33 s. This set the sweep's levels (12, 24, 36) and its SLO: resumed TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.
+Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes: every reusable prefix is recomputed and the median TTFT reaches 23–33 s. This set the sweep's levels (12, 24, 36) and its SLO: returning-call TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.
 
 Runs `20261012T045950Z-item2-load-probe`.
 
-| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+| Arm | Repeat | Returning calls' prefix recomputed | Returning-call TTFT p50 (ms) | Returning-call TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
 |---|---|---|---|---|---|---|---|
 | stock-equal-memory, concurrency 12 | 0 | 33.6% | 783 | 2,623 | 144 | 327 | no: host paged out 257052 pages |
 | stock-equal-memory, concurrency 24 | 0 | 69.5% | 1,434 | 14,042 | 201 | 936 | no: host paged out 13020 pages |
@@ -581,7 +581,7 @@ Capacity (the highest level within the SLO in every repeat) is 12 for both arms:
 
 Runs `20261012T060631Z-item2-capacity`, `20261012T152348Z-item2-capacity-rerun`.
 
-| Arm | Repeat | Resumed prefix recomputed | Resumed TTFT p50 (ms) | Resumed TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
+| Arm | Repeat | Returning calls' prefix recomputed | Returning-call TTFT p50 (ms) | Returning-call TTFT p95, failed counted (ms) | All-calls TTFT p50 (ms) | Calls | Counts |
 |---|---|---|---|---|---|---|---|
 | stock-equal-memory, concurrency 12 | 0 | 32.6% | 481 | 2,319 | 143 | 820 | yes |
 | stock-equal-memory, concurrency 12 | 1 | 34.3% | 396 | 2,817 | 136 | 1,170 | no: host paged out 39228 pages |

@@ -1,4 +1,4 @@
-"""Write results/README.md: every published experiment's cells with 95% CIs, the resume track, the analyses, and the
+"""Write results/README.md: every published experiment's cells with 95% CIs, the paused-session study, the analyses, and the
 platform drills.
 
     python scripts/results_page.py      # after `memtrace report dashboard`; reads dashboard/public/data and data/
@@ -155,14 +155,14 @@ def experiment(name: str, metrics: list[str], result: dict[str, Any], entry: dic
 
 
 def resume_section(studies: list[dict[str, Any]]) -> list[str]:
-    """The resume track, repeat by repeat: a study's rule decides per repeat, so its trials are not averaged."""
+    """The paused-session study, repeat by repeat: a study's rule decides per repeat, so its trials are not averaged."""
     if not studies:
         return []
     lines = [
-        "## Resuming paused agent sessions",
+        "## Paused agent sessions",
         "",
         "Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed"
-        " 4×. A call is resumed when its pause was at least 60 s. Each study's decision rule was fixed in its spec"
+        " 4×. A call is returning when its pause was at least 60 s. Each study's decision rule was fixed in its spec"
         " (`../experiments/`) before it ran and reads the repeats one by one. A trial does not count when the host"
         " paged or slept while it measured: it is rerun, or under the fallback graded only if every copy agrees."
         " Shown: the trial each rule counted per arm and repeat (a later valid copy replaces a paged one).",
@@ -192,9 +192,9 @@ def resume_section(studies: list[dict[str, Any]]) -> list[str]:
                 [
                     "Arm",
                     "Repeat",
-                    "Resumed prefix recomputed",
-                    "Resumed TTFT p50 (ms)",
-                    "Resumed TTFT p95, failed counted (ms)",
+                    "Returning calls' prefix recomputed",
+                    "Returning-call TTFT p50 (ms)",
+                    "Returning-call TTFT p95, failed counted (ms)",
                     "All-calls TTFT p50 (ms)",
                     "Calls",
                     "Counts",

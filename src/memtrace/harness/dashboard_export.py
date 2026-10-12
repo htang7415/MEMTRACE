@@ -1,6 +1,6 @@
 """Copy the latest results.json of each published experiment into the dashboard's static data dir, plus
 analyses.json: aggregates of the analyses that are not harness runs (provider-cache retention over the Copilot
-week, the simulator-vs-engine check, the BFCL engine gate), and the resume track: each study's trials as its fixed
+week, the simulator-vs-engine check, the BFCL engine gate), and the paused-session study: each study's trials as its fixed
 decision rule counted them, repeat by repeat, with its verdict.
 
 The dashboard reads only these files (plus index.json); nothing is fetched at runtime. Each result is
@@ -69,29 +69,29 @@ GAP_BINS = ("<10s", "10-60s", "1-5min", "5-10min", "10-60min", ">1h")
 CAUSES = ("expiry", "short_gap_grew", "short_gap_shrank", "mid_gap", "compaction", "model_switch")
 LIFETIMES = ("5min", "1h", "24h")
 
-# The resume track (`memtrace run resume`): per study, its runs earliest first (a later valid trial replaces an
+# The paused-session study (`memtrace run resume`): per study, its runs earliest first (a later valid trial replaces an
 # earlier one of the same arm and repeat, as the decision rule reads them) and the verdict of its fixed rule.
 RESUME_STUDIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (
         "R1: host pool + SSD vs stock at equal memory, one replica",
         ("20261010T214304Z-r1-resume-ssd-rerun", "20261011T052531Z-r1-resume-ssd-rerun"),  # R1's own run paged
-        "Resumed recompute 87 / 57 / 95% lower and resumed TTFT p95 41–53% lower with the tier, but resumed TTFT p50"
+        "Returning-call recompute 87 / 57 / 95% lower and returning-call TTFT p95 41–53% lower with the tier, but returning-call TTFT p50"
         " only 0 / 7 / 18% lower: the rule's 15% in every repeat holds for recompute, not for the median. All-calls"
         " TTFT p50 is 1–7% higher (the tier writes every computed block).",
     ),
     (
         "R2: R1 with every prompt doubled",
         ("20261011T174012Z-r2-resume-prefix",),
-        "Only repeat 1 ran without paging: recompute 63% lower, resumed TTFT p50 7% and p95 38% lower. The median"
+        "Only repeat 1 ran without paging: recompute 63% lower, returning-call TTFT p50 7% and p95 38% lower. The median"
         " misses the 15% bar in that repeat, so a larger prefix does not move it either; the paged repeats were not"
         " rerun.",
     ),
     (
         "Item 1: two replicas, round robin + one shared SSD tier vs session affinity + private tiers",
         ("20261011T224922Z-s2-shared-tier", "20261012T032542Z-s2-shared-tier-rerun"),
-        "Affinity recomputes 45–89% less resumed prefix than round robin with private tiers. A shared tier wins back"
+        "Affinity recomputes 45–89% less returning-call prefix than round robin with private tiers. A shared tier wins back"
         " 91–100% of the tokens round robin recomputes, but it is not within 15% of affinity in every repeat (repeat"
-        " 2: 68% more resumed recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls"
+        " 2: 68% more returning-call recompute, 38% higher p95), and its all-calls TTFT p50 is 10–26% higher, as calls"
         " affinity serves from the GPU are restored from the SSD. Every trial paged while it measured; the verdict"
         " is the rule's fallback (a paged repeat counts only if all its copies agree).",
     ),
@@ -100,7 +100,7 @@ RESUME_STUDIES: tuple[tuple[str, tuple[str, ...], str], ...] = (
         ("20261012T045950Z-item2-load-probe",),
         "Requests queue from 24 sessions at once (waiting in 27% of samples), and from 36 the GPU cache thrashes:"
         " every reusable prefix is recomputed and the median TTFT reaches 23–33 s. This set the sweep's levels (12, 24, 36)"
-        " and its SLO: resumed TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.",
+        " and its SLO: returning-call TTFT p95 (failed calls counted) ≤ 5,300 ms, twice the value at 12.",
     ),
     (
         "Item 2: sessions served at once within the SLO, one replica",
@@ -205,7 +205,7 @@ def bfcl_gate(root: Path = BFCL) -> list[dict[str, Any]]:
 
 
 def resume_track(runs_dir: Path = SEARCH_DIRS[0]) -> list[dict[str, Any]]:
-    """Each resume study's trials as its decision rule reads them: one per arm and repeat, flagged when it does not
+    """Each paused-session study's trials as its decision rule reads them: one per arm and repeat, flagged when it does not
     count (paged or slept while it measured). Studies whose runs are not on disk are left out."""
     studies = []
     for title, run_ids, verdict in RESUME_STUDIES:
