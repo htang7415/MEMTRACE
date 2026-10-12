@@ -52,7 +52,7 @@ def test_resume_section_lists_each_repeat_and_whether_it_counts() -> None:
         }
     ]  # fmt: skip
     lines = results_page.resume_section(studies)
-    assert lines[0] == "## Resuming paused agent sessions" and "### Item 2" in lines and "No win." in lines
+    assert lines[0] == "## Paused agent sessions" and "### Item 2" in lines and "No win." in lines
     assert "Runs `r1`, `r2`." in lines
     assert "| tier, concurrency 24 | 2 | 8.1% | 412 | 5,909 | 174 | 2,417 | no: host paged out 24800 pages |" in lines
     assert "| tier, concurrency 24 | 0 |  | 412 | 5,909 | 174 | 2,417 | yes |" in lines

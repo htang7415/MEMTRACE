@@ -40,7 +40,7 @@ const GROUPS: { label: string | null; pages: PageDef[] }[] = [
       { id: "provider", title: "Provider cache", Page: ProviderCache },
       { id: "lifetime", title: "Cache lifetime", Page: Lifetimes },
       { id: "reuse", title: "Reuse levers", Page: Reuse },
-      { id: "resume", title: "Resumed sessions", Page: Resume },
+      { id: "resume", title: "Paused sessions", Page: Resume },
       { id: "simulator", title: "Simulator check", Page: Simulator },
     ],
   },
