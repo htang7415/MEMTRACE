@@ -41,6 +41,8 @@ pip install --require-hashes -r requirements/dev.lock && pip install --no-deps -
 memtrace data fetch                                   # public datasets, pinned and SHA-256 checked
 memtrace run experiment experiments/e2_prefix_caching.yaml   # any spec in experiments/; results in data/runs/
 memtrace run kv-sim experiments/k10a_copilot_reuse_routing.yaml
+memtrace run resume experiments/r1_resume_ssd_rerun.yaml # SSD KV tier on resumed sessions (vllm-metal dev build)
+memtrace report resume-decision data/runs/<run>         # the spec's fixed decision rule, repeat by repeat
 cd dashboard && npm ci && npm run data && npm run dev # view the results
 ```
 
@@ -75,7 +77,7 @@ and rerun the experiments it affects; CI checks that `deploy/`, `scripts/` and `
 | Path | What it is |
 | --- | --- |
 | `src/memtrace/harness` | Experiment specs, targets (engines, llm-d, the gateway, Gemini), workloads, load generation, 95% CIs, provenance |
-| `src/memtrace/kv` | Provider-cache retention analysis, KV-cache simulator, live replays onto real engines |
+| `src/memtrace/kv` | Provider-cache retention analysis, KV-cache simulator, live replays onto real engines, the resume runner (paused agent sessions on a real SSD KV tier) and its decision rules |
 | `src/memtrace/agents`, `evals` | Agent loops and context policies; accuracy and cost studies with a calibrated LLM judge |
 | `src/memtrace/datasets`, `serving` | Pinned datasets and loaders; prompt generators, BFCL engine gate, hosted adapter |
 | `gateway/`, `epp-plugins/` | Go AI gateway; custom llm-d scorers |

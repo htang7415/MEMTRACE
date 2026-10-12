@@ -92,6 +92,17 @@ holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are 
 - `kv/validate.py` replays a real engine's run through the simulator and compares prefix-cache hits per gap
   (K11); `kv/live.py` and `kv/gateway_replay.py` replay the same sessions in wall-clock time through llm-d or the
   gateway onto real engines.
+- `kv/resume.py` (`memtrace run resume SPEC`): the resume scenario on real engines. Copilot sessions are replayed
+  closed-loop with their recorded pauses onto one or more `vllm-metal` engines, optionally with an SSD KV tier
+  (vLLM's offloading connector: a host-memory pool plus a file-system tier). Before every call the engine's
+  `/tokenize` gives the prefix it shares with the session's previous call in whole KV blocks, recorded next to
+  what the engine served from cache. Arms set the engine, the tier, the routing across replicas (`affinity` or
+  `round_robin`) and private or shared stores; `levels` sweeps concurrency. Each trial starts with empty stores,
+  samples the engines' queue gauges, and counts swap-outs over its measured window only.
+- `kv/restore_bench.py` (`memtrace run restore-bench`) times a GPU hit, an SSD restore and a recompute by prefix
+  length; `kv/resume_decision.py` (`memtrace report resume-decision`) applies a spec's fixed decision rule repeat
+  by repeat. A trial counts only if the host neither slept nor paged while it measured, and a later valid copy
+  replaces a paged one.
 
 ## AI gateway (`gateway/`, Go)
 
@@ -112,8 +123,8 @@ holds the failover and autoscaling drills. Prometheus, alert rules and KEDA are 
   vLLM and llama.cpp, and Grafana with a provisioned serving dashboard (Compose; every port on 127.0.0.1).
 - `dashboard/`: a static Vite + React + Recharts site. `memtrace report dashboard` exports the latest complete
   run of each published experiment from `data/runs/` (validated against the result model), plus aggregates of
-  the analyses that are not harness runs; TypeScript types are generated from the result JSON Schema, so schema
-  drift fails the build.
+  the analyses that are not harness runs, and the resume track repeat by repeat; TypeScript types are generated
+  from the result JSON Schema, so schema drift fails the build.
 
 ## Components (`components.lock`)
 
