@@ -24,6 +24,7 @@ from memtrace.kv.resume import (
     replay,
     replica_stores,
     resume_metrics,
+    sample_queue,
     swapouts_from,
 )
 
@@ -128,7 +129,9 @@ def test_resume_metrics() -> None:
 
 def test_committed_specs_load() -> None:
     specs = [p for p in Path("experiments").glob("r*_resume_*.yaml") if not p.name.startswith("._")]
-    specs += [Path("experiments/s2_shared_tier.yaml"), Path("experiments/s2_shared_tier_rerun.yaml")]
+    specs += [
+        Path(f"experiments/{name}.yaml") for name in ("s2_shared_tier", "s2_shared_tier_rerun", "item2_load_probe")
+    ]
     assert specs
     for path in specs:
         spec = load_spec(path)
@@ -184,7 +187,7 @@ def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(resume_mod, "verified_path", lambda rel: Path(rel))
     counters = {"prefix_cache_queries_total": 1000.0, "prefix_cache_hits_total": 750.0,
                 "external_prefix_cache_hits_total": 250.0}  # fmt: skip
-    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url: counters)
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url, *a: counters)
     monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
     monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: {"swapouts": 5})  # no paging while measured
     spec = yaml.safe_load(Path("experiments/r1_resume_ssd.yaml").read_text())
@@ -204,6 +207,70 @@ def test_run_end_to_end_with_a_fake_engine(tmp_path: Path, monkeypatch: pytest.M
     assert not list((tmp_path / "store").rglob("block"))  # every trial's store is removed after it
     assert len((out / "requests.jsonl").read_text().splitlines()) == 8
     assert all(t["metrics"]["host_swapouts_measured"] == 0 and t["quiet_host_ok"] for t in result["trials"])
+
+
+def test_queue_samples_sum_replicas_and_count_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
+    waiting = iter([0.0, 1.0, 0.0, 0.0] + [2.0] * 1000)
+    monkeypatch.setattr(
+        resume_mod,
+        "scrape_vllm_counters",
+        lambda url, names: {"num_requests_waiting": next(waiting), "num_requests_running": 3.0},
+    )
+    end = sample_queue(["a", "b"], delay_s=0.0, interval_s=0.01)
+    time.sleep(0.2)
+    got = end()
+    assert got["engine_running_mean"] == 6.0  # two replicas, 3 each
+    assert 0 < got["engine_waiting_share"] <= 1 and got["engine_waiting_mean"] > 0
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url, names: {})  # unreachable
+    assert sample_queue(["a"], delay_s=0.0, interval_s=0.01)() == {}
+
+
+def test_levels_run_each_concurrency_as_its_own_cell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seqs: list[int] = []
+    concurrencies: list[int] = []
+
+    class FakeEngine:
+        base_urls = ["http://fake"]
+
+        def __init__(self, kind: str, params: dict[str, Any], log_dir: Path) -> None:
+            seqs.append(params["max_num_seqs"])
+
+        def __enter__(self) -> "FakeEngine":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def describe(self) -> dict[str, Any]:
+            return {"kind": "fake"}
+
+    def fake_replay(sessions: Any, *, concurrency: int, **kw: Any) -> list[CallRecord]:
+        concurrencies.append(concurrency)
+        return [_rec(None, 0, 0), _rec(120.0, 1000, 250)]
+
+    monkeypatch.setattr(resume_mod, "make_target", FakeEngine)
+    monkeypatch.setattr(resume_mod, "replay", fake_replay)
+    monkeypatch.setattr(resume_mod, "load_sessions", lambda *a: [])
+    monkeypatch.setattr(resume_mod, "verified_path", lambda rel: Path(rel))
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url, *a: {})
+    monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
+    monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: {"swapouts": 5})
+    spec = yaml.safe_load(Path("experiments/r1_resume_ssd_rerun.yaml").read_text())
+    spec.update(repeats=1, levels=[12, 24], kv_store_dir=str(tmp_path / "store"),
+                quiet_host={"max_load_1m": 1e9, "wait_s": 0})  # fmt: skip
+    spec["replay"]["warmup_s"] = 0
+    path = tmp_path / "s.yaml"
+    path.write_text(yaml.safe_dump(spec, sort_keys=False))
+    result = json.loads((resume_mod.run(path, tmp_path / "runs") / "results.json").read_text())
+    cells = [t["cell_id"] for t in result["trials"]]
+    assert cells == [
+        "arm=stock-equal-memory,c=12",
+        "arm=host-pool+ssd,c=12",
+        "arm=stock-equal-memory,c=24",
+        "arm=host-pool+ssd,c=24",
+    ]
+    assert seqs == concurrencies == [12, 12, 24, 24]
+    assert all(t["metrics"]["sessions_used"] == 1 for t in result["trials"])
 
 
 def test_swapouts_count_only_from_the_measured_window(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -283,7 +350,7 @@ def test_run_with_two_replicas_routes_calls_and_roots_stores(tmp_path: Path, mon
     monkeypatch.setattr(resume_mod, "stream_chat", fake_stream_chat)
     monkeypatch.setattr(resume_mod, "load_sessions", lambda *a: [])
     monkeypatch.setattr(resume_mod, "verified_path", lambda rel: Path(rel))
-    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url: {"prefix_cache_hits_total": 10.0})
+    monkeypatch.setattr(resume_mod, "scrape_vllm_counters", lambda url, *a: {"prefix_cache_hits_total": 10.0})
     monkeypatch.setattr(bundle_mod, "keep_awake", lambda: None)
     monkeypatch.setattr(resume_mod, "host_swap_pages", lambda: {"swapouts": 5})
     spec = yaml.safe_load(Path("experiments/s2_shared_tier.yaml").read_text())

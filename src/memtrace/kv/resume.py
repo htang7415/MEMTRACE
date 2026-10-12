@@ -21,6 +21,9 @@ With `replicas` > 1 each trial starts that many engines, and the arm's `routing`
 to each replica, or with `kv_tier.shared` one store root that all replicas read and write (block files are named by
 content hash, so an engine finds blocks another one wrote).
 
+`levels` sweeps load: each level is a concurrency, run with the engine's `max_num_seqs` at the same value, as its own
+cell (`arm=<arm>,c=<level>`). While a trial measures, the engines' queue gauges are sampled every second.
+
     memtrace run resume experiments/r0_resume_baseline.yaml [--out data/runs]
 """
 
@@ -420,6 +423,43 @@ def swapouts_from(delay_s: float) -> Callable[[], float | None]:
     return end
 
 
+QUEUE_GAUGES = ("vllm:num_requests_waiting", "vllm:num_requests_running")
+
+
+def sample_queue(base_urls: Sequence[str], delay_s: float, interval_s: float = 1.0) -> Callable[[], dict[str, float]]:
+    """Sample the engines' queue gauges every `interval_s` from `delay_s` from now (the measured window's start); the
+    returned function stops and gives the mean requests waiting and running (summed over replicas) and the share of
+    samples with any request waiting. {} if no sample was read."""
+    samples: list[tuple[float, float]] = []
+    stop = threading.Event()
+
+    def loop() -> None:
+        if stop.wait(delay_s):
+            return
+        while not stop.wait(interval_s):
+            got = [scrape_vllm_counters(url, QUEUE_GAUGES) for url in base_urls]
+            if all(got):
+                samples.append(
+                    (sum(g["num_requests_waiting"] for g in got), sum(g["num_requests_running"] for g in got))
+                )
+
+    thread = threading.Thread(target=loop, daemon=True)
+    thread.start()
+
+    def end() -> dict[str, float]:
+        stop.set()
+        thread.join()
+        if not samples:
+            return {}
+        return {
+            "engine_waiting_mean": sum(w for w, _ in samples) / len(samples),
+            "engine_waiting_share": sum(w > 0 for w, _ in samples) / len(samples),
+            "engine_running_mean": sum(r for _, r in samples) / len(samples),
+        }
+
+    return end
+
+
 def run(spec_path: Path, out_root: Path) -> Path:
     spec = load_spec(spec_path)
     rp = spec["replay"]
@@ -432,21 +472,24 @@ def run(spec_path: Path, out_root: Path) -> Path:
     render = Renderer(float(rp["scale"]))
     bundle = RunBundle(spec, out_root, quiet_host=QuietHost(**spec.get("quiet_host", {})))
     replicas = int(spec.get("replicas", 1))
+    levels: list[int | None] = list(spec.get("levels") or [None])
     for rep in range(int(spec.get("repeats", 1))):
         seed = seed0 * 1000 + rep
-        for arm in spec["arms"]:
-            cell_id = f"arm={arm}"
+        for level, arm in itertools.product(levels, spec["arms"]):
+            cell_id = f"arm={arm}" if level is None else f"arm={arm},c={level}"
             label = f"{cell_id}/r{rep}"
             # A fresh, empty disk tier per trial: a store left by another arm or repeat would serve its blocks.
             store = kv_store_root(spec) / bundle.run_id / label.replace("/", "_")
             shutil.rmtree(store, ignore_errors=True)
             arm_spec = spec["arms"][arm]
             stores = replica_stores(store, replicas, bool((arm_spec.get("kv_tier") or {}).get("shared")))
-            params = [arm_params(spec["target"], arm_spec, s) for s in stores]
+            target = spec["target"] if level is None else {**spec["target"], "max_num_seqs": level}
+            params = [arm_params(target, arm_spec, s) for s in stores]
             for i, p in enumerate(params):
                 p["base_port"] = int(p.get("base_port", 8200)) + i
             records: list[CallRecord] = []
-            with bundle.trial(cell_id, {"arm": arm}, repeat=rep, seed=seed, label=label) as trial:
+            cell = {"arm": arm} if level is None else {"arm": arm, "concurrency": level}
+            with bundle.trial(cell_id, cell, repeat=rep, seed=seed, label=label) as trial:
                 with ExitStack() as stack:
                     log_dir = bundle.log_dir(label)
                     targets = [
@@ -458,6 +501,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                     base_urls = [t.base_urls[0] for t in targets]
                     # Engine start-up pages the host (weights, KV allocation); only the measured window must not.
                     measured_swapouts = swapouts_from(float(rp["warmup_s"]))
+                    queue = sample_queue(base_urls, float(rp["warmup_s"]))
                     routing = str(arm_spec.get("routing", "round_robin"))
                     records = replay(
                         sessions,
@@ -472,7 +516,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                             t0=time.perf_counter(),
                             route=make_router(routing, replicas),
                         ),
-                        concurrency=int(rp["concurrency"]),
+                        concurrency=int(rp["concurrency"]) if level is None else level,
                         horizon_s=float(rp["horizon_s"]),
                         stagger_s=float(rp.get("stagger_s", 30.0)),
                         idle_cap_s=float(spec.get("idle_cap_s", 3600.0)),
@@ -480,6 +524,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                         seed=seed,
                     )
                     swapouts = measured_swapouts()
+                    queue_metrics = queue()
                     counters: dict[str, float] = {}
                     for url in base_urls:
                         for name, value in scrape_vllm_counters(url).items():
@@ -494,6 +539,8 @@ def run(spec_path: Path, out_root: Path) -> Path:
                     )
                 )
                 trial.metrics.update(engine_metrics(counters))
+                trial.metrics.update(queue_metrics)
+                trial.metrics["sessions_used"] = float(len({r.session for r in records}))
                 if swapouts is not None:
                     trial.metrics["host_swapouts_measured"] = swapouts
                 trial.metrics["kv_store_gib"] = dir_gib(store)
