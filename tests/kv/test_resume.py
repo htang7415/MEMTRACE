@@ -305,6 +305,7 @@ def test_run_with_two_replicas_routes_calls_and_roots_stores(tmp_path: Path, mon
     assert sum(affinity["requests_per_endpoint"]) == sum(rr["requests_per_endpoint"]) == 6
     assert rr["requests_per_endpoint"] == [3, 3]  # round robin alternates
     assert affinity["target"]["replicas"] == 2 and affinity["metrics"]["engine_prefix_hit_ratio"] == 0.0
+    assert (affinity["target"]["routing_policy"], rr["target"]["routing_policy"]) == ("affinity", "round_robin")
     rows = [json.loads(line) for line in (out / "requests.jsonl").read_text().splitlines()]
     aff_rows = [r for r in rows if r["trial"].startswith("arm=affinity")]
     assert len(aff_rows) == 6
