@@ -458,6 +458,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                     base_urls = [t.base_urls[0] for t in targets]
                     # Engine start-up pages the host (weights, KV allocation); only the measured window must not.
                     measured_swapouts = swapouts_from(float(rp["warmup_s"]))
+                    routing = str(arm_spec.get("routing", "round_robin"))
                     records = replay(
                         sessions,
                         send=make_sender(
@@ -469,7 +470,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                             max_output_tokens=int(rp["max_output_tokens"]),
                             timeout_s=float(rp["timeout_s"]),
                             t0=time.perf_counter(),
-                            route=make_router(str(arm_spec.get("routing", "round_robin")), replicas),
+                            route=make_router(routing, replicas),
                         ),
                         concurrency=int(rp["concurrency"]),
                         horizon_s=float(rp["horizon_s"]),
@@ -483,7 +484,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
                     for url in base_urls:
                         for name, value in scrape_vllm_counters(url).items():
                             counters[name] = counters.get(name, 0.0) + value
-                    trial.target = {**targets[0].describe(), "replicas": replicas}
+                    trial.target = {**targets[0].describe(), "replicas": replicas, "routing_policy": routing}
                 trial.metrics.update(
                     resume_metrics(
                         records,
