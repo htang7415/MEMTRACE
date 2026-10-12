@@ -130,7 +130,8 @@ def test_resume_metrics() -> None:
 def test_committed_specs_load() -> None:
     specs = [p for p in Path("experiments").glob("r*_resume_*.yaml") if not p.name.startswith("._")]
     specs += [
-        Path(f"experiments/{name}.yaml") for name in ("s2_shared_tier", "s2_shared_tier_rerun", "item2_load_probe")
+        Path(f"experiments/{name}.yaml")
+        for name in ("s2_shared_tier", "s2_shared_tier_rerun", "item2_load_probe", "item2_capacity")
     ]
     assert specs
     for path in specs:

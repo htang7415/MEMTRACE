@@ -19,8 +19,13 @@ benefit if affinity+private recomputes ≥ 15% less resumed prefix than round-ro
 shared tier recovers it if round-robin+shared is no more than 15% worse than affinity+private on resumed recompute
 share and resumed TTFT p95 (failed calls counted) in every repeat.
 
+`--rule capacity` applies item 2's rule (`experiments/item2_capacity.yaml`) to a load sweep (cells
+`arm=<arm>,c=<level>`): an arm's capacity is the highest level whose resumed TTFT p95 (failed calls counted) meets the
+spec's `slo_ms` in every repeat, and the treatment wins if its capacity is at least one level above the baseline's.
+
     memtrace report resume-decision data/runs/<r1> data/runs/<r1-rerun> [--repeats 3] [--out decision.json]
     memtrace report resume-decision data/runs/<s2> --rule s2 [--out decision.json]
+    memtrace report resume-decision data/runs/<item2> --rule capacity [--out decision.json]
 """
 
 from __future__ import annotations
@@ -39,6 +44,8 @@ THRESHOLD = 0.15
 S2_AFFINITY, S2_SPREAD, S2_SHARED = "affinity+private", "round-robin+private", "round-robin+shared"
 S2_RECOVERY = ("resumed_recompute_share", "resumed_ttft_all_p95_ms")
 S2_REPORTED = ("resumed_ttft_p50_ms", COST_METRIC)
+SLO_METRIC = "resumed_ttft_all_p95_ms"
+CAPACITY_REPORTED = ("resumed_ttft_p50_ms", COST_METRIC, "engine_waiting_share", "calls", "sessions_used")
 
 
 def invalid_reason(trial: dict[str, Any]) -> str | None:
@@ -191,6 +198,66 @@ def render_shared_tier(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def decide_capacity(
+    runs: list[dict[str, Any]], baseline: str, treatment: str, repeats: int, slo_ms: float
+) -> dict[str, Any]:
+    """Item 2's rule: the highest load level each arm serves within the SLO in every repeat."""
+    trials = latest_trials(runs)  # keys (f"{arm},c={level}", seed)
+    levels = sorted({int(cell.rsplit(",c=", 1)[1]) for cell, _ in trials if ",c=" in cell})
+    cells = tuple(f"{arm},c={level}" for arm in (baseline, treatment) for level in levels)
+    seeds, to_rerun = valid_seeds(trials, cells)
+    result: dict[str, Any] = {"rule": "capacity", "slo_ms": slo_ms, "levels": levels, "to_rerun": to_rerun}
+    result["cells"] = {
+        cell: [
+            {
+                "seed": seed,
+                "run": trials[(cell, seed)]["run_id"],
+                "meets_slo": trials[(cell, seed)]["metrics"][SLO_METRIC] <= slo_ms,
+                **{m: trials[(cell, seed)]["metrics"].get(m) for m in (SLO_METRIC, *CAPACITY_REPORTED)},
+            }
+            for seed in sorted({s for c, s in trials if c == cell})
+            if invalid_reason(trials[(cell, seed)]) is None
+        ]
+        for cell in cells
+    }
+    if len(seeds) < repeats:
+        result["next_step"] = f"incomplete: {len(seeds)} of {repeats} repeats have valid trials in every cell"
+        return result
+
+    def capacity(arm: str) -> int:
+        met = [
+            lv
+            for lv in levels
+            if all(row["meets_slo"] for row in result["cells"][f"{arm},c={lv}"] if row["seed"] in seeds)
+        ]
+        return max(met, default=0)
+
+    base, treat = capacity(baseline), capacity(treatment)
+    result["capacity"] = {baseline: base, treatment: treat}
+    rank = {lv: i for i, lv in enumerate([0, *levels])}
+    if rank[treat] > rank[base]:
+        result["next_step"] = f"win: {treatment} serves {treat} sessions at once within the SLO, {baseline} {base}"
+    elif rank[treat] == rank[base]:
+        result["next_step"] = f"no win: both arms serve {base} sessions at once within the SLO"
+    else:
+        result["next_step"] = f"the tier costs capacity: {treatment} {treat}, {baseline} {base}"
+    return result
+
+
+def render_capacity(result: dict[str, Any]) -> str:
+    lines = [f"capacity at resumed TTFT p95 <= {result['slo_ms']:.0f} ms (failed counted), levels {result['levels']}"]
+    for cell, rows in result["cells"].items():
+        for row in rows:
+            shown = "  ".join(f"{m} {row[m]:.4g}" for m in (SLO_METRIC, *CAPACITY_REPORTED) if row[m] is not None)
+            lines.append(f"  {cell:32} seed {row['seed']}  {'meets' if row['meets_slo'] else 'MISSES'}  {shown}")
+    for r in result["to_rerun"]:
+        lines.append(f"  rerun {r['arm']} seed {r['seed']}: {r['reason']}")
+    if "capacity" in result:
+        lines.append(f"  capacity: {result['capacity']}")
+    lines.append(f"next step: {result['next_step']}")
+    return "\n".join(lines)
+
+
 def render(result: dict[str, Any]) -> str:
     lines = [f"{result['treatment']} vs {result['baseline']}, paired by seed"]
     for row in result["repeats"]:
@@ -214,13 +281,17 @@ def main() -> None:
     parser.add_argument("--baseline", default="stock-equal-memory")
     parser.add_argument("--treatment", default="host-pool+ssd")
     parser.add_argument("--repeats", type=int, default=3)
-    parser.add_argument("--rule", choices=("r1", "s2"), default="r1")
+    parser.add_argument("--rule", choices=("r1", "s2", "capacity"), default="r1")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     runs = [json.loads((d / "results.json").read_text(encoding="utf-8")) for d in args.runs]
     if args.rule == "s2":
         result = decide_shared_tier(runs, args.repeats)
         print(render_shared_tier(result))
+    elif args.rule == "capacity":
+        slo_ms = float(runs[-1]["spec"]["slo_ms"])
+        result = decide_capacity(runs, args.baseline, args.treatment, args.repeats, slo_ms)
+        print(render_capacity(result))
     else:
         result = decide(runs, args.baseline, args.treatment, args.repeats)
         print(render(result))

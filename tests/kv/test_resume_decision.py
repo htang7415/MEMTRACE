@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from memtrace.kv import resume_decision
-from memtrace.kv.resume_decision import decide, decide_shared_tier, grade, next_step
+from memtrace.kv.resume_decision import decide, decide_capacity, decide_shared_tier, grade, next_step
 
 
 def trial(
@@ -140,3 +140,45 @@ def test_s2_needs_valid_trials_in_all_three_arms() -> None:
     result = decide_shared_tier([runs], repeats=3)
     assert result["next_step"].startswith("incomplete: 2 of 3")
     assert result["to_rerun"] == [{"arm": "round-robin+shared", "seed": 1, "reason": "host paged out 900 pages"}]
+
+
+def sweep(p95: dict[tuple[str, int], list[float]], paged: tuple[str, int, int] | None = None) -> dict[str, Any]:
+    """A capacity run: p95 per (arm, level), one value per repeat."""
+    trials = []
+    for (arm, level), values in p95.items():
+        for seed, v in enumerate(values):
+            measured = 500.0 if paged == (arm, level, seed) else 0.0
+            t = trial(f"{arm},c={level}", seed, 0.1, 400.0, measured=measured)
+            t["metrics"]["resumed_ttft_all_p95_ms"] = v
+            trials.append(t)
+    return run("cap", trials)
+
+
+BASE, TIER = "stock-equal-memory", "host-pool+ssd"
+
+
+def test_capacity_is_the_highest_level_within_the_slo_in_every_repeat() -> None:
+    runs = sweep({
+        (BASE, 12): [900, 950, 1000], (BASE, 24): [1900, 2100, 1800], (BASE, 36): [4000, 5000, 4500],
+        (TIER, 12): [800, 850, 900], (TIER, 24): [1500, 1600, 1700], (TIER, 36): [1900, 1950, 1990],
+    })  # fmt: skip
+    result = decide_capacity([runs], BASE, TIER, repeats=3, slo_ms=2000)
+    assert result["capacity"] == {BASE: 12, TIER: 36}  # base misses 24 in one repeat
+    assert result["next_step"].startswith("win")
+
+
+def test_same_or_lower_capacity_is_no_win_or_a_cost() -> None:
+    same = sweep({(BASE, 12): [900] * 3, (BASE, 24): [2500] * 3, (TIER, 12): [800] * 3, (TIER, 24): [2100] * 3})
+    assert decide_capacity([same], BASE, TIER, 3, 2000)["next_step"].startswith("no win")
+    lower = sweep({(BASE, 12): [900] * 3, (BASE, 24): [1500] * 3, (TIER, 12): [800] * 3, (TIER, 24): [2100] * 3})
+    result = decide_capacity([lower], BASE, TIER, 3, 2000)
+    assert result["capacity"] == {BASE: 24, TIER: 12} and result["next_step"].startswith("the tier costs")
+    none = sweep({(BASE, 12): [2500] * 3, (TIER, 12): [2500] * 3})
+    assert decide_capacity([none], BASE, TIER, 3, 2000)["capacity"] == {BASE: 0, TIER: 0}
+
+
+def test_capacity_needs_valid_trials_in_every_cell() -> None:
+    runs = sweep({(BASE, 12): [900] * 3, (TIER, 12): [800] * 3}, paged=(TIER, 12, 1))
+    result = decide_capacity([runs], BASE, TIER, 3, 2000)
+    assert result["next_step"].startswith("incomplete: 2 of 3")
+    assert result["to_rerun"] == [{"arm": "host-pool+ssd,c=12", "seed": 1, "reason": "host paged out 500 pages"}]
