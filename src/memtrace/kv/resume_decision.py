@@ -139,7 +139,7 @@ def decide_shared_tier(runs: list[dict[str, Any]], repeats: int) -> dict[str, An
     arms = (S2_AFFINITY, S2_SPREAD, S2_SHARED)
     trials = latest_trials(runs)
     paired, to_rerun = valid_seeds(trials, arms)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for seed in paired:
         m = {arm: trials[(arm, seed)]["metrics"] for arm in arms}
         rows.append(
