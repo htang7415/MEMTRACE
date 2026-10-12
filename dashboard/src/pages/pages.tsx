@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { BarCI, Card, DataTable, LineCI, StatTile, barTable, sweepTable } from "../components/charts";
+import { BarCI, Card, DataTable, LineCI, barTable, sweepTable } from "../components/charts";
+import { Grid, Missing, Page, Sub } from "../components/ui";
 import type { Data, ResumeStudy } from "../data";
 import { bars, byDraw, fmt, gatewayByCell, param, sweep, type Point, type Series } from "../lib/shape";
 import type { CellSummary, ExperimentResult } from "../types/result";
@@ -53,26 +53,6 @@ const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.
 
 function relabel<T extends { name: string }>(series: T[]): T[] {
   return series.map((s) => ({ ...s, name: label(s.name) }));
-}
-
-function Missing({ what }: { what: string }) {
-  return <p className="text-sm" style={{ color: "var(--muted)" }}>No published run for {what} yet.</p>;
-}
-
-function Section({ title, intro, children }: { title: string; intro?: string; children: ReactNode }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-        {intro && <p className="mt-2 max-w-3xl text-sm leading-relaxed" style={{ color: "var(--ink-2)" }}>{intro}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Grid({ children }: { children: ReactNode }) {
-  return <div className="grid gap-4 lg:grid-cols-2">{children}</div>;
 }
 
 function SweepCard({ r, title, subtitle, metric, seriesKey, format }: {
@@ -130,148 +110,12 @@ function K9RecomputeCard({ data }: { data: Data }) {
   );
 }
 
-interface Finding { stat: string; head: string; body: string; href: string }
-
-/** Data-backed findings first; each is left out when its run is not exported. */
-function findings(data: Data): Finding[] {
-  const r = data.results, out: Finding[] = [];
-  out.push({ stat: "57k tokens", head: "Production agents send long, tool-heavy prompts",
-    body: "Median prompt across 9.1M GitHub Copilot coding-agent calls; tool output is 48% of prompt tokens, and only 8.6% of sessions ever trim.", href: "#/context" });
-  const k = data.analyses.retention;
-  if (k) out.push({ stat: `${pct(k.waste[0])}–${pct(k.waste[1])}`, head: "The provider recomputes reusable prompt",
-    body: "Share of later calls' repeated prompt tokens recomputed over a week of Copilot traffic; cache expiry explains only a quarter of it.", href: "#/provider" });
-  const e8 = r["e8-routing-kind-sims"];
-  if (e8) {
-    const tok = (p: string) => e8.cells.filter((c) => param(c, "target.policy") === p)
-      .map((c) => [param(c, "workload.concurrency"), c.metrics.output_tokens_per_s.mean] as const);
-    const rnd = new Map(tok("random"));
-    const gains = ["prefix", "combined"].flatMap((p) => tok(p).map(([cc, v]) => v / (rnd.get(cc) ?? NaN)));
-    out.push({ stat: `${fmt(Math.min(...gains), 1)}–${fmt(Math.max(...gains), 1)}×`, head: "Route each call back to its cache",
-      body: "Throughput of cache-aware llm-d routing over random routing on agent sessions (simulated replicas calibrated to the real GPU engine).", href: "#/routing" });
-  }
-  out.push({ stat: "up to 2.6×", head: "Naive trimming fights the prefix cache",
-    body: "Rewriting earlier messages makes the server recompute more prefill despite sending 50–70% fewer tokens (Copilot replays, ample KV memory).", href: "#/context" });
-  out.push({ stat: "−14% to −39%", head: "Cache-aware context management in the gateway",
-    body: "Prefill recomputed with the gateway's window+cache vs the client's full history, in all 4 paired runs of Copilot traffic on Qwen3-8B (K9); in front of Gemini, half the prompt tokens on 100 paired tasks with no significant accuracy difference (C2).", href: "#/gateway" });
-  const k10 = r["k10a-copilot-reuse-routing"];
-  if (k10) {
-    const smallest = Math.min(...k10.cells.map((c) => Number(c.params.capacity_tokens)));
-    const at = (p: string) => k10.cells.find((c) => param(c, "routing") === p && Number(c.params.capacity_tokens) === smallest)?.metrics.hit_share_of_reusable.mean;
-    const ll = at("least_loaded"), st = at("sticky");
-    if (ll !== undefined && st !== undefined) out.push({ stat: `${pct(ll)} → ${pct(st)}`, head: "Placement matters more than memory",
-      body: `Reusable prefix served on a day of Copilot traffic with ${gpuGb(k10.cells.find((c) => Number(c.params.capacity_tokens) === smallest)!)} per replica: least-loaded vs sticky placement (KV-cache simulator).`, href: "#/reuse" });
-  }
-  if (k) out.push({ stat: `${pct(k.retained[0])} / ${pct1(k.retained[1])} / ${pct(k.retained[2])}`, head: "Five minutes to an hour is the knee",
-    body: `Reusable prefix kept by a 5 min / 1 h / 24 h cache lifetime on Copilot weekdays, every call routed to its cache, for about 1× / ${fmt(k.working_tb[1] / k.working_tb[0], 0)}× / ${fmt(k.working_tb[2] / k.working_tb[0], 0)}× the memory.`, href: "#/lifetime" });
-  const sim = data.analyses.simulator_check;
-  if (sim) out.push({ stat: `≤ ${fmt(Math.max(...sim.bins.map((b) => Math.abs(b.diff_points))), 1)} pts`, head: "The simulator matches a real engine",
-    body: "Simulated vs measured prefix reuse for one vllm-metal replica fed Copilot sessions at their real gaps, in every gap bin.", href: "#/simulator" });
-  return out;
-}
-
-export function Overview({ data }: { data: Data }) {
-  const r = data.results;
-  const tiles: ReactNode[] = [];
-  const e2 = r["e2-prefix-caching"];
-  if (e2) {
-    const t = (v: string) => e2.cells.find((c) => param(c, "target.variant") === v)?.metrics.ttft_p50_ms?.mean;
-    const off = t("vllm_apc_off"), on = t("vllm_apc_on");
-    if (off && on) tiles.push(<StatTile key="e2" label="vLLM prefix caching, TTFT p50" value={`${fmt(off / on, 1)}× faster`}
-      note={`${ms(off)} → ${ms(on)} on multi-turn RAG (E2)`} />);
-  }
-  const e3 = r["e3-llmd-sim"];
-  if (e3) {
-    const best = [...e3.cells].sort((a, b) => b.metrics.goodput_rps.mean - a.metrics.goodput_rps.mean)[0];
-    tiles.push(<StatTile key="e3" label="Best llm-d scorer profile" value={param(best, "target.scorer_profile")}
-      note={`${fmt(best.metrics.goodput_rps.mean, 1)} req/s goodput at SLO (E3, simulated workers)`} />);
-  }
-  const e4 = r["e4-hybrid-gateway"];
-  if (e4) {
-    const at = (p: string) => e4.cells.find((c) => param(c, "target.policy") === p && param(c, "workload.concurrency") === "24");
-    const lf = at("local_first"), lo = at("local_only");
-    if (lf && lo) tiles.push(<StatTile key="e4" label="Overflow to Gemini at concurrency 24"
-      value={`+${fmt(100 * (lf.metrics.goodput_rps.mean / lo.metrics.goodput_rps.mean - 1), 0)}% goodput`}
-      note={`${pct(gatewayByCell(e4).get(lf.cell_id)?.remoteShare ?? NaN)} of requests sent remote (E4)`} />);
-  }
-  const e6 = r["e6-gemini-caching"];
-  if (e6) {
-    const cost = (id: string) => e6.cells.find((c) => c.cell_id === id)?.metrics.usd_per_1k_requests?.mean;
-    const ex = cost("explicit"), im = cost("implicit");
-    if (ex && im) tiles.push(<StatTile key="e6" label="Gemini explicit vs implicit caching" value={`${fmt(im / ex, 1)}× cheaper`}
-      note={`$${fmt(ex, 2)} vs $${fmt(im, 2)} per 1k requests on a shared document (E6)`} />);
-  }
-  const e7 = r["e7-engines-sharegpt"];
-  if (e7) {
-    const at = (v: string) => e7.cells.find((c) => param(c, "target.variant") === v && param(c, "workload.concurrency") === "8")?.metrics.output_tokens_per_s.mean;
-    const metal = at("vllm_metal"), mlx = at("mlx_lm");
-    if (metal && mlx) tiles.unshift(<StatTile key="e7" label="vllm-metal, ShareGPT at concurrency 8" value={`${fmt(metal, 0)} tok/s`}
-      note={`${fmt(metal / mlx, 1)}× mlx_lm.server; BFCL tool-call accuracy unchanged across engines (E7)`} />);
-  }
-  const e10 = r["e10-hosted-overflow"];
-  if (e10) {
-    const rps = (v: string) => e10.cells.find((c) => param(c, "target.variant") === v)?.metrics.requests_per_s.mean;
-    const local = rps("local"), hosted = [rps("hosted2"), rps("hosted4")].filter((v): v is number => v !== undefined);
-    if (local && hosted.length) tiles.push(<StatTile key="e10" label="Gemini in the llm-d pool, concurrency 16"
-      value={`${fmt(local, 2)} → ${fmt(Math.min(...hosted), 1)}–${fmt(Math.max(...hosted), 1)} req/s`}
-      note="GPU + CPU pool alone vs with Gemini Flash-Lite as an overflow endpoint (E10)" />);
-  }
-  const changes = k9Recompute(data, false).flatMap((x) => x.points.map((p) => p.mean));
-  return (
-    <div className="space-y-12">
-      <section>
-        <h2 className="max-w-3xl text-4xl font-semibold tracking-tight md:text-5xl">Serving LLM agents efficiently</h2>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed" style={{ color: "var(--ink-2)" }}>
-          Agents re-send a growing history every step, and engines are fast only when that history is already in the
-          KV cache. MEMTRACE measures the trade-off on one Apple Silicon Mac with production agent traces, real engines,
-          and a paid API: how to route agent requests across GPU, CPU and hosted tiers, how much KV cache an agent
-          session needs, for how long and where, and how a Go gateway can manage agent context without breaking the
-          cache.
-        </p>
-        {changes.length > 0 && (
-          <div className="mt-8 flex flex-wrap items-end gap-x-6 gap-y-2">
-            <div className="text-5xl font-semibold tracking-tight md:text-6xl">
-              {signedPct(Math.max(...changes))} to {signedPct(Math.min(...changes))}
-            </div>
-            <div className="max-w-md pb-2 text-sm" style={{ color: "var(--ink-2)" }}>
-              prefill recompute with gateway context management, in all {changes.length} paired runs of replayed GitHub
-              Copilot traffic on Qwen3-8B (K9)
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold">Key findings</h3>
-        <ol className="grid gap-3 sm:grid-cols-2">
-          {findings(data).map((f, i) => (
-            <li key={f.head}>
-              <a href={f.href} className="block h-full rounded-xl border p-5"
-                style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                <div className="text-xs font-medium" style={{ color: "var(--muted)" }}>{String(i + 1).padStart(2, "0")}</div>
-                <div className="mt-2 text-3xl font-semibold tracking-tight">{f.stat}</div>
-                <div className="mt-2 font-medium">{f.head}</div>
-                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--ink-2)" }}>{f.body}</p>
-                <div className="mt-3 text-sm font-medium">See the data →</div>
-              </a>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="space-y-4">
-        <h3 className="text-lg font-semibold">Serving baselines</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{tiles}</div>
-      </section>
-    </div>
-  );
-}
-
-export function Engines({ data }: { data: Data }) {
+function EnginesPart({ data }: { data: Data }) {
   const gpu = data.results["e1-engines-gpu"], cpu = data.results["e1-engines-cpu"];
   const e7 = data.results["e7-engines-sharegpt"], e7b = data.results["e7b-engines-mooncake"];
   const bfcl = data.analyses.bfcl_gate;
   return (
-    <Section title="Engines" intro="Which engine serves each tier on one Mac. E7: vllm-metal vs mlx_lm.server on the GPU and vLLM on the CPU (Docker), Qwen3-0.6B bf16 with the same ~2 GiB KV budget, ShareGPT and Mooncake prompts. E1: vllm-metal vs llama.cpp on the same Qwen3-0.6B Q8_0 file; plus llama.cpp on CPU.">
+    <Sub title="Engines on the GPU and CPU (E7, E1)" note="E7: vllm-metal vs mlx_lm.server vs vLLM CPU on Qwen3-0.6B bf16 with the same ~2 GiB KV budget. E1: vllm-metal vs llama.cpp on the same Q8_0 file.">
       {e7 ? (
         <Grid>
           <SweepCard r={e7} title="Output throughput, ShareGPT (E7)" subtitle="Tokens per second, all clients" metric="output_tokens_per_s" seriesKey="target.variant" />
@@ -293,15 +137,15 @@ export function Engines({ data }: { data: Data }) {
           {cpu && <SweepCard r={cpu} title="llama.cpp CPU-only throughput (E1)" subtitle="Tokens per second" metric="output_tokens_per_s" seriesKey={null} />}
         </Grid>
       ) : <Missing what="E1" />}
-    </Section>
+    </Sub>
   );
 }
 
-export function Caching({ data }: { data: Data }) {
+function CachingPart({ data }: { data: Data }) {
   const e2 = data.results["e2-prefix-caching"], e6 = data.results["e6-gemini-caching"];
   const variant = (c: CellSummary) => param(c, "target.variant");
   return (
-    <Section title="Caching (E2, E6)" intro="Local prefix caching on multi-turn RAG (E2); Gemini implicit vs explicit caching vs the Batch API (E6).">
+    <Sub title="Prefix caching and hosted caching (E2, E6)" note="Local prefix caching on multi-turn RAG; Gemini implicit vs explicit caching vs the Batch API.">
       {e2 ? (
         <Grid>
           <BarCard r={e2} title="TTFT p50 by cache setting" subtitle="Milliseconds" metric="ttft_p50_ms" by={variant} format={ms} />
@@ -316,18 +160,18 @@ export function Caching({ data }: { data: Data }) {
           <BarCard r={e6} title="Batch job turnaround" subtitle="Seconds from submit to results" metric="turnaround_s" by={(c) => c.cell_id} format={(v) => `${fmt(v, 0)} s`} />
         </Grid>
       ) : <Missing what="E6" />}
-    </Section>
+    </Sub>
   );
 }
 
-export function Routing({ data }: { data: Data }) {
+function RoutingPart({ data }: { data: Data }) {
   const sim = data.results["e3-llmd-sim"], metal = data.results["e3-llmd-metal"];
   const e8 = data.results["e8-routing-kind-sims"], e9 = data.results["e9-hetero-pool"];
   const e9b = data.results["e9b-hetero-policies-agent"], e9c = data.results["e9c-hetero-policies-mooncake"];
   const profile = (c: CellSummary) => param(c, "target.scorer_profile");
   const policy = (c: CellSummary) => param(c, "target.policy");
   return (
-    <Section title="Routing" intro="How llm-d's endpoint picker should spread agent traffic. E8: llm-d on kind over 4 simulated replicas calibrated to vllm-metal. E9: a pool of the real GPU engine and an 11× slower CPU tier, with custom capacity-aware scorers. E3: llm-d scorer profiles without Kubernetes over 8 simulated workers with small KV caches. Simulated latency: compare policies, not milliseconds.">
+    <Sub title="Routing policies (E8, E9, E3)" note="E8: 4 replicas calibrated to vllm-metal, on kind. E9: the real GPU engine with an 11× slower CPU tier. E3: scorer profiles over 8 simulated workers. Compare policies, not milliseconds.">
       {e8 ? (
         <Grid>
           <SweepCard r={e8} title="Output throughput by policy (E8)" subtitle="Tokens per second; 32 agent sessions × 8 turns" metric="output_tokens_per_s" seriesKey="target.policy" />
@@ -354,18 +198,18 @@ export function Routing({ data }: { data: Data }) {
           {metal && <BarCard r={metal} title="Goodput at SLO, real Metal replicas (E3)" metric="goodput_rps" by={(c) => Object.values(c.params).join(" · ")} />}
         </Grid>
       ) : <Missing what="E3" />}
-    </Section>
+    </Sub>
   );
 }
 
-export function Replay({ data }: { data: Data }) {
+function ReplayPart({ data }: { data: Data }) {
   const e11 = data.results["e11-copilot-replay"], e11b = data.results["e11b-copilot-replay-4b"];
   const e11c = data.results["e11c-copilot-precise-index"];
   const policy = (c: CellSummary) => param(c, "target.policy");
   const withSessions = (c: CellSummary) => `${label(param(c, "target.policy"))}, ${param(c, "workload.sessions")} sessions`;
   const sec = (v: number) => `${fmt(v, 0)} s`;
   return (
-    <Section title="Real agent traffic" intro="GitHub Copilot coding-agent sessions replayed on the GPU + CPU pool: each session's calls in order with their recorded gaps (×0.1), prompts scaled ×1/40 with the provider's cached prefixes reproduced. 64 sessions, 1,422 calls, 3 repeats.">
+    <Sub title="Copilot replay (E11, E11b, E11c)" note="64 sessions, 1,422 calls, each session's calls in order with recorded gaps (×0.1) and the provider's cached prefixes; 3 repeats.">
       {e11 ? (
         <Grid>
           <BarCard r={e11} title="Time to finish the replay (E11)" subtitle="Seconds; 3 repeats, the intervals overlap" metric="duration_s" by={policy} format={sec} />
@@ -384,7 +228,7 @@ export function Replay({ data }: { data: Data }) {
           <BarCard r={e11c} title="Time to first token p95 (E11c)" subtitle="Milliseconds" metric="ttft_p95_ms" by={policy} format={ms} />
         </Grid>
       ) : <Missing what="E11c" />}
-    </Section>
+    </Sub>
   );
 }
 
@@ -423,12 +267,12 @@ function hostedUsdPer1k(r: ExperimentResult): Point[] {
   });
 }
 
-export function Hybrid({ data }: { data: Data }) {
+function HybridPart({ data }: { data: Data }) {
   const e4 = data.results["e4-hybrid-gateway"], e4b = data.results["e4b-slo-overflow"], e10 = data.results["e10-hosted-overflow"];
   const variant = (c: CellSummary) => param(c, "target.variant");
   const spend = e10 ? [{ name: "Gemini $ per 1k requests", points: hostedUsdPer1k(e10) }] : [];
   return (
-    <Section title="Overflow to a hosted model" intro="Two ways to add Gemini Flash-Lite when the local pool is overloaded, both under a hard spend cap. E10: Gemini joins the llm-d pool as one more endpoint (an adapter pod exports vLLM-style metrics), next to the GPU + CPU pool at concurrency 16. E4: the Go gateway overflows from simulated local workers; E4b predicts local wait before overflowing (its gains stay within the CIs).">
+    <Sub title="Overflow to a hosted model (E10, E4, E4b)" note="E10: Gemini as one more llm-d endpoint beside the GPU + CPU pool. E4: the Go gateway overflows from simulated local workers; E4b predicts local wait first (its gains stay within the CIs).">
       {e10 ? (
         <Grid>
           <BarCard r={e10} title="Requests per second (E10)" metric="requests_per_s" by={variant} />
@@ -439,15 +283,15 @@ export function Hybrid({ data }: { data: Data }) {
         </Grid>
       ) : <Missing what="E10" />}
       {e4 ? hybridCards(e4) : <Missing what="E4" />}
-      <h3 className="pt-2 text-base font-semibold">E4b: predicted-wait (SLO-aware) overflow</h3>
+      <h4 className="pt-2 text-sm font-semibold">E4b: predicted-wait (SLO-aware) overflow</h4>
       {e4b ? hybridCards(e4b) : <Missing what="E4b" />}
-    </Section>
+    </Sub>
   );
 }
 
-export function Quality({ data }: { data: Data }) {
+function QualityPart({ data }: { data: Data }) {
   const runs = Object.values(data.results).filter((r) => r.name.startsWith("e5-"));
-  if (!runs.length) return <Section title="Quality and cost (E5)"><Missing what="E5" /></Section>;
+  if (!runs.length) return <Sub title="Hosted model quality and cost (E5)"><Missing what="E5" /></Sub>;
   const groups = (metric: string) => runs.map((r) => ({
     name: r.name.replace("e5-", ""),
     points: bars(r, metric, (c) => label(c.cell_id)),
@@ -458,7 +302,7 @@ export function Quality({ data }: { data: Data }) {
       Number.isFinite(m("usd_per_correct")) ? `$${fmt(1000 * m("usd_per_correct"), 2)}` : "–"];
   }));
   return (
-    <Section title="Quality and cost (E5)" intro="Gemini 3.5 Flash-Lite on QA with given context, BFCL tool calls, and agentic HotpotQA. Judge κ = 0.96 against reference labels.">
+    <Sub title="Hosted model quality and cost (E5)" note="Gemini 3.5 Flash-Lite on QA with given context, BFCL tool calls, and agentic HotpotQA.">
       <Grid>
         <Card title="Accuracy by suite" table={barTable(groups("accuracy"), pct)}>
           <BarCI groups={groups("accuracy")} format={pct} axisFormat={pct} />
@@ -470,11 +314,11 @@ export function Quality({ data }: { data: Data }) {
       <Card title="Summary" subtitle="$ per 1k correct answers excludes judge cost">
         <DataTable columns={["Model", "Suite", "Accuracy", "Latency p50", "Latency p95", "$ / 1k correct"]} rows={rows} />
       </Card>
-    </Section>
+    </Sub>
   );
 }
 
-export function ContextPolicies({ data }: { data: Data }) {
+function ContextPoliciesPart({ data }: { data: Data }) {
   const c1 = data.results["c1-context-policies"], k6 = data.results["k6-copilot-context-policies"];
   const k7 = data.results["k7-llmd-copilot-context-policies"], k8 = data.results["k8-vllm-metal-copilot-context-policies"];
   const policy = (c: CellSummary) => c.cell_id;
@@ -484,7 +328,7 @@ export function ContextPolicies({ data }: { data: Data }) {
     points: bars({ ...k6, cells: k6.cells.filter((c) => param(c, "capacity_tokens") === cap) }, "recomputed_tokens_per_request", trace),
   })) : [];
   return (
-    <Section title="Context policies for agents" intro="What an agent sends each step: its whole history (full) or a trimmed view. C1: Gemini agent, 50 BrowseComp-Plus tasks per policy. K6–K8: Copilot sessions replayed under each policy.">
+    <Sub title="Policies inside the agent (C1, K6–K8)" note="Full history vs trimmed views. C1: a Gemini agent, 50 BrowseComp-Plus tasks per policy. K6–K8: Copilot sessions replayed under each policy.">
       {c1 ? (
         <Grid>
           <BarCard r={c1} title="Accuracy (C1)" subtitle="Judge-graded; only summarize is significant vs full" metric="accuracy" by={policy} format={pct} />
@@ -503,11 +347,11 @@ export function ContextPolicies({ data }: { data: Data }) {
         {k7 ? <BarCard r={k7} title="Prefill recomputed per request (K7, live llm-d)" subtitle="Tokens per request; 4 simulated workers" metric="recomputed_tokens_per_request" by={trace} format={(v) => fmt(v, 0)} /> : <Missing what="K7" />}
         {k8 ? <BarCard r={k8} title="Prefill recomputed per request (K8, vllm-metal)" subtitle="Tokens per request; Qwen3-0.6B, prompts at 1/32 scale" metric="recomputed_tokens_per_request" by={trace} format={(v) => fmt(v, 0)} /> : <Missing what="K8" />}
       </Grid>
-    </Section>
+    </Sub>
   );
 }
 
-export function GatewayContext({ data }: { data: Data }) {
+function GatewayContextPart({ data }: { data: Data }) {
   const k9 = data.results["k9-gateway-context-qwen3-8b"];
   const c1 = data.results["c1-context-policies"], c2a = data.results["c2a-gateway-context"], c2b = data.results["c2b-gateway-context"];
   const slo = k9 ? byDraw([{ result: k9, arms: { off: "full history (off)", "window+cache": "window+cache" } }],
@@ -519,7 +363,7 @@ export function GatewayContext({ data }: { data: Data }) {
       (c) => (c.cell_id === "full" ? "full" : "in-agent window+cache")), ...bars(c2a, "accuracy", policy)],
   }] : [];
   return (
-    <Section title="Context management in the gateway" intro="The gateway keeps each session's prompt append-only and trims only past a budget or when the history is new. K9: Copilot traffic onto vllm-metal Qwen3-8B. C2: a Gemini agent behind the gateway.">
+    <Sub title="In the gateway (K9, C2)" note="K9: Copilot traffic onto vllm-metal Qwen3-8B. C2: a Gemini agent behind the gateway.">
       {k9 ? (
         <Grid>
           <K9RecomputeCard data={data} />
@@ -543,7 +387,7 @@ export function GatewayContext({ data }: { data: Data }) {
           <BarCI groups={c1Tasks} format={pct} axisFormat={pct} />
         </Card>
       )}
-    </Section>
+    </Sub>
   );
 }
 
@@ -582,13 +426,13 @@ function PlainCard({ title, subtitle, s, xLabel, format }: {
   );
 }
 
-export function ProviderCache({ data }: { data: Data }) {
+function ProviderCachePart({ data }: { data: Data }) {
   const k = data.analyses.retention;
-  if (!k) return <Section title="Provider cache"><Missing what="the retention analysis" /></Section>;
+  if (!k) return <Sub title="The provider's cache"><Missing what="the retention analysis" /></Sub>;
   const gap = plain(k.bins.map((b) => GAP[b]), { "Weekdays (Jun 1–5)": k.hit_weekday, "Weekend (Jun 6–7)": k.hit_weekend });
   const cause = plain(k.causes.map((c) => CAUSE[c][0]), { "Share of recomputed reusable tokens": k.cause_share });
   return (
-    <Section title="Provider cache" intro={`The GitHub Copilot coding-agent traces record, for every LLM call over a week (${fmt(k.sessions)} sessions), the prompt, cached and completion tokens and the timing. A later call in a session repeats most of the previous prompt; its reusable prefix is the part that repeats the previous prompt (same model, prompt not compacted).`}>
+    <Sub title="The provider's cache" note={`A week of Copilot calls (${fmt(k.sessions)} sessions). A later call's reusable prefix is the part that repeats the previous prompt.`}>
       <PlainCard title="Cache-hit ratio by gap since the session's previous call" s={gap} xLabel="Gap" format={pct1}
         subtitle={`Cached share of prompt tokens; after five minutes, the most common cache lifetime, it drops by about two-thirds. Part of the hit rate at long gaps is prefixes shared across sessions (${pct(k.first_call[0])}–${pct(k.first_call[1])} of first-call prompt tokens are already cached)`} />
       <PlainCard title="Why reusable tokens were recomputed (weekday average)" s={cause} xLabel="Cause" format={pct1}
@@ -596,17 +440,17 @@ export function ProviderCache({ data }: { data: Data }) {
       <Card title="Causes">
         <DataTable columns={["Cause", "Meaning", "Share"]} rows={k.causes.map((c, i) => [CAUSE[c][0], CAUSE[c][1], pct1(k.cause_share[i])])} />
       </Card>
-    </Section>
+    </Sub>
   );
 }
 
-export function Lifetimes({ data }: { data: Data }) {
+function LifetimesPart({ data }: { data: Data }) {
   const k = data.analyses.retention;
-  if (!k) return <Section title="Cache lifetime"><Missing what="the retention analysis" /></Section>;
+  if (!k) return <Sub title="Lifetime"><Missing what="the retention analysis" /></Sub>;
   const kept = plain(["Provider (observed)", ...LIFETIMES], { "Reusable prefix served": [k.observed, ...k.retained] });
   const held = plain(LIFETIMES, { "Mean KV held": k.working_tb });
   return (
-    <Section title="Cache lifetime" intro="If every call reached the replica holding its cache, a fixed cache lifetime would decide what is kept. Longer lifetimes keep more, but the memory needed grows much faster than the reuse. Weekday averages; upper bounds that assume append-only prompts.">
+    <Sub title="Lifetime" note="If every call reached its cache, a fixed lifetime decides what is kept. Weekday averages; upper bounds for append-only prompts.">
       <Grid>
         <PlainCard title="Reusable prefix served" s={kept} xLabel="Lifetime" format={pct1}
           subtitle={`One hour keeps ${fmt(100 * (k.retained[1] - k.retained[0]), 1)} points more than five minutes`} />
@@ -617,7 +461,7 @@ export function Lifetimes({ data }: { data: Data }) {
         The knee is between 5 minutes and 1 hour. The memory figures are large because Copilot contexts are long (about
         15 GB of KV for a 100k-token context at this model size).
       </p>
-    </Section>
+    </Sub>
   );
 }
 
@@ -646,14 +490,14 @@ function retentionLabel(c: CellSummary): string {
   return `${param(c, "eviction") === "turn" ? "Turn-aware" : "LRU"}${life}`;
 }
 
-export function Reuse({ data }: { data: Data }) {
+function ReusePart({ data }: { data: Data }) {
   const a = data.results["k10a-copilot-reuse-routing"], b = data.results["k10b-copilot-reuse-tiers"];
   const c = data.results["k10c-copilot-reuse-retention"];
   const route = a ? cellGrid(a, gpuGb, (x) => label(param(x, "routing")), "hit_share_of_reusable") : [];
   const tier = b ? cellGrid(b, tiers, gpuGb, "hit_share_of_reusable") : [];
   const keep = c ? cellGrid(c, retentionLabel, gpuGb, "hit_share_of_reusable") : [];
   return (
-    <Section title="What buys the most reuse" intro="The KV-cache simulator replays one weekday of Copilot traffic (60k sessions, 1.8 million calls) in real time over 64 replicas serving Qwen3-4B, each with a GPU cache and optional host-RAM and SSD tiers, and reports the share of each call's reusable prompt prefix that is served instead of recomputed. Below 128 GB per replica the running calls alone do not fit (a Copilot prompt averages 66k tokens, about 10 GB of KV). Placement: session hash and sticky are cache-affine; KV-aware knows where every block is; least-loaded ignores caches.">
+    <Sub title="Placement, tiers and retention (K10)" note="One Copilot weekday (60k sessions, 1.8M calls) over 64 replicas of Qwen3-4B. Session hash and sticky are cache-affine; KV-aware knows every block; least-loaded ignores caches.">
       {a ? (
         <Card title="Reusable prefix served, by placement and GPU cache (K10a)" subtitle="GPU tier only, LRU; at most 8 calls per replica" table={barTable(route, pct1)}>
           <BarCI groups={route} format={pct1} axisFormat={pct} />
@@ -669,19 +513,19 @@ export function Reuse({ data }: { data: Data }) {
           <BarCI groups={keep} format={pct1} axisFormat={pct} />
         </Card>
       ) : <Missing what="K10c" />}
-    </Section>
+    </Sub>
   );
 }
 
-export function Simulator({ data }: { data: Data }) {
+function SimulatorPart({ data }: { data: Data }) {
   const p = data.analyses.simulator_check;
-  if (!p) return <Section title="Simulator vs a real engine"><Missing what="K11" /></Section>;
+  if (!p) return <Sub title="Simulator vs a real engine (K11)"><Missing what="K11" /></Sub>;
   const worst = Math.max(...p.bins.map((b) => Math.abs(b.diff_points)));
   const s = plain(p.bins.map((b) => GAP[b.bin]), {
     "Real engine": p.bins.map((b) => b.engine_hit_share), Simulator: p.bins.map((b) => b.sim_hit_share),
   });
   return (
-    <Section title="Simulator vs a real engine" intro={`The vllm-metal release used here cannot offload KV, so tiers and placement exist only in simulation. What can be checked is the core: one real vllm-metal replica (Qwen3-0.6B) with a cache of ${fmt(p.kv_tokens)} tokens, fed 120 Copilot sessions at their real gaps (up to 10 minutes), against the simulator replaying the same calls (K11).`}>
+    <Sub title="Simulator vs a real engine (K11)" note={`vllm-metal 0.30 could not offload KV, so fleet-scale tiers are simulated. Checked here: one real replica (Qwen3-0.6B, ${fmt(p.kv_tokens)} tokens of cache) against the simulator replaying the same 120 Copilot sessions.`}>
       <PlainCard title="Reusable prefix served per gap" s={s} xLabel="Gap" format={pct1}
         subtitle={`Within ${fmt(worst, 1)} points in every gap bin; overall ${pct1(p.overall.sim_hit_share)} simulated vs ${pct1(p.overall.engine_hit_share)} measured`} />
       <Card title="Simulator vs engine" subtitle="Validates one replica's GPU-cache eviction only, not placement, tiers, or lifetimes">
@@ -689,7 +533,7 @@ export function Simulator({ data }: { data: Data }) {
           rows={p.bins.map((b) => [GAP[b.bin], b.calls, pct1(b.engine_hit_share), pct1(b.sim_hit_share),
             `${b.diff_points >= 0 ? "+" : "−"}${fmt(Math.abs(b.diff_points), 1)} pts`])} />
       </Card>
-    </Section>
+    </Sub>
   );
 }
 
@@ -732,46 +576,91 @@ function ResumeCard({ study }: { study: ResumeStudy }) {
   );
 }
 
-export function Resume({ data }: { data: Data }) {
+function ResumePart({ data }: { data: Data }) {
   const studies = data.analyses.resume ?? [];
-  if (!studies.length) return <Section title="Paused agent sessions"><Missing what="the paused-session study" /></Section>;
+  if (!studies.length) return <Sub title="Studies, repeat by repeat"><Missing what="the paused-session study" /></Sub>;
   return (
-    <Section title="Paused agent sessions" intro="Copilot coding-agent sessions replayed onto vllm-metal (Qwen3-0.6B) with their recorded pauses, compressed 4×; a call is returning when its pause was at least 60 s. Each study's decision rule was fixed in its spec before it ran and reads the repeats one by one, so trials are shown per repeat, not averaged. A trial does not count when the host paged or slept while it measured (table view: Counts); it is rerun, or under the fallback graded only if every copy agrees.">
+    <Sub title="Studies, repeat by repeat" note="Each study's rule reads the repeats one by one, so trials are not averaged. Table view: every trial and whether it counts.">
       {studies.map((study) => <ResumeCard key={study.title} study={study} />)}
-    </Section>
+    </Sub>
   );
 }
 
-export function Provenance({ data }: { data: Data }) {
-  const a = data.analyses;
+export function EnginesCaching({ data }: { data: Data }) {
   return (
-    <Section title="Run provenance" intro="The run behind every chart, all on one Apple Silicon Mac. Runs marked imported were recorded before the experiment harness and carry no commit; their metrics are recomputed from the recorded requests.">
-      <Card title="Published runs">
-        <DataTable
-          columns={["Experiment", "Finished", "Commit", "Trials or tasks"]}
-          rows={data.index.map((e) => {
-            const tools = data.results[e.name].provenance.tools as Record<string, unknown>;
-            const commit = e.git_commit === "unknown" ? "imported" : `${e.git_commit.slice(0, 7)}${e.git_dirty ? " (modified)" : ""}`;
-            return [e.name, e.finished_at.slice(0, 10), commit,
-              tools.tasks_completed !== undefined ? `${tools.tasks_completed} tasks`
-                : tools.trials_planned === undefined ? String(tools.trials_completed ?? data.results[e.name].trials.length) : `${tools.trials_completed}/${tools.trials_planned}`];
-          })}
-        />
-      </Card>
-      <Card title="Analyses">
-        <DataTable columns={["Output", "Commit"]} rows={[
-          ["Provider-cache retention (Copilot week)", a.retention ? a.retention.git_commit.slice(0, 7) : "–"],
-          ["Simulator vs engine (K11)", a.simulator_check ? a.simulator_check.git_commit.slice(0, 7) : "–"],
-        ]} />
-      </Card>
-      <Card title="Scope">
-        <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed" style={{ color: "var(--ink-2)" }}>
-          <li>One machine: no datacenter GPUs and no multi-node scale; small models (Qwen3-0.6B to 8B).</li>
-          <li>The CPU tier is simulated in every mixed-pool result, and the host often paged, so differences under ~15% are not claimed.</li>
-          <li>The provider's cache counts come from one unnamed provider, which also shares prefixes across sessions.</li>
-          <li>The vllm-metal release used here cannot offload KV, so RAM and SSD tiers are simulated; the simulator is checked against a real engine for one replica's GPU cache only.</li>
-        </ul>
-      </Card>
-    </Section>
+    <Page eyebrow="Serving" title="Which engine and cache settings serve the GPU tier?" evidence="measured"
+      answer="vllm-metal: about 2.2× mlx_lm.server's throughput at concurrency 8 on the Apple GPU, with tool-call accuracy unchanged across engines; llama.cpp wins only single-stream. Prefix caching is the bigger lever: 2.7× lower TTFT p50 on multi-turn RAG."
+      method="E7, E1, E2 on real engines (Qwen3-0.6B); E6 on the Gemini API. Intervals are 95% CIs where repeated.">
+      <EnginesPart data={data} />
+      <CachingPart data={data} />
+    </Page>
+  );
+}
+
+export function RoutingOverflow({ data }: { data: Data }) {
+  return (
+    <Page eyebrow="Serving" title="How should agent traffic be routed, and when should it overflow?" evidence="mixed"
+      answer="Route each call back to its cache: llm-d's cache-aware scoring delivers 1.8–2.3× random's throughput. On a GPU + CPU pool, score by capacity so the slow tier takes only overflow. When the pool saturates, Gemini as one more endpoint lifts 1.77 to 5.1–5.7 requests per second."
+      method="llm-d is real; E8 and E3 replicas are simulated and calibrated to the real GPU engine; E9 and E10 use the real GPU engine with a simulated CPU tier; E4 uses simulated local workers.">
+      <RoutingPart data={data} />
+      <HybridPart data={data} />
+      <QualityPart data={data} />
+    </Page>
+  );
+}
+
+export function Replay({ data }: { data: Data }) {
+  return (
+    <Page eyebrow="Serving" title="Does a routing policy win on real agent traffic?" evidence="mixed"
+      answer="Not with Qwen3-0.6B: the policies' intervals overlap over 3 repeats. With Qwen3-4B at 16 sessions, capacity-aware scorers cut errors from 11 to about 1 per run, and a precise prefix index matched the approximate one."
+      method="GitHub Copilot sessions replayed on the real GPU engine with a simulated CPU tier, through llm-d on kind.">
+      <ReplayPart data={data} />
+    </Page>
+  );
+}
+
+export function Context({ data }: { data: Data }) {
+  return (
+    <Page eyebrow="Agent context" title="What should an agent send each step, and can the gateway manage it?" evidence="mixed"
+      answer="Keep the prompt append-only and trim once past a budget. Naive trimming recomputes up to 2.6× more prefill; the gateway's window+cache cut it 14–39% in every paired Copilot replay, and halved Gemini prompt tokens with no detectable accuracy loss."
+      method="C1 and C2 on the Gemini API (judge κ = 0.96, Holm-corrected McNemar); K6 simulated, K7 through live llm-d, K8 on vllm-metal, K9 through the gateway onto vllm-metal.">
+      <GatewayContextPart data={data} />
+      <ContextPoliciesPart data={data} />
+    </Page>
+  );
+}
+
+export function Lifetime({ data }: { data: Data }) {
+  const k = data.analyses.retention;
+  const answer = k
+    ? `The provider recomputed ${pct1(k.waste[0])}–${pct1(k.waste[1])} of later calls' reusable prompt, and expiry explains only a quarter of it. A 5 min / 1 h / 24 h lifetime would keep ${pct(k.retained[0])} / ${pct1(k.retained[1])} / ${pct(k.retained[2])} of the reusable prefix for about 1× / ${fmt(k.working_tb[1] / k.working_tb[0], 0)}× / ${fmt(k.working_tb[2] / k.working_tb[0], 0)}× the memory: the knee is under an hour.`
+    : undefined;
+  return (
+    <Page eyebrow="KV memory" title="How long should agent KV be kept?" evidence="trace" answer={answer}
+      method="A week of GitHub Copilot coding-agent traces: token counts and timing, no text.">
+      <ProviderCachePart data={data} />
+      <LifetimesPart data={data} />
+    </Page>
+  );
+}
+
+export function Placement({ data }: { data: Data }) {
+  return (
+    <Page eyebrow="KV memory" title="What buys the most KV reuse at fleet scale?" evidence="simulated"
+      answer="Placement first: least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%. Then GPU cache size, then host RAM; retention policy matters least. The simulator behind it is within 0.7 points of a real engine."
+      method="Block-level KV simulator replaying Copilot traffic; its eviction model is validated on one vllm-metal replica (K11).">
+      <ReusePart data={data} />
+      <SimulatorPart data={data} />
+    </Page>
+  );
+}
+
+export function Paused({ data }: { data: Data }) {
+  return (
+    <Page eyebrow="KV memory" title="What does an SSD KV tier save agent sessions that pause?" evidence="measured"
+      answer="Returning calls recompute 2–15% of their prefix instead of 33–43%, with 41–53% lower TTFT p95, but the median barely moves. A store shared by two replicas does not replace session affinity, and at a 5.3 s p95 SLO the tier held one more load level in only 2 of 3 repeats."
+      method="Copilot sessions replayed onto vllm-metal (Qwen3-0.6B) with recorded pauses compressed 4×; a call is returning after a pause of 60 s or more. Each rule was fixed in its spec before the run.">
+      <ResumePart data={data} />
+    </Page>
   );
 }
