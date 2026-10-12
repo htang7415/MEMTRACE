@@ -1,0 +1,49 @@
+schema_version: memtrace-resume-v1
+name: item2-load-probe
+description: >
+  Item 2 step 1: at what load does one engine get busy? The stock arm of R1 (Qwen3-0.6B, 1,353 GPU blocks of 16
+  tokens) at four concurrencies, max_num_seqs raised to match, one repeat each, 15 min with 5 min of warm-up. Per
+  level it records resumed and all-calls TTFT, the engine's queue (requests waiting, sampled each second), calls
+  served and sessions used. It decides nothing about tiers: it picks the capacity sweep's levels and SLO.
+decision_rule: >
+  Fixed 2026-10-12, before the probe ran. "Busy" is the lowest level where requests wait in the engine's queue in more
+  than 10% of the measured window's samples, or all-calls TTFT p50 is at least 1.5x its value at concurrency 12.
+  The capacity sweep runs three levels: the last level below busy, busy, and the next one up (if busy is 12: 12,
+  24, 36; if no level is busy: 24, 36, 48). Its SLO is resumed TTFT p95 with failed calls counted <= 2x this
+  probe's value at concurrency 12, rounded up to the next 100 ms. If the probe uses more than 80% of the 200
+  sessions at its top level, the sweep samples 400.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 1
+levels: [12, 24, 36, 48]
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: one GPU replica whose KV cache holds about 7 median agent prompts, under rising session load
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12  # overridden per level
+  horizon_s: 900
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  stock-equal-memory:
+    target: {extra_args: [--block-size, "16", --num-gpu-blocks-override, "1353"]}
+target:
+  model: Qwen/Qwen3-0.6B
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 12272  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12  # overridden per level
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "768"]

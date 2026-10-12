@@ -8,7 +8,7 @@ from pathlib import Path
 import socket
 import subprocess
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 import urllib.request
 
 from memtrace.harness.budget import ModelPrice, load_prices
@@ -56,14 +56,16 @@ VLLM_COUNTERS = (
 )
 
 
-def scrape_vllm_counters(base_url: str, timeout_s: float = 5.0) -> dict[str, float]:
-    """Sum selected vLLM Prometheus counters across label sets; {} if unreachable."""
+def scrape_vllm_counters(
+    base_url: str, names: Sequence[str] = VLLM_COUNTERS, timeout_s: float = 5.0
+) -> dict[str, float]:
+    """Sum selected vLLM Prometheus metrics (`VLLM_COUNTERS` by default) across label sets; {} if unreachable."""
     try:
         with urllib.request.urlopen(base_url + "/metrics", timeout=timeout_s) as resp:
             text = resp.read().decode("utf-8", "replace")
     except OSError:
         return {}
-    totals = {name: 0.0 for name in VLLM_COUNTERS}
+    totals = {name: 0.0 for name in names}
     for line in text.splitlines():
         if line.startswith("#"):
             continue
