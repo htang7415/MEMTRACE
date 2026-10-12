@@ -131,7 +131,13 @@ def test_committed_specs_load() -> None:
     specs = [p for p in Path("experiments").glob("r*_resume_*.yaml") if not p.name.startswith("._")]
     specs += [
         Path(f"experiments/{name}.yaml")
-        for name in ("s2_shared_tier", "s2_shared_tier_rerun", "item2_load_probe", "item2_capacity")
+        for name in (
+            "s2_shared_tier",
+            "s2_shared_tier_rerun",
+            "item2_load_probe",
+            "item2_capacity",
+            "item2_capacity_rerun",
+        )
     ]
     assert specs
     for path in specs:
@@ -272,6 +278,13 @@ def test_levels_run_each_concurrency_as_its_own_cell(tmp_path: Path, monkeypatch
     ]
     assert seqs == concurrencies == [12, 12, 24, 24]
     assert all(t["metrics"]["sessions_used"] == 1 for t in result["trials"])
+    spec.update(name="rerun", repeats=3, first_repeat=2, levels=[24])  # a rerun of one later repeat
+    path.write_text(yaml.safe_dump(spec, sort_keys=False))
+    rerun = json.loads((resume_mod.run(path, tmp_path / "runs") / "results.json").read_text())
+    assert [(t["cell_id"], t["seed"]) for t in rerun["trials"]] == [
+        ("arm=stock-equal-memory,c=24", 2),
+        ("arm=host-pool+ssd,c=24", 2),
+    ]
 
 
 def test_swapouts_count_only_from_the_measured_window(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -23,6 +23,7 @@ content hash, so an engine finds blocks another one wrote).
 
 `levels` sweeps load: each level is a concurrency, run with the engine's `max_num_seqs` at the same value, as its own
 cell (`arm=<arm>,c=<level>`). While a trial measures, the engines' queue gauges are sampled every second.
+`first_repeat` skips the repeats before it, so a rerun can replay one later repeat's seed alone.
 
     memtrace run resume experiments/r0_resume_baseline.yaml [--out data/runs]
 """
@@ -473,7 +474,7 @@ def run(spec_path: Path, out_root: Path) -> Path:
     bundle = RunBundle(spec, out_root, quiet_host=QuietHost(**spec.get("quiet_host", {})))
     replicas = int(spec.get("replicas", 1))
     levels: list[int | None] = list(spec.get("levels") or [None])
-    for rep in range(int(spec.get("repeats", 1))):
+    for rep in range(int(spec.get("first_repeat", 0)), int(spec.get("repeats", 1))):
         seed = seed0 * 1000 + rep
         for level, arm in itertools.product(levels, spec["arms"]):
             cell_id = f"arm={arm}" if level is None else f"arm={arm},c={level}"
