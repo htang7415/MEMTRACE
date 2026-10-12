@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from memtrace.kv import resume_decision
-from memtrace.kv.resume_decision import decide, grade, next_step
+from memtrace.kv.resume_decision import decide, decide_shared_tier, grade, next_step
 
 
 def trial(
@@ -94,3 +94,49 @@ def test_cli_reads_run_directories(
     resume_decision.main()
     assert "next step: R2 before S2" in capsys.readouterr().out
     assert json.loads((tmp_path / "decision.json").read_text())["grades"]["resumed_recompute_share"] == "A"
+
+
+def s2_trial(arm: str, seed: int, recompute: float, p95: float, *, measured: float = 0.0) -> dict[str, Any]:
+    t = trial(arm, seed, recompute, 400.0, measured=measured)
+    t["metrics"]["resumed_ttft_all_p95_ms"] = p95
+    t["requests_per_endpoint"] = [600, 600]
+    return t
+
+
+def s2_run(shared: list[tuple[float, float]], spread_recompute: float = 0.40) -> dict[str, Any]:
+    trials = []
+    for seed, (recompute, p95) in enumerate(shared):
+        trials += [
+            s2_trial("affinity+private", seed, 0.10, 1500.0),
+            s2_trial("round-robin+private", seed, spread_recompute, 2500.0),
+            s2_trial("round-robin+shared", seed, recompute, p95),
+        ]
+    return run("s2", trials)
+
+
+def test_s2_shared_tier_recovers_when_within_15_percent_of_affinity_in_every_repeat() -> None:
+    result = decide_shared_tier([s2_run([(0.11, 1600.0), (0.10, 1700.0), (0.114, 1500.0)])], repeats=3)
+    assert result["affinity_benefit"] and result["shared_recovers"]
+    assert result["repeats"][0]["affinity_benefit"] == pytest.approx(0.75)  # 0.40 -> 0.10
+    assert result["repeats"][1]["shared_vs_affinity"]["resumed_ttft_all_p95_ms"] == pytest.approx(-0.1333, abs=1e-3)
+    assert result["repeats"][0]["calls_per_replica"]["round-robin+shared"] == [600, 600]
+    assert result["next_step"] == "item 2: capacity with a shared tier"
+
+
+def test_s2_one_repeat_outside_15_percent_means_no_recovery() -> None:
+    result = decide_shared_tier([s2_run([(0.11, 1600.0), (0.10, 1800.0), (0.10, 1500.0)])], repeats=3)
+    assert result["affinity_benefit"] and not result["shared_recovers"]  # p95 20% worse in repeat 1
+    assert result["next_step"].startswith("item 2: one replica") and "does not recover" in result["next_step"]
+
+
+def test_s2_without_an_affinity_benefit_there_is_nothing_to_recover() -> None:
+    result = decide_shared_tier([s2_run([(0.10, 1500.0)] * 3, spread_recompute=0.11)], repeats=3)
+    assert not result["affinity_benefit"] and "no benefit" in result["next_step"]
+
+
+def test_s2_needs_valid_trials_in_all_three_arms() -> None:
+    runs = s2_run([(0.10, 1500.0)] * 3)
+    runs["trials"][5] = s2_trial("round-robin+shared", 1, 0.10, 1500.0, measured=900.0)
+    result = decide_shared_tier([runs], repeats=3)
+    assert result["next_step"].startswith("incomplete: 2 of 3")
+    assert result["to_rerun"] == [{"arm": "round-robin+shared", "seed": 1, "reason": "host paged out 900 pages"}]

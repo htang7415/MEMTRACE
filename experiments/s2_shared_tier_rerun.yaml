@@ -1,0 +1,51 @@
+schema_version: memtrace-resume-v1
+name: s2-shared-tier-rerun
+description: >
+  Rerun of repeat 0 (seed 0) of experiments/s2_shared_tier.yaml for the two arms its recovery test compares
+  (affinity+private, round-robin+shared): every trial of the first run paged while it measured. Same build, replay,
+  sizes and seed, so the repeat replays the same session order. Repeat 0 is the one whose verdict decides the rule
+  if it holds: round-robin+shared recomputed 22% more resumed prefix than affinity+private there, outside the 15%,
+  and recovery must hold in every repeat. Under the spec's fallback the repeat is graded on its paged copies only
+  if every combination of them gives the same per-repeat verdict; otherwise it stays ungraded.
+decision_rule: >
+  As experiments/s2_shared_tier.yaml (fixed 2026-10-11, before any trial ran). These trials are further copies of
+  its repeat 0; no rule changes.
+day: copilot_agent/date.2026-06-02.tar.gz
+sessions: 200
+seed: 0
+repeats: 1  # seed 0 * 1000 + 0, the first run's repeat 0
+replicas: 2
+idle_cap_s: 3600
+resume_gap_s: 60
+cache_dir: artifacts/cache/resume
+kv_store_dir: ~/.cache/memtrace/kvstore  # internal SSD (APFS)
+hardware:
+  represents: two GPU replicas behind one gateway, each holding about 4 median agent prompts while 6 sessions are active
+  runs_on: one Apple Silicon Mac, unified memory, vllm-metal, internal SSD
+quiet_host: {max_load_1m: 4.0, wait_s: 120}
+replay:
+  concurrency: 12
+  horizon_s: 1800
+  warmup_s: 300
+  stagger_s: 60
+  time_scale: 4
+  scale: 0.03125
+  output_scale: 0.05
+  max_output_tokens: 16
+  block_tokens: 16
+  timeout_s: 300
+arms:
+  affinity+private:
+    routing: affinity
+    kv_tier: {host_pool_gib: 0.8, max_size_gib: 5}
+  round-robin+shared:
+    routing: round_robin
+    kv_tier: {host_pool_gib: 0.8, max_size_gib: 5, shared: true}
+target:
+  model: mlx-community/Qwen3-0.6B-4bit
+  vllm: ~/.venv-vllm-metal-dev/bin/vllm
+  max_model_len: 8176  # one block under the fixed cache, as vLLM requires
+  max_num_seqs: 12
+  gpu_memory_utilization: 0.4
+  enable_prefix_caching: true
+  extra_args: [--block-size, "16", --num-gpu-blocks-override, "512"]
