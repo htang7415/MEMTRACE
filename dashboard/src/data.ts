@@ -44,10 +44,31 @@ export interface BfclRow {
   wilson_95: [number, number];
 }
 
+/** One resume-track trial as its study's decision rule counted it (memtrace report dashboard). */
+export interface ResumeRow {
+  cell: string; // arm, or "arm,c=<concurrency>" in a load sweep
+  repeat: number;
+  run_id: string;
+  excluded: string | null; // why it does not count (the host paged or slept while it measured)
+  resumed_recompute_share: number | null;
+  resumed_ttft_p50_ms: number | null;
+  resumed_ttft_all_p95_ms: number | null;
+  all_ttft_p50_ms: number | null;
+  calls: number | null;
+}
+
+export interface ResumeStudy {
+  title: string;
+  runs: string[];
+  verdict: string;
+  rows: ResumeRow[];
+}
+
 export interface Analyses {
   retention: Retention | null;
   simulator_check: SimulatorCheck | null;
   bfcl_gate: BfclRow[];
+  resume: ResumeStudy[];
 }
 
 export interface Data {

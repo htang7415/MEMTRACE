@@ -23,6 +23,8 @@ real engines and what was simulated, with 95% confidence intervals where runs we
 | Can the gateway do it for every client? | On Copilot traffic onto Qwen3-8B, the gateway's `window+cache` cut recomputed prefill by 14–39% in all 4 paired runs (2 days × 2 repeats); `mask+cache` ranged from −31% to +37% (K9, K9b). In front of Gemini on 100 paired agent tasks: −50% prompt tokens [−80%, −20%], but cost only −12% [−36%, +13%] because trimmed prompts lose the provider's cache; accuracy 52% vs 44%, not a significant difference (C2) |
 | How long should agent KV be kept? | The provider recomputed 8–12% of reusable prompt tokens. With every call routed to its cache, a 5 min / 1 h / 24 h lifetime serves 96 / 99.4 / 100% of the reusable prefix for about 1× / 4× / 30× the memory |
 | What buys the most cache reuse? | In simulation of a Copilot day on 64 replicas: placement first (least-loaded keeps 5–11% of the reusable prefix, cache-affine placement 89–98%), then GPU cache size, then host RAM (97% with 256 GB per replica at 128 GB of GPU cache); retention policy matters least, as expected once capacity evicts blocks long before a 1 h lifetime ends (K10) |
+| Does an SSD KV tier help a resumed agent session? | On one `vllm-metal` replica (Qwen3-0.6B), calls returning after a pause of 60 s or more recompute 2–15% of their reusable prefix instead of 33–43%, and their TTFT p95 falls 41–53%. Their median TTFT moves only 0–18%, and the all-calls median rises 1–7% (3 paired repeats, R1). At a 5.3 s resumed-p95 target the tier held 24 sessions at once in 2 of 3 repeats, stock in none; under the every-repeat rule both serve 12 (item 2) |
+| With two replicas, can a shared SSD tier replace session affinity? | Not quite. With one store for both engines, round robin wins back 91–100% of the prefix tokens it would recompute. It trails affinity by more than 15% in one of three repeats, and costs 10–26% on the all-calls median TTFT. Every trial paged, so the verdict uses the rule's fallback (item 1) |
 | Is the simulator right? | Within 0.7 points of a real `vllm-metal` engine in every gap bin, for one replica's GPU cache (one run, K11) |
 
 Details, definitions, and every run: [full results](results/README.md) and the [dashboard](https://htang7415.github.io/MEMTRACE/).
@@ -85,8 +87,9 @@ and rerun the experiments it affects; CI checks that `deploy/`, `scripts/` and `
 
 - One machine: no datacenter GPUs, no multi-node scale; small models (Qwen3-0.6B to 8B).
 - The CPU tier is simulated; the host often paged, so differences under ~15% are not claimed.
-- The `vllm-metal` release used here (0.30.0) cannot offload KV, so RAM and SSD cache tiers were studied in
-  simulation only. SSD offload has since landed in `vllm-metal`; measuring it is the next step.
+- Most results use `vllm-metal` 0.30.0, which cannot offload KV, so RAM and SSD cache tiers at fleet scale were
+  studied in simulation. The resume track measures the SSD tier of a 0.31 development build on one and two
+  replicas of Qwen3-0.6B, with each study's decision rule fixed before it ran.
 - The KV simulator assumes append-only prompts for the Copilot traces and idealized placement; it is checked
   against a real engine for one replica's GPU cache.
 
